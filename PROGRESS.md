@@ -12,7 +12,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S0.4 Tokens e fontes
 - [x] S0.5 Config
 - [x] S0.6 Banco (migrations + tipos manuais; push remoto pendente — ver Bloqueios)
-- [ ] S0.7 Clients Supabase
+- [x] S0.7 Clients Supabase
 - [ ] S0.8 UI kit
 - [ ] S0.9 Testes e CI
 - [ ] S0.10 Shells de layout
@@ -75,6 +75,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - **S0.6 `supabase link` / `db push`:** CLI sem access token (`supabase login` não feito) e Docker indisponível (sem Supabase local). Migrations `0001_schema.sql` e `0002_rpcs.sql` estão prontas. Tipos em `src/lib/database.types.ts` foram gerados manualmente a partir do schema — regenerar com `supabase gen types typescript --linked` após o push. **Ação humana:** `npx supabase login` → `npx supabase link --project-ref hxlrskcnsbmmotjmxxfd` → informar senha do DB → `npx supabase db push`.
 
 ### Resolvidos
+
+- **Dep extra (S0.7):** `server-only` instalado (exigido pelo plano para `admin.ts`).
 
 - **Env local (S0.5):** `.env.local` criado com URL/anon do Supabase já conhecidos. Preencher: `SUPABASE_SECRET_KEY`, `ABACATEPAY_*` (rotacionar key), `RESEND_API_KEY`. Placeholders atuais permitem build/test local.
 
