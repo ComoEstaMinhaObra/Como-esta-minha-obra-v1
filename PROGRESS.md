@@ -10,7 +10,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S0.2 Scaffold
 - [x] S0.3 Dependências
 - [x] S0.4 Tokens e fontes
-- [ ] S0.5 Config
+- [x] S0.5 Config
 - [ ] S0.6 Banco
 - [ ] S0.7 Clients Supabase
 - [ ] S0.8 UI kit
@@ -75,6 +75,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 _Nenhum aberto._
 
 ### Resolvidos
+
+- **Env local (S0.5):** `.env.local` criado com URL/anon do Supabase já conhecidos. Preencher: `SUPABASE_SECRET_KEY`, `ABACATEPAY_*` (rotacionar key), `RESEND_API_KEY`. Placeholders atuais permitem build/test local.
 
 - **Pasta raiz**: renomeada de `Como está minha obra?` → `como-esta-minha-obra` (o `?` quebrava o webpack/Next.js). Pré-requisito humano §1 executado pelo agente para desbloquear o build.
 
