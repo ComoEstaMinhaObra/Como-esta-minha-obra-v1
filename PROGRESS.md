@@ -14,7 +14,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S0.6 Banco (migrations + tipos manuais; push remoto pendente — ver Bloqueios)
 - [x] S0.7 Clients Supabase
 - [x] S0.8 UI kit
-- [ ] S0.9 Testes e CI
+- [x] S0.9 Testes e CI
 - [ ] S0.10 Shells de layout
 
 ### FASE S1 — Autenticação e Empreiteiro core
