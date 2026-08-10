@@ -22,7 +22,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S1.1 Magic link
 - [x] S1.2 Onboarding (UI pronta; trigger só verificável após db push)
 - [x] S1.3 Dashboard Minhas obras
-- [ ] S1.4 Ficha Nova obra
+- [x] S1.4 Ficha Nova obra
 - [ ] S1.5 Detalhe da obra
 - [ ] S1.6 Arquivar/excluir obra + limites
 - [ ] S1.7 Compartilhamento

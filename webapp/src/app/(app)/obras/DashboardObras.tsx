@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   BarraProgresso,
-  Botao,
   Cartao,
   Selo,
 } from "@/components/ui";
@@ -53,9 +52,12 @@ export function DashboardObras({ obras }: { obras: ObraCard[] }) {
           className="w-full flex-1 rounded-full border border-borda bg-white px-4 py-2.5 text-sm outline-none focus:border-marca"
           aria-label="Buscar obras"
         />
-        <Botao variante="terciario" className="shrink-0">
-          <Link href="/obras/nova">+ Nova obra</Link>
-        </Botao>
+        <Link
+          href="/obras/nova"
+          className="inline-flex shrink-0 items-center justify-center rounded-full bg-tinta px-5 py-2.5 text-sm text-white hover:bg-escuro-1"
+        >
+          + Nova obra
+        </Link>
       </div>
 
       <div className="flex items-end justify-between gap-3">
