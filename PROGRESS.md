@@ -19,8 +19,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ### FASE S1 — Autenticação e Empreiteiro core
 
-- [ ] S1.1 Magic link
-- [ ] S1.2 Onboarding
+- [x] S1.1 Magic link
+- [x] S1.2 Onboarding (UI pronta; trigger só verificável após db push)
 - [ ] S1.3 Dashboard Minhas obras
 - [ ] S1.4 Ficha Nova obra
 - [ ] S1.5 Detalhe da obra
@@ -71,6 +71,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [ ] S5.6 Seed de demonstração
 
 ## Bloqueios
+
+- **S1.2 verificação live:** trigger `handle_new_user` e `trial_fim ≈ now()+14d` só após `supabase db push` + login real.
 
 - **S0.6 `supabase link` / `db push`:** CLI sem access token (`supabase login` não feito) e Docker indisponível (sem Supabase local). Migrations `0001_schema.sql` e `0002_rpcs.sql` estão prontas. Tipos em `src/lib/database.types.ts` foram gerados manualmente a partir do schema — regenerar com `supabase gen types typescript --linked` após o push. **Ação humana:** `npx supabase login` → `npx supabase link --project-ref hxlrskcnsbmmotjmxxfd` → informar senha do DB → `npx supabase db push`.
 
