@@ -8,7 +8,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 - [x] S0.1 Git e higiene
 - [x] S0.2 Scaffold
-- [ ] S0.3 Dependências
+- [x] S0.3 Dependências
 - [ ] S0.4 Tokens e fontes
 - [ ] S0.5 Config
 - [ ] S0.6 Banco
