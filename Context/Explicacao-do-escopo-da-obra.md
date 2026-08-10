@@ -1,0 +1,2 @@
+Por padrao, ao criar uma nova página de obra, o escopo deve seguir o modelo do arquivo
+'./Context/Site - Como Está Minha Obra - Linha de criação.xlsx' pagina "Relatório Cliente" da coluna B linha 122 a 144 com etapas e pesos. Porém deve ter como adicionar/remover/editar etapa e alterar o peso de cada etapa na porcentagem total.

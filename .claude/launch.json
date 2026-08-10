@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "design-system",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "design-system", "-p", "4173"],
+      "port": 4173
+    }
+  ]
+}

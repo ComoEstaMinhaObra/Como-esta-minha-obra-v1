@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+.env*
+!.env.example
+webapp/.next/
+webapp/out/
+webapp/coverage/
+webapp/playwright-report/
+webapp/test-results/
+*.log
+.vercel/
