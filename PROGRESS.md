@@ -11,7 +11,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S0.3 Dependências
 - [x] S0.4 Tokens e fontes
 - [x] S0.5 Config
-- [ ] S0.6 Banco
+- [x] S0.6 Banco (migrations + tipos manuais; push remoto pendente — ver Bloqueios)
 - [ ] S0.7 Clients Supabase
 - [ ] S0.8 UI kit
 - [ ] S0.9 Testes e CI
@@ -72,7 +72,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ## Bloqueios
 
-_Nenhum aberto._
+- **S0.6 `supabase link` / `db push`:** CLI sem access token (`supabase login` não feito) e Docker indisponível (sem Supabase local). Migrations `0001_schema.sql` e `0002_rpcs.sql` estão prontas. Tipos em `src/lib/database.types.ts` foram gerados manualmente a partir do schema — regenerar com `supabase gen types typescript --linked` após o push. **Ação humana:** `npx supabase login` → `npx supabase link --project-ref hxlrskcnsbmmotjmxxfd` → informar senha do DB → `npx supabase db push`.
 
 ### Resolvidos
 
