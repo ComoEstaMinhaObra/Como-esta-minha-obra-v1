@@ -13,7 +13,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S0.5 Config
 - [x] S0.6 Banco (migrations + tipos manuais; push remoto pendente — ver Bloqueios)
 - [x] S0.7 Clients Supabase
-- [ ] S0.8 UI kit
+- [x] S0.8 UI kit
 - [ ] S0.9 Testes e CI
 - [ ] S0.10 Shells de layout
 
