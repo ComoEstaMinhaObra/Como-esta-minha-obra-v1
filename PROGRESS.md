@@ -6,8 +6,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ### FASE S0 — Fundação
 
-- [ ] S0.1 Git e higiene
-- [ ] S0.2 Scaffold
+- [x] S0.1 Git e higiene
+- [x] S0.2 Scaffold
 - [ ] S0.3 Dependências
 - [ ] S0.4 Tokens e fontes
 - [ ] S0.5 Config
@@ -72,7 +72,11 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ## Bloqueios
 
-_Nenhum ainda._
+_Nenhum aberto._
+
+### Resolvidos
+
+- **Pasta raiz**: renomeada de `Como está minha obra?` → `como-esta-minha-obra` (o `?` quebrava o webpack/Next.js). Pré-requisito humano §1 executado pelo agente para desbloquear o build.
 
 ## Notas / tarefas futuras
 
