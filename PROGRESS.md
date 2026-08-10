@@ -15,7 +15,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S0.7 Clients Supabase
 - [x] S0.8 UI kit
 - [x] S0.9 Testes e CI
-- [ ] S0.10 Shells de layout
+- [x] S0.10 Shells de layout
 
 ### FASE S1 — Autenticação e Empreiteiro core
 
