@@ -1,5 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { vi } from "vitest";
+
+/** server-only lança em testes; noop no Vitest. */
+vi.mock("server-only", () => ({}));
 
 /** Carrega .env.local / .env para testes (sem dependência extra). */
 function carregarEnv(arquivo: string) {

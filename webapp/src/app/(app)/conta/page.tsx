@@ -1,6 +1,7 @@
 import { Botao } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { sair } from "./actions";
+import { CancelarAssinatura } from "./CancelarAssinatura";
 
 export default async function ContaPage() {
   const supabase = await createClient();
@@ -53,6 +54,9 @@ export default async function ContaPage() {
           </dd>
         </div>
       </dl>
+
+      {assinatura?.status === "ativa" ? <CancelarAssinatura /> : null}
+
       <form action={sair}>
         <Botao type="submit" variante="secundario">
           Sair

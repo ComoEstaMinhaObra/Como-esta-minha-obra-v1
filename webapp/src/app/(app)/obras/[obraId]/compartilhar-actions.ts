@@ -1,6 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  produtoEmailExtraId,
+  registrarUso,
+  AbacatePayError,
+} from "@/lib/abacatepay";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { podeAdicionarEmailExtra } from "@/lib/gating";
 import type { AssinaturaStatus } from "@/lib/gating";
@@ -48,13 +54,15 @@ export async function liberarAcessoObra(obraId: string, email: string) {
 
   const cobradoExtra = (existentes?.length ?? 0) >= 1;
 
-  if (cobradoExtra) {
-    const { data: assinatura } = await supabase
-      .from("assinaturas")
-      .select("status, limite_obras, trial_fim, relatorios_enviados_trial")
-      .eq("user_id", user.id)
-      .maybeSingle();
+  const { data: assinatura } = await supabase
+    .from("assinaturas")
+    .select(
+      "id, status, limite_obras, trial_fim, relatorios_enviados_trial, abacatepay_subscription_id",
+    )
+    .eq("user_id", user.id)
+    .maybeSingle();
 
+  if (cobradoExtra) {
     const pode = podeAdicionarEmailExtra({
       status: (assinatura?.status ?? "trial") as AssinaturaStatus,
       limiteObras: assinatura?.limite_obras ?? 1,
@@ -68,16 +76,51 @@ export async function liberarAcessoObra(obraId: string, email: string) {
     }
   }
 
-  const { error } = await supabase.from("obra_acessos").insert({
-    obra_id: obraId,
-    email: emailNorm,
-    status: "convidado",
-    cobrado_extra: cobradoExtra,
-  });
+  const { data: acessoCriado, error } = await supabase
+    .from("obra_acessos")
+    .insert({
+      obra_id: obraId,
+      email: emailNorm,
+      status: "convidado",
+      cobrado_extra: cobradoExtra,
+    })
+    .select("id")
+    .single();
 
   if (error) return { ok: false as const, erro: error.message };
 
-  // E-mail de convite (S2.10): falha não bloqueia o acesso
+  // Algoritmo §5.4 passo 2: assinatura ativa + cobrado_extra → record-usage add
+  if (
+    cobradoExtra &&
+    assinatura?.status === "ativa" &&
+    assinatura.abacatepay_subscription_id &&
+    acessoCriado
+  ) {
+    try {
+      const uso = await registrarUso({
+        id: assinatura.abacatepay_subscription_id,
+        productId: produtoEmailExtraId(),
+        units: 1,
+        action: "add",
+      });
+      // assinatura_usos: escrita só via service role (RLS)
+      const admin = createAdminClient();
+      await admin.from("assinatura_usos").insert({
+        assinatura_id: assinatura.id,
+        obra_acesso_id: acessoCriado.id,
+        action: "add",
+        units: 1,
+        abacatepay_usage_id: uso.id,
+        installment_number: uso.installmentNumber,
+      });
+    } catch (e) {
+      console.error(
+        "[email-extra:add]",
+        e instanceof AbacatePayError ? e.message : e,
+      );
+    }
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("nome")
@@ -115,7 +158,75 @@ export async function removerAcessoObra(obraId: string, acessoId: string) {
     return { ok: false as const, erro: "SEM_PERMISSAO" };
   }
 
-  // Algoritmo add-on completo (record-usage) em S4.5; v1 remove a linha.
+  const { data: acesso } = await supabase
+    .from("obra_acessos")
+    .select("id, cobrado_extra")
+    .eq("id", acessoId)
+    .eq("obra_id", obraId)
+    .maybeSingle();
+
+  if (!acesso) return { ok: false as const, erro: "NAO_ENCONTRADO" };
+
+  // Algoritmo §5.4 passo 3: se cobrado e há add pendente no mesmo installment → subtract
+  if (acesso.cobrado_extra) {
+    const { data: assinatura } = await supabase
+      .from("assinaturas")
+      .select("id, status, abacatepay_subscription_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (
+      assinatura?.status === "ativa" &&
+      assinatura.abacatepay_subscription_id
+    ) {
+      const { data: usoAdd } = await supabase
+        .from("assinatura_usos")
+        .select("id, installment_number")
+        .eq("assinatura_id", assinatura.id)
+        .eq("obra_acesso_id", acessoId)
+        .eq("action", "add")
+        .order("criado_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (usoAdd?.installment_number != null) {
+        const { data: jaSubtract } = await supabase
+          .from("assinatura_usos")
+          .select("id")
+          .eq("assinatura_id", assinatura.id)
+          .eq("obra_acesso_id", acessoId)
+          .eq("action", "subtract")
+          .eq("installment_number", usoAdd.installment_number)
+          .maybeSingle();
+
+        if (!jaSubtract) {
+          try {
+            const uso = await registrarUso({
+              id: assinatura.abacatepay_subscription_id,
+              productId: produtoEmailExtraId(),
+              units: 1,
+              action: "subtract",
+            });
+            const admin = createAdminClient();
+            await admin.from("assinatura_usos").insert({
+              assinatura_id: assinatura.id,
+              obra_acesso_id: acessoId,
+              action: "subtract",
+              units: 1,
+              abacatepay_usage_id: uso.id,
+              installment_number: uso.installmentNumber,
+            });
+          } catch (e) {
+            console.error(
+              "[email-extra:subtract]",
+              e instanceof AbacatePayError ? e.message : e,
+            );
+          }
+        }
+      }
+    }
+  }
+
   const { error } = await supabase
     .from("obra_acessos")
     .delete()
