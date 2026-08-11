@@ -30,9 +30,10 @@ export default function TermosPage() {
       <section className="space-y-3">
         <h2 className="font-serif text-2xl font-light">2. Conta e acesso</h2>
         <p className="text-cinza-2">
-          O acesso é feito por magic link (e-mail). O usuário é responsável pela
-          veracidade dos dados e pela guarda do e-mail utilizado. Convites a
-          proprietários liberam acesso somente aos e-mails autorizados.
+          O acesso é feito com e-mail e senha. O usuário é responsável pela
+          veracidade dos dados e pela guarda das credenciais utilizadas.
+          Convites a proprietários liberam acesso somente aos e-mails
+          autorizados.
         </p>
       </section>
 

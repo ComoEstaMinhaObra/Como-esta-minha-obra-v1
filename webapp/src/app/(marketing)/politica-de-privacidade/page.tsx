@@ -45,8 +45,8 @@ export default function PoliticaPrivacidadePage() {
         <h2 className="font-serif text-2xl font-light">2. Dados coletados</h2>
         <ul className="list-disc space-y-2 pl-5 text-cinza-2">
           <li>
-            <strong className="text-tinta">Cadastro:</strong> e-mail (magic
-            link), nome do perfil.
+            <strong className="text-tinta">Cadastro:</strong> e-mail, senha
+            (armazenada de forma criptografada) e nome do perfil.
           </li>
           <li>
             <strong className="text-tinta">Dados da obra:</strong> endereço,
@@ -79,7 +79,8 @@ export default function PoliticaPrivacidadePage() {
         <p className="text-cinza-2">
           Prestação do serviço de relatórios e página do proprietário;
           autenticação; cobrança de planos e add-ons; envio de e-mails
-          transacionais (convite, novo relatório, magic link); suporte;
+          transacionais (convite, novo relatório, confirmação de cadastro,
+          recuperação de senha); suporte;
           cumprimento de obrigações legais; melhoria de segurança e prevenção a
           fraude.
         </p>

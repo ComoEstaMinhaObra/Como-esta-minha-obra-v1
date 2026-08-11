@@ -78,7 +78,7 @@ Itens que **só o humano** executa (agente não faz deploy de produção):
 - [ ] Domínio `comoestaminhaobra.com.br` + `www` apontando para a Vercel
 - [ ] Confirmar cron Vercel ativo (`vercel.json` / dashboard)
 - [ ] Supabase prod: `supabase db push` (se ainda houver drift), buckets Storage privados OK
-- [ ] SMTP customizado no Supabase Auth → Resend; assunto/copy pt-BR: **"Seu link de acesso — Como Está Minha Obra"**
+- [ ] SMTP customizado no Supabase Auth → Resend; templates relevantes após a troca para e-mail+senha (2026-08-11): **Confirm signup** ("Confirme seu cadastro — Como Está Minha Obra") e **Reset password** ("Redefina sua senha — Como Está Minha Obra"). O template de Magic Link não é mais usado.
 - [ ] Rotacionar / preencher `ABACATEPAY_API_KEY` real; rodar `npm run abacatepay:bootstrap` em prod e gravar `ABACATEPAY_PROD_*`
 - [ ] Registrar webhook AbacatePay: `https://comoestaminhaobra.com.br/api/webhooks/abacatepay` (+ secret)
 - [ ] Smoke em produção: login magic link → criar obra → rascunho → envio com PDF/e-mail reais → página do cliente
@@ -117,6 +117,16 @@ on conflict do nothing;
 - **Env local (S0.5):** `.env.local` criado com URL/anon do Supabase já conhecidos. Preencher: `SUPABASE_SECRET_KEY`, `ABACATEPAY_*` (rotacionar key), `RESEND_API_KEY`. Placeholders atuais permitem build/test local.
 
 - **Pasta raiz**: renomeada de `Como está minha obra?` → `como-esta-minha-obra` (o `?` quebrava o webpack/Next.js). Pré-requisito humano §1 executado pelo agente para desbloquear o build.
+
+## Mudanças pós-plano
+
+- **Auth trocada de magic link para e-mail+senha (2026-08-11, a pedido do Estevão):**
+  - `/entrar` agora tem 3 modos: entrar (e-mail+senha via `signInWithPassword`), criar conta (nome+e-mail+senha via `signUp`, com `data.nome` lido pelo trigger `handle_new_user`) e recuperar senha (`resetPasswordForEmail`).
+  - `/auth/callback` continua existindo e decide o destino pós-login (proprietário puro → `/c/{obraId}`); agora também funciona sem `code` (sessão já criada no client) e honra `?next=`. Usado por confirmação de cadastro e recuperação de senha.
+  - Nova rota `/auth/nova-senha` (define senha após link de recuperação; sem sessão redireciona `/entrar?erro=auth`).
+  - Copy legal atualizada (termos §2, política §§2–3) — magic link removido.
+  - **Atenção:** contas criadas antes via magic link não têm senha — usar "Esqueci minha senha" para definir uma.
+  - **Config Supabase (humano):** confirmar em Auth → Providers → Email que signup com senha está habilitado; templates de e-mail relevantes agora são Confirm signup e Reset password (ver checklist S5.5).
 
 ## Notas / tarefas futuras
 
