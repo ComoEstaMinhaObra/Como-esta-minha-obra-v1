@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { ETAPAS_PADRAO } from "@/lib/obras/etapas";
+import { geocodificarEndereco } from "@/lib/clima/geocode";
+import { sincronizarClimaObra } from "@/lib/clima/sincronizar";
 
 export type NovaObraInput = {
   nome: string;
@@ -36,6 +38,20 @@ export async function criarObraAction(input: NovaObraInput) {
       ? input.etapas
       : ETAPAS_PADRAO.map((nome) => ({ nome, peso: 1 }));
 
+  let lat = input.lat ?? null;
+  let lng = input.lng ?? null;
+  let avisoClima: string | undefined;
+
+  if (lat == null || lng == null) {
+    const geo = await geocodificarEndereco(input.endereco);
+    if (geo) {
+      lat = geo.lat;
+      lng = geo.lng;
+    } else {
+      avisoClima = "clima indisponível para este endereço";
+    }
+  }
+
   const { data, error } = await supabase.rpc("fn_criar_obra", {
     p_nome: input.nome,
     p_endereco: input.endereco,
@@ -44,8 +60,8 @@ export async function criarObraAction(input: NovaObraInput) {
     p_termino: input.terminoContratual,
     p_valor_centavos: input.valorContratadoCentavos,
     p_sinal_centavos: input.sinalCentavos,
-    p_lat: input.lat ?? undefined,
-    p_lng: input.lng ?? undefined,
+    p_lat: lat ?? undefined,
+    p_lng: lng ?? undefined,
     p_construtora: input.construtora || undefined,
     p_engenheiro: input.engenheiro || undefined,
     p_escritorio_arquitetura: input.escritorioArquitetura || undefined,
@@ -62,7 +78,20 @@ export async function criarObraAction(input: NovaObraInput) {
     return { ok: false as const, erro: error.message };
   }
 
-  return { ok: true as const, obraId: data as string };
+  const obraId = data as string;
+
+  // Fire-and-forget: população inicial de clima_snapshots
+  if (lat != null && lng != null) {
+    void sincronizarClimaObra(obraId, lat, lng).catch((err) => {
+      console.error("[clima] sync inicial falhou", obraId, err);
+    });
+  }
+
+  return {
+    ok: true as const,
+    obraId,
+    ...(avisoClima ? { avisoClima } : {}),
+  };
 }
 
 export async function atualizarCapaObra(obraId: string, path: string) {

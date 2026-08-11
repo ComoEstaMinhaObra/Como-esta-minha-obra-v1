@@ -42,13 +42,13 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ### FASE S3 — Página do Proprietário
 
-- [ ] S3.1 Guarda e layout
-- [ ] S3.2 Início
-- [ ] S3.3 Informações
-- [ ] S3.4 Galeria
-- [ ] S3.5 Linha do tempo
-- [ ] S3.6 Perfil
-- [ ] S3.7 Cron de clima
+- [x] S3.1 Guarda e layout
+- [x] S3.2 Início
+- [x] S3.3 Informações
+- [x] S3.4 Galeria
+- [x] S3.5 Linha do tempo
+- [x] S3.6 Perfil
+- [x] S3.7 Cron de clima
 
 ### FASE S4 — Monetização e marketing
 

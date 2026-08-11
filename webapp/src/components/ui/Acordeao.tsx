@@ -47,11 +47,13 @@ export function AcordeaoItem({
   titulo,
   children,
   nivel = 1,
+  resumo,
 }: {
   id: string;
   titulo: string;
   children: React.ReactNode;
   nivel?: 1 | 2;
+  resumo?: React.ReactNode;
 }) {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("AcordeaoItem precisa estar dentro de Acordeao");
@@ -76,8 +78,13 @@ export function AcordeaoItem({
         >
           {titulo}
         </span>
-        <span className="text-cinza-3 text-lg leading-none" aria-hidden>
-          {estaAberto ? "−" : "+"}
+        <span className="flex items-center gap-2">
+          {resumo ? (
+            <span className="text-xs text-marca">{resumo}</span>
+          ) : null}
+          <span className="text-cinza-3 text-lg leading-none" aria-hidden>
+            {estaAberto ? "−" : "+"}
+          </span>
         </span>
       </button>
       {estaAberto ? (
