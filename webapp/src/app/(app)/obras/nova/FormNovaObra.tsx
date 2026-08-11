@@ -12,6 +12,7 @@ import {
   RotuloSecao,
   useToast,
 } from "@/components/ui";
+import { ModalUpsellLimite } from "@/components/ui/ModalUpsellLimite";
 import { createClient } from "@/lib/supabase/client";
 import { ETAPAS_PADRAO } from "@/lib/obras/etapas";
 import { criarObraAction, atualizarCapaObra } from "./actions";
@@ -40,6 +41,7 @@ export function FormNovaObra() {
     ETAPAS_PADRAO.map((n) => ({ nome: n, peso: 1 })),
   );
   const [novaEtapa, setNovaEtapa] = useState("");
+  const [upsellLimite, setUpsellLimite] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,8 +75,7 @@ export function FormNovaObra() {
 
       if (!result.ok) {
         if (result.erro === "LIMITE_OBRAS") {
-          toast("Limite de obras do plano atingido");
-          router.push("/planos");
+          setUpsellLimite(true);
           return;
         }
         if (result.erro === "NAO_AUTENTICADO") {
@@ -215,6 +216,11 @@ export function FormNovaObra() {
       <Botao type="submit" disabled={carregando} className="w-full">
         {carregando ? "Criando…" : "Criar página de acompanhamento"}
       </Botao>
+
+      <ModalUpsellLimite
+        aberto={upsellLimite}
+        onFechar={() => setUpsellLimite(false)}
+      />
     </form>
   );
 }

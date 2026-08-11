@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import {
   AnelProgresso,
@@ -14,6 +15,7 @@ import { calcularAvancoGeral, calcularFinanceiro, calcularNovaDataTermino } from
 import { createClient } from "@/lib/supabase/server";
 import { DetalheAcoes } from "./DetalheAcoes";
 import { FeedRelatoriosPlaceholder } from "./FeedRelatoriosPlaceholder";
+import { ModalArquivarObra } from "./ModalArquivarObra";
 
 function formatarDataBr(isoDate: string): string {
   const [y, m, d] = isoDate.split("-");
@@ -104,7 +106,9 @@ export default async function DetalheObraPage({
             </p>
             {obra.arquivada_em ? <Selo tom="cinza">Arquivada</Selo> : null}
           </div>
-          <DetalheAcoes obraId={obra.id} arquivada={obra.arquivada_em != null} />
+          <Suspense fallback={<div className="h-10" />}>
+            <DetalheAcoes obraId={obra.id} arquivada={obra.arquivada_em != null} />
+          </Suspense>
         </div>
       </header>
 
@@ -190,6 +194,12 @@ export default async function DetalheObraPage({
           <FeedRelatoriosPlaceholder relatorios={relatorios ?? []} />
         </section>
       </div>
+
+      {!obra.arquivada_em ? (
+        <div className="pt-4 border-t border-divisor">
+          <ModalArquivarObra obraId={obra.id} nomeObra={obra.nome} />
+        </div>
+      ) : null}
     </div>
   );
 }
