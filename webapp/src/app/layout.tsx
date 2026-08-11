@@ -19,8 +19,17 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Como Está Minha Obra",
+  title: {
+    default: "Como Está Minha Obra",
+    template: "%s · Como Está Minha Obra",
+  },
   description: "Acompanhe a obra da fundação à entrega.",
+  openGraph: {
+    title: "Como Está Minha Obra",
+    description: "Acompanhe a obra da fundação à entrega.",
+    locale: "pt_BR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

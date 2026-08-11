@@ -63,14 +63,42 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ### FASE S5 — Admin, blog, QA e deploy
 
-- [ ] S5.1 Admin
-- [ ] S5.2 Blog + SEO
-- [ ] S5.3 Passo de polimento
-- [ ] S5.4 Suíte e2e completa
-- [ ] S5.5 Deploy (com o humano)
-- [ ] S5.6 Seed de demonstração
+- [x] S5.1 Admin
+- [x] S5.2 Blog + SEO
+- [x] S5.3 Passo de polimento
+- [x] S5.4 Suíte e2e completa (smoke sem auth no CI; jornada completa pendente de seed + fixtures — ver notas)
+- [~] S5.5 Deploy (humano) — checklist abaixo; bloqueado para o agente
+- [x] S5.6 Seed de demonstração (script + testes de expectativa; rodar `npm run seed:demo` com secret real)
+
+## Deploy (humano) — S5.5
+
+Itens que **só o humano** executa (agente não faz deploy de produção):
+
+- [ ] Vercel: projeto conectado ao GitHub; envs de produção = lista §2.2 do plano (sem placeholders)
+- [ ] Domínio `comoestaminhaobra.com.br` + `www` apontando para a Vercel
+- [ ] Confirmar cron Vercel ativo (`vercel.json` / dashboard)
+- [ ] Supabase prod: `supabase db push` (se ainda houver drift), buckets Storage privados OK
+- [ ] SMTP customizado no Supabase Auth → Resend; assunto/copy pt-BR: **"Seu link de acesso — Como Está Minha Obra"**
+- [ ] Rotacionar / preencher `ABACATEPAY_API_KEY` real; rodar `npm run abacatepay:bootstrap` em prod e gravar `ABACATEPAY_PROD_*`
+- [ ] Registrar webhook AbacatePay: `https://comoestaminhaobra.com.br/api/webhooks/abacatepay` (+ secret)
+- [ ] Smoke em produção: login magic link → criar obra → rascunho → envio com PDF/e-mail reais → página do cliente
+- [ ] Promover admin: após o primeiro login do Estevão, rodar no SQL Editor:
+
+```sql
+insert into public.admins (user_id)
+values ('SEU_USER_ID_UUID')
+on conflict do nothing;
+```
+
+(`user_id` = `auth.users.id` / `profiles.id` do admin)
+
+- [ ] (Opcional) `npm run seed:demo` apontando para o projeto desejado (staging/demo)
 
 ## Bloqueios
+
+- **S5.5 Deploy:** bloqueado para o agente — ver checklist "Deploy (humano)" acima.
+
+- **S5.4 e2e jornada completa:** smoke Chromium no CI (`continue-on-error: true`) cobre marketing + redirects anônimos. Jornadas autenticadas (empreiteiro S2.8, proprietário S3, trial→upsell, RLS cruzado, arquivar, e-mail extra) precisam de seed + fixtures de auth (storageState / magic link de teste) — não implementadas sem secrets live.
 
 - **S1.2 verificação live:** migrations já aplicadas (`db push` feito). Validar `handle_new_user` e `trial_fim ≈ now()+14d` com um login real.
 
@@ -94,3 +122,4 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 - Purga automática de obras arquivadas após 30 dias (não implementar na v1).
 - Textos legais marcados com `{/* REVISAR: Estevão/Geraldino */}` em política e termos.
+- OG image estática (`public/og.png`) opcional — metadata openGraph title/description já nas páginas de marketing; asset visual pode ser gerado no deploy humano.

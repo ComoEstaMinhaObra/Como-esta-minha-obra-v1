@@ -35,6 +35,8 @@ export function ClienteShell({
             <Link
               key={tab.href}
               href={href}
+              aria-label={tab.label}
+              aria-current={ativo ? "page" : undefined}
               className={`flex flex-1 flex-col items-center gap-1 py-1 text-[10px] ${
                 ativo ? "text-marca" : "text-cinza-2"
               }`}

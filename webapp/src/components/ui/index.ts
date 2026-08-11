@@ -14,3 +14,4 @@ export { ToastProvider, useToast } from "./Toast";
 export { ModalBase } from "./ModalBase";
 export { GradeFotos } from "./GradeFotos";
 export { Avatar } from "./Avatar";
+export { Skeleton, SkeletonFeed, SkeletonGrade } from "./Skeleton";

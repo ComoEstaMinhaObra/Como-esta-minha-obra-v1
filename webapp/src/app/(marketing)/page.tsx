@@ -1,7 +1,20 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Botao } from "@/components/ui";
 import { EMAIL_EXTRA, PLANOS, TRIAL } from "@/config/pricing";
 import { formatarBRL } from "@/lib/formatacao";
+
+export const metadata: Metadata = {
+  title: "Como Está Minha Obra",
+  description:
+    "Relatórios semanais com avanço físico, financeiro, fotos e clima — o cliente acompanha sem WhatsApp eterno.",
+  openGraph: {
+    title: "Como Está Minha Obra",
+    description:
+      "Da fundação à entrega, tudo registrado. Relatórios claros para empreiteiro e proprietário.",
+    type: "website",
+  },
+};
 
 const FAQ = [
   {

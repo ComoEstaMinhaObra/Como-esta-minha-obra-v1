@@ -1,3 +1,17 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Política de privacidade",
+  description:
+    "Como tratamos dados pessoais na plataforma Como Está Minha Obra, em conformidade com a LGPD.",
+  openGraph: {
+    title: "Política de privacidade · Como Está Minha Obra",
+    description:
+      "Tratamento de dados pessoais na plataforma Como Está Minha Obra (LGPD).",
+    type: "website",
+  },
+};
+
 export default function PoliticaPrivacidadePage() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-16 prose-like space-y-8 text-sm leading-relaxed">

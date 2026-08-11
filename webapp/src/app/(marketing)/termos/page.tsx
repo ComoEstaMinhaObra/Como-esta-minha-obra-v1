@@ -1,3 +1,15 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Termos de uso",
+  description: "Termos de uso da plataforma Como Está Minha Obra.",
+  openGraph: {
+    title: "Termos de uso · Como Está Minha Obra",
+    description: "Termos de uso da plataforma Como Está Minha Obra.",
+    type: "website",
+  },
+};
+
 export default function TermosPage() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-16 space-y-8 text-sm leading-relaxed">

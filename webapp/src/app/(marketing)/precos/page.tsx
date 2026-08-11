@@ -1,7 +1,20 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Botao } from "@/components/ui";
 import { EMAIL_EXTRA, PLANOS, TRIAL } from "@/config/pricing";
 import { formatarBRL } from "@/lib/formatacao";
+
+export const metadata: Metadata = {
+  title: "Preços",
+  description:
+    "Planos mensais por número de obras ativas. Trial sem cartão. E-mail extra a partir do segundo destinatário.",
+  openGraph: {
+    title: "Preços · Como Está Minha Obra",
+    description:
+      "Planos mensais por número de obras ativas. Trial sem cartão.",
+    type: "website",
+  },
+};
 
 const FEATURES = [
   { nome: "Obras ativas", valores: PLANOS.map((p) => String(p.limiteObras)) },

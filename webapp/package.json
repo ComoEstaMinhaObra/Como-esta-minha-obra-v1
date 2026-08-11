@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "abacatepay:bootstrap": "tsx scripts/abacatepay-bootstrap.ts"
+    "abacatepay:bootstrap": "tsx scripts/abacatepay-bootstrap.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",

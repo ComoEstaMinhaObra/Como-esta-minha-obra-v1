@@ -26,3 +26,43 @@ jobs:
         run: npm run lint
       - name: test
         run: npm run test
+
+  e2e:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: e2e smoke (chromium)
+        run: npm run test:e2e
+        env:
+          # Placeholders suficientes para boot do Next (publicEnv); rotas smoke não batem APIs secretas.
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
+          NEXT_PUBLIC_PRECO_1_OBRA_CENTAVOS: "12990"
+          NEXT_PUBLIC_PRECO_3_OBRAS_CENTAVOS: "31990"
+          NEXT_PUBLIC_PRECO_5_OBRAS_CENTAVOS: "49990"
+          NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS: "2990"
+          NEXT_PUBLIC_TRIAL_DIAS: "14"
+          NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: "1"
+          SUPABASE_SECRET_KEY: ci_placeholder_secret
+          ABACATEPAY_API_KEY: abc_dev_xxx
+          ABACATEPAY_WEBHOOK_SECRET: ci_webhook_secret
+          ABACATEPAY_PROD_OBRA_1: prod_xxx
+          ABACATEPAY_PROD_OBRA_3: prod_xxx
+          ABACATEPAY_PROD_OBRA_5: prod_xxx
+          ABACATEPAY_PROD_EMAIL_EXTRA: prod_xxx
+          RESEND_API_KEY: re_xxx
+          EMAIL_FROM: "Como Está Minha Obra <relatorios@comoestaminhaobra.com.br>"
+          CRON_SECRET: ci_cron_secret

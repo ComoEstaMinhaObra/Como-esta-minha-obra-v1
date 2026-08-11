@@ -63,6 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 aria-label={label}
+                aria-current={ativo ? "page" : undefined}
                 className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
                   ativo ? "bg-tinta text-white" : "text-cinza-2 hover:text-tinta"
                 }`}
@@ -98,6 +99,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={href}
               href={href}
+              aria-label={label}
+              aria-current={ativo ? "page" : undefined}
               className={`flex flex-1 flex-col items-center gap-1 py-1 text-[10px] ${
                 ativo ? "text-marca" : "text-cinza-2"
               }`}
