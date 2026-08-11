@@ -11,7 +11,7 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S0.3 Dependências
 - [x] S0.4 Tokens e fontes
 - [x] S0.5 Config
-- [x] S0.6 Banco (migrations + tipos manuais; push remoto pendente — ver Bloqueios)
+- [x] S0.6 Banco (migrations 0001/0002 aplicadas no remoto em 2026-08-10; tipos regenerados via `gen types --linked`)
 - [x] S0.7 Clients Supabase
 - [x] S0.8 UI kit
 - [x] S0.9 Testes e CI
@@ -20,10 +20,10 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 ### FASE S1 — Autenticação e Empreiteiro core
 
 - [x] S1.1 Magic link
-- [x] S1.2 Onboarding (UI pronta; trigger só verificável após db push)
+- [x] S1.2 Onboarding (UI pronta; db push feito — verificação live com login real)
 - [x] S1.3 Dashboard Minhas obras
 - [x] S1.4 Ficha Nova obra
-- [ ] S1.5 Detalhe da obra
+- [x] S1.5 Detalhe da obra
 - [ ] S1.6 Arquivar/excluir obra + limites
 - [ ] S1.7 Compartilhamento
 
@@ -72,9 +72,9 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ## Bloqueios
 
-- **S1.2 verificação live:** trigger `handle_new_user` e `trial_fim ≈ now()+14d` só após `supabase db push` + login real.
+- **S1.2 verificação live:** migrations já aplicadas (`db push` feito). Validar `handle_new_user` e `trial_fim ≈ now()+14d` com um login real.
 
-- **S0.6 `supabase link` / `db push`:** CLI sem access token (`supabase login` não feito) e Docker indisponível (sem Supabase local). Migrations `0001_schema.sql` e `0002_rpcs.sql` estão prontas. Tipos em `src/lib/database.types.ts` foram gerados manualmente a partir do schema — regenerar com `supabase gen types typescript --linked` após o push. **Ação humana:** `npx supabase login` → `npx supabase link --project-ref hxlrskcnsbmmotjmxxfd` → informar senha do DB → `npx supabase db push`.
+- ~~**S0.6 `supabase link` / `db push`**~~ **RESOLVIDO (2026-08-10):** CLI logado na conta contato@comoestaminhaobra.com.br, projeto `hxlrskcnsbmmotjmxxfd` linkado, migrations `0001_schema.sql` e `0002_rpcs.sql` aplicadas no remoto (`migration list` confirma 0001/0002 local=remote), tipos regenerados com `supabase gen types typescript --linked`, `tsc --noEmit` e 12 testes unitários passando. Nota: o CLI Supabase entra em modo JSON não-interativo quando detecta agente de IA (`CLAUDECODE`/`AI_AGENT` no env) — para comandos interativos, rodar com `env -u CLAUDECODE -u AI_AGENT`.
 
 ### Resolvidos
 
