@@ -24,8 +24,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S1.3 Dashboard Minhas obras
 - [x] S1.4 Ficha Nova obra
 - [x] S1.5 Detalhe da obra
-- [ ] S1.6 Arquivar/excluir obra + limites
-- [ ] S1.7 Compartilhamento
+- [x] S1.6 Arquivar/excluir obra + limites
+- [x] S1.7 Compartilhamento
 
 ### FASE S2 — Relatórios
 
