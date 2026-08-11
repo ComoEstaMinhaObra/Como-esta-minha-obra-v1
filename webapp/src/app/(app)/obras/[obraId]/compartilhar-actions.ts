@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { podeAdicionarEmailExtra } from "@/lib/gating";
 import type { AssinaturaStatus } from "@/lib/gating";
-import { publicEnv } from "@/config/env";
 
 export async function listarAcessosObra(obraId: string) {
   const supabase = await createClient();
@@ -78,20 +77,23 @@ export async function liberarAcessoObra(obraId: string, email: string) {
 
   if (error) return { ok: false as const, erro: error.message };
 
-  // E-mail de convite (S2.10): em dev loga; Resend real quando key válida
+  // E-mail de convite (S2.10): falha não bloqueia o acesso
   const { data: profile } = await supabase
     .from("profiles")
     .select("nome")
     .eq("id", user.id)
     .maybeSingle();
 
-  const payloadConvite = {
-    para: emailNorm,
-    empreiteiro: profile?.nome || user.email || "Empreiteiro",
-    obra: obra.nome,
-    link: `${publicEnv.NEXT_PUBLIC_APP_URL}/entrar`,
-  };
-  console.info("[email:convite-acesso]", payloadConvite);
+  try {
+    const { enviarEmailConvite } = await import("@/lib/email/enviar");
+    await enviarEmailConvite({
+      para: emailNorm,
+      empreiteiro: profile?.nome || user.email || "Empreiteiro",
+      obraNome: obra.nome,
+    });
+  } catch (e) {
+    console.error("[email:convite] falha", e);
+  }
 
   revalidatePath(`/obras/${obraId}`);
   return { ok: true as const, cobradoExtra };

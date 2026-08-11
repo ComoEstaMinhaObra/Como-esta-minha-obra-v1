@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { RelatorioSnapshot } from "@/lib/relatorios/tipos";
-import { publicEnv } from "@/config/env";
 
 export async function enviarRelatorioAction(relatorioId: string) {
   const supabase = await createClient();
@@ -40,20 +39,29 @@ export async function enviarRelatorioAction(relatorioId: string) {
 
   const snap = snapshot as unknown as RelatorioSnapshot;
 
-  // E-mail (S2.10): log em dev; Resend quando key válida
-  const { data: acessos } = await supabase
-    .from("obra_acessos")
-    .select("email, status")
-    .eq("obra_id", rel.obra_id);
-
-  for (const a of acessos ?? []) {
-    console.info("[email:novo-relatorio]", {
-      para: a.email,
+  // PDF pós-envio: falha não desfaz o envio (retry na rota de download)
+  try {
+    const { gerarESalvarPdfRelatorio } = await import("@/lib/pdf/gerar");
+    await gerarESalvarPdfRelatorio({
+      relatorioId: rel.id,
+      obraId: rel.obra_id,
       numero: rel.numero,
-      obra: snap.obra?.nome,
-      avanco: `${snap.avancoFisico?.geralAntes}% → ${snap.avancoFisico?.geralDepois}%`,
-      link: `${publicEnv.NEXT_PUBLIC_APP_URL}/c/${rel.obra_id}`,
+      snapshot: snap,
     });
+  } catch (e) {
+    console.error("[pdf] geração pós-envio falhou (retry disponível)", e);
+  }
+
+  // E-mail (S2.10): log em dev; Resend quando key válida
+  try {
+    const { enviarEmailNovoRelatorio } = await import("@/lib/email/enviar");
+    await enviarEmailNovoRelatorio({
+      obraId: rel.obra_id,
+      numero: rel.numero,
+      snapshot: snap,
+    });
+  } catch (e) {
+    console.error("[email] falha no envio (não desfaz relatório)", e);
   }
 
   revalidatePath(`/obras/${rel.obra_id}`);

@@ -37,8 +37,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S2.6 Seção 5 · Clima
 - [x] S2.7 Feed de relatórios
 - [x] S2.8 Envio
-- [ ] S2.9 PDF
-- [ ] S2.10 E-mails
+- [x] S2.9 PDF
+- [x] S2.10 E-mails
 
 ### FASE S3 — Página do Proprietário
 

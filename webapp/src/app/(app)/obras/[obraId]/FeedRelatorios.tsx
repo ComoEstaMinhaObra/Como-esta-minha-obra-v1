@@ -128,14 +128,12 @@ export function FeedRelatorios({
                     >
                       Ver relatório do cliente
                     </Link>
-                    {r.pdf_path ? (
-                      <a
+                    <a
                         href={`/api/relatorios/${r.id}/pdf`}
                         className="text-xs underline text-cinza-2"
                       >
                         Baixar PDF
                       </a>
-                    ) : null}
                   </div>
                 </>
               ) : (
