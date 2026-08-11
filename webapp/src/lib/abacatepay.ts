@@ -8,6 +8,7 @@ import type { PlanoId } from "@/config/pricing";
 import { planoPorId } from "@/config/pricing";
 
 export {
+  ABACATEPAY_PUBLIC_KEY,
   validateWebhookSignature,
   WEBHOOK_SIGNATURE_HEADER,
 } from "@/lib/abacatepay-signature";

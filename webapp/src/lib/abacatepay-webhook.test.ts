@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ABACATEPAY_PUBLIC_KEY,
   validateWebhookSignature,
   WEBHOOK_SIGNATURE_HEADER,
 } from "@/lib/abacatepay-signature";
@@ -14,22 +15,24 @@ import {
 const SECRET = "teste-webhook-secret";
 
 function assinar(body: string): string {
-  return createHmac("sha256", SECRET).update(body, "utf8").digest("hex");
+  return createHmac("sha256", ABACATEPAY_PUBLIC_KEY)
+    .update(Buffer.from(body, "utf8"))
+    .digest("base64");
 }
 
 describe("validateWebhookSignature", () => {
-  it("aceita HMAC-SHA256 hex valido", () => {
+  it("aceita HMAC-SHA256 base64 com chave publica", () => {
     const body = '{"event":"subscription.completed"}';
-    expect(validateWebhookSignature(body, assinar(body), SECRET)).toBe(true);
+    expect(validateWebhookSignature(body, assinar(body))).toBe(true);
   });
 
   it("rejeita assinatura invalida", () => {
     const body = '{"event":"subscription.completed"}';
-    expect(validateWebhookSignature(body, "deadbeef", SECRET)).toBe(false);
+    expect(validateWebhookSignature(body, "deadbeef")).toBe(false);
   });
 
   it("rejeita header ausente", () => {
-    expect(validateWebhookSignature("{}", null, SECRET)).toBe(false);
+    expect(validateWebhookSignature("{}", null)).toBe(false);
   });
 });
 
@@ -215,14 +218,44 @@ describe("POST /api/webhooks/abacatepay", () => {
       data: {},
     });
     const res = await POST(
-      new Request("http://localhost/api/webhooks/abacatepay", {
-        method: "POST",
-        headers: {
-          [WEBHOOK_SIGNATURE_HEADER]: "assinatura-errada",
-          "Content-Type": "application/json",
+      new Request(
+        `http://localhost/api/webhooks/abacatepay?webhookSecret=${SECRET}`,
+        {
+          method: "POST",
+          headers: {
+            [WEBHOOK_SIGNATURE_HEADER]: "assinatura-errada",
+            "Content-Type": "application/json",
+          },
+          body,
         },
-        body,
-      }),
+      ),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("webhookSecret invalido → 401", async () => {
+    vi.doMock("@/lib/supabase/admin", () => ({
+      createAdminClient: () => mockAdmin(null),
+    }));
+
+    const { POST } = await import("@/app/api/webhooks/abacatepay/route");
+    const body = JSON.stringify({
+      id: "log_x",
+      event: "subscription.completed",
+      data: {},
+    });
+    const res = await POST(
+      new Request(
+        "http://localhost/api/webhooks/abacatepay?webhookSecret=errado",
+        {
+          method: "POST",
+          headers: {
+            [WEBHOOK_SIGNATURE_HEADER]: assinar(body),
+            "Content-Type": "application/json",
+          },
+          body,
+        },
+      ),
     );
     expect(res.status).toBe(401);
   });
@@ -259,14 +292,17 @@ describe("POST /api/webhooks/abacatepay", () => {
       },
     });
     const res = await POST(
-      new Request("http://localhost/api/webhooks/abacatepay", {
-        method: "POST",
-        headers: {
-          [WEBHOOK_SIGNATURE_HEADER]: assinar(body),
-          "Content-Type": "application/json",
+      new Request(
+        `http://localhost/api/webhooks/abacatepay?webhookSecret=${SECRET}`,
+        {
+          method: "POST",
+          headers: {
+            [WEBHOOK_SIGNATURE_HEADER]: assinar(body),
+            "Content-Type": "application/json",
+          },
+          body,
         },
-        body,
-      }),
+      ),
     );
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok: boolean };

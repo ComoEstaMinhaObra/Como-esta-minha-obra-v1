@@ -20,22 +20,16 @@ export async function POST(request: Request) {
   // Camada 1 (docs): secret na query ?webhookSecret=
   const url = new URL(request.url);
   const querySecret = url.searchParams.get("webhookSecret");
-  if (querySecret !== null && querySecret !== env.ABACATEPAY_WEBHOOK_SECRET) {
+  if (querySecret !== env.ABACATEPAY_WEBHOOK_SECRET) {
     return NextResponse.json({ erro: "secret invalido" }, { status: 401 });
   }
 
-  // Camada 2: HMAC no header X-Webhook-Signature
+  // Camada 2: HMAC-SHA256 (chave pública) no header X-Webhook-Signature
   const signature =
     request.headers.get(WEBHOOK_SIGNATURE_HEADER) ??
     request.headers.get("X-Webhook-Signature");
 
-  if (
-    !validateWebhookSignature(
-      rawBody,
-      signature,
-      env.ABACATEPAY_WEBHOOK_SECRET,
-    )
-  ) {
+  if (!validateWebhookSignature(rawBody, signature)) {
     return NextResponse.json({ erro: "assinatura invalida" }, { status: 401 });
   }
 

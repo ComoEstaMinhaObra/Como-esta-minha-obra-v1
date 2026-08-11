@@ -102,8 +102,6 @@ on conflict do nothing;
 
 - **S1.2 verificação live:** migrations já aplicadas (`db push` feito). Validar `handle_new_user` e `trial_fim ≈ now()+14d` com um login real.
 
-- **S4 HMAC AbacatePay (divergência docs):** header confirmado `X-Webhook-Signature` (docs.abacatepay.com/pages/webhooks/security). Implementamos HMAC-SHA256 **hex** com `ABACATEPAY_WEBHOOK_SECRET` (+ validação opcional de `?webhookSecret=`). A página de segurança também mostra exemplo com **chave pública** da AbacatePay e digest **base64**; o `llms.txt` e o BRIEFING apontam HMAC com o `secret`. Validar em sandbox com payload real antes do go-live (S5.5) e ajustar digest/chave se necessário.
-
 - **S4 endpoint cliente:** plano §5.4 lista `POST /client/create`; OpenAPI oficial usa `POST /customers/create` — implementado `/customers/create`.
 
 - **S4 bootstrap:** não executado contra API real — `ABACATEPAY_API_KEY` no `.env.local` ainda é placeholder (`preench…`). Rodar `npm run abacatepay:bootstrap` após key real e preencher `ABACATEPAY_PROD_*`.
@@ -111,6 +109,8 @@ on conflict do nothing;
 - ~~**S0.6 `supabase link` / `db push`**~~ **RESOLVIDO (2026-08-10):** CLI logado na conta contato@comoestaminhaobra.com.br, projeto `hxlrskcnsbmmotjmxxfd` linkado, migrations `0001_schema.sql` e `0002_rpcs.sql` aplicadas no remoto (`migration list` confirma 0001/0002 local=remote), tipos regenerados com `supabase gen types typescript --linked`, `tsc --noEmit` e 12 testes unitários passando. Nota: o CLI Supabase entra em modo JSON não-interativo quando detecta agente de IA (`CLAUDECODE`/`AI_AGENT` no env) — para comandos interativos, rodar com `env -u CLAUDECODE -u AI_AGENT`.
 
 ### Resolvidos
+
+- ~~**S4 HMAC AbacatePay (divergência docs)**~~ **RESOLVIDO (S4.4):** alinhado a docs.abacatepay.com/pages/webhooks — `?webhookSecret=` obrigatório (= `ABACATEPAY_WEBHOOK_SECRET`, 401 se divergir) + HMAC-SHA256 com chave pública oficial, digest **base64**, `timingSafeEqual` no header `X-Webhook-Signature`.
 
 - **Dep extra (S0.7):** `server-only` instalado (exigido pelo plano para `admin.ts`).
 

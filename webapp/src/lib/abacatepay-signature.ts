@@ -1,27 +1,33 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
+ * Chave pública AbacatePay para HMAC dos webhooks.
+ * Fonte: https://docs.abacatepay.com/pages/webhooks (seção de segurança).
+ */
+export const ABACATEPAY_PUBLIC_KEY =
+  "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
+
+/**
  * Valida assinatura HMAC-SHA256 do webhook AbacatePay.
  *
- * Header esperado: `X-Webhook-Signature`
- * (docs.abacatepay.com/pages/webhooks/security e /pages/webhooks).
- *
- * Digest: hex (HMAC-SHA256) com `ABACATEPAY_WEBHOOK_SECRET`, comparação timing-safe.
- * Ver PROGRESS.md → Bloqueios sobre divergência docs (chave pública + base64).
+ * Header: `X-Webhook-Signature`
+ * Digest: base64 (HMAC-SHA256) com a chave pública oficial — comparação timing-safe.
+ * @see https://docs.abacatepay.com/pages/webhooks
  */
 export function validateWebhookSignature(
   rawBody: string,
   signatureHeader: string | null,
-  secret: string,
+  publicKey: string = ABACATEPAY_PUBLIC_KEY,
 ): boolean {
-  if (!signatureHeader || !secret) return false;
-  const expected = createHmac("sha256", secret)
-    .update(rawBody, "utf8")
-    .digest("hex");
+  if (!signatureHeader || !publicKey) return false;
+
+  const expected = createHmac("sha256", publicKey)
+    .update(Buffer.from(rawBody, "utf8"))
+    .digest("base64");
 
   try {
-    const a = Buffer.from(expected, "utf8");
-    const b = Buffer.from(signatureHeader.trim(), "utf8");
+    const a = Buffer.from(expected);
+    const b = Buffer.from(signatureHeader.trim());
     if (a.length !== b.length) return false;
     return timingSafeEqual(a, b);
   } catch {
