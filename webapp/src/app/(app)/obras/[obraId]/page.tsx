@@ -16,10 +16,10 @@ import {
   calcularFinanceiro,
   calcularNovaDataTermino,
 } from "@/lib/relatorios/calculos";
-import type { RelatorioRascunho } from "@/lib/relatorios/tipos";
+import type { RelatorioRascunho, RelatorioSnapshot } from "@/lib/relatorios/tipos";
 import { createClient } from "@/lib/supabase/server";
 import { DetalheAcoes } from "./DetalheAcoes";
-import { FeedRelatoriosPlaceholder } from "./FeedRelatoriosPlaceholder";
+import { FeedRelatorios } from "./FeedRelatorios";
 import { ModalArquivarObra } from "./ModalArquivarObra";
 
 function formatarDataBr(isoDate: string): string {
@@ -69,7 +69,7 @@ export default async function DetalheObraPage({
     supabase
       .from("relatorios")
       .select(
-        "id, numero, status, geral_antes, geral_depois, enviado_em, criado_em, dados_rascunho",
+        "id, numero, status, geral_antes, geral_depois, enviado_em, criado_em, dados_rascunho, pdf_path, snapshot",
       )
       .eq("obra_id", obraId)
       .order("numero", { ascending: false }),
@@ -253,9 +253,19 @@ export default async function DetalheObraPage({
               </Botao>
             </Link>
           </div>
-          <FeedRelatoriosPlaceholder
+          <FeedRelatorios
             obraId={obra.id}
-            relatorios={relatorios ?? []}
+            relatorios={(relatorios ?? []).map((r) => ({
+              id: r.id,
+              numero: r.numero,
+              status: r.status as "rascunho" | "enviado",
+              geral_antes: r.geral_antes,
+              geral_depois: r.geral_depois,
+              enviado_em: r.enviado_em,
+              criado_em: r.criado_em,
+              pdf_path: r.pdf_path,
+              snapshot: r.snapshot as RelatorioSnapshot | null,
+            }))}
           />
         </section>
       </div>

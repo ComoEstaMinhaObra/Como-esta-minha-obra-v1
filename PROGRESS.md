@@ -35,8 +35,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 - [x] S2.4 Seção 3 · Atividades
 - [x] S2.5 Seção 4 · Prazo
 - [x] S2.6 Seção 5 · Clima
-- [ ] S2.7 Feed de relatórios
-- [ ] S2.8 Envio
+- [x] S2.7 Feed de relatórios
+- [x] S2.8 Envio
 - [ ] S2.9 PDF
 - [ ] S2.10 E-mails
 
