@@ -29,12 +29,12 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ### FASE S2 — Relatórios
 
-- [ ] S2.1 Modal do relatório + rascunho
-- [ ] S2.2 Seção 1 · Avanço físico
-- [ ] S2.3 Seção 2 · Financeiro
-- [ ] S2.4 Seção 3 · Atividades
-- [ ] S2.5 Seção 4 · Prazo
-- [ ] S2.6 Seção 5 · Clima
+- [x] S2.1 Modal do relatório + rascunho
+- [x] S2.2 Seção 1 · Avanço físico
+- [x] S2.3 Seção 2 · Financeiro
+- [x] S2.4 Seção 3 · Atividades
+- [x] S2.5 Seção 4 · Prazo
+- [x] S2.6 Seção 5 · Clima
 - [ ] S2.7 Feed de relatórios
 - [ ] S2.8 Envio
 - [ ] S2.9 PDF

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Cartao, Selo } from "@/components/ui";
 
 type RelatorioResumo = {
@@ -11,8 +12,10 @@ type RelatorioResumo = {
 };
 
 export function FeedRelatoriosPlaceholder({
+  obraId,
   relatorios,
 }: {
+  obraId: string;
   relatorios: RelatorioResumo[];
 }) {
   if (relatorios.length === 0) {
@@ -41,14 +44,29 @@ export function FeedRelatoriosPlaceholder({
                 <Selo tom="verde">Enviado</Selo>
               )}
             </div>
-            <p className="text-sm text-cinza-2">
-              avanço {antes}% → {depois}% {delta >= 0 ? `+${delta}%` : `${delta}%`}
-            </p>
-            <p className="text-xs text-cinza-3">
-              {r.status === "enviado"
-                ? "✓ enviado por e-mail ao cliente"
-                : "Salvo — ainda não enviado (ações em S2.7)"}
-            </p>
+            {r.status === "enviado" ? (
+              <p className="text-sm text-cinza-2">
+                avanço {antes}% → {depois}%{" "}
+                {delta >= 0 ? `+${delta}%` : `${delta}%`}
+              </p>
+            ) : null}
+            {r.status === "rascunho" ? (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Link
+                  href={`/obras/${obraId}?editarRelatorio=${r.id}`}
+                  className="text-xs underline text-cinza-2"
+                >
+                  Editar
+                </Link>
+                <span className="text-xs text-cinza-3">
+                  Enviar / preview em S2.7–S2.8
+                </span>
+              </div>
+            ) : (
+              <p className="text-xs text-cinza-3">
+                ✓ enviado por e-mail ao cliente
+              </p>
+            )}
           </Cartao>
         );
       })}

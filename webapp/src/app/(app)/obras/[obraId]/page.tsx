@@ -11,7 +11,12 @@ import {
   Selo,
 } from "@/components/ui";
 import { formatarBRLCompacto } from "@/lib/formatacao";
-import { calcularAvancoGeral, calcularFinanceiro, calcularNovaDataTermino } from "@/lib/relatorios/calculos";
+import {
+  calcularAvancoGeral,
+  calcularFinanceiro,
+  calcularNovaDataTermino,
+} from "@/lib/relatorios/calculos";
+import type { RelatorioRascunho } from "@/lib/relatorios/tipos";
 import { createClient } from "@/lib/supabase/server";
 import { DetalheAcoes } from "./DetalheAcoes";
 import { FeedRelatoriosPlaceholder } from "./FeedRelatoriosPlaceholder";
@@ -44,24 +49,36 @@ export default async function DetalheObraPage({
 
   if (!obra || obra.owner_id !== user.id) notFound();
 
-  const [{ data: etapas }, { data: lancamentos }, { data: diasAditivos }, { data: relatorios }] =
-    await Promise.all([
-      supabase
-        .from("etapas")
-        .select("id, nome, ordem, peso, pct_atual")
-        .eq("obra_id", obraId)
-        .order("ordem"),
-      supabase
-        .from("lancamentos")
-        .select("tipo, grupo, valor_centavos")
-        .eq("obra_id", obraId),
-      supabase.from("dias_aditivados").select("dias").eq("obra_id", obraId),
-      supabase
-        .from("relatorios")
-        .select("id, numero, status, geral_antes, geral_depois, enviado_em, criado_em")
-        .eq("obra_id", obraId)
-        .order("numero", { ascending: false }),
-    ]);
+  const [
+    { data: etapas },
+    { data: lancamentos },
+    { data: diasAditivos },
+    { data: relatorios },
+    { data: clima },
+  ] = await Promise.all([
+    supabase
+      .from("etapas")
+      .select("id, nome, ordem, peso, pct_atual")
+      .eq("obra_id", obraId)
+      .order("ordem"),
+    supabase
+      .from("lancamentos")
+      .select("tipo, grupo, valor_centavos, numero")
+      .eq("obra_id", obraId),
+    supabase.from("dias_aditivados").select("dias").eq("obra_id", obraId),
+    supabase
+      .from("relatorios")
+      .select(
+        "id, numero, status, geral_antes, geral_depois, enviado_em, criado_em, dados_rascunho",
+      )
+      .eq("obra_id", obraId)
+      .order("numero", { ascending: false }),
+    supabase
+      .from("clima_snapshots")
+      .select("data, condicao, prob_chuva")
+      .eq("obra_id", obraId)
+      .order("data", { ascending: true }),
+  ]);
 
   const listaEtapas = etapas ?? [];
   const avanco = calcularAvancoGeral(
@@ -92,6 +109,30 @@ export default async function DetalheObraPage({
   const dias = (diasAditivos ?? []).map((d) => d.dias);
   const entregaPrevista = calcularNovaDataTermino(obra.termino_contratual, dias);
 
+  const maxMedicao = Math.max(
+    0,
+    ...(lancamentos ?? [])
+      .filter((l) => l.tipo === "medicao")
+      .map((l) => l.numero ?? 0),
+  );
+  const maxAditivo = Math.max(
+    0,
+    ...(lancamentos ?? [])
+      .filter((l) => l.tipo === "aditivo")
+      .map((l) => l.numero ?? 0),
+  );
+  const proximoNumero =
+    Math.max(0, ...(relatorios ?? []).map((r) => r.numero)) + 1;
+
+  const rascunhos = (relatorios ?? [])
+    .filter((r) => r.status === "rascunho")
+    .map((r) => ({
+      id: r.id,
+      numero: r.numero,
+      status: r.status as "rascunho" | "enviado",
+      dados_rascunho: r.dados_rascunho as RelatorioRascunho | null,
+    }));
+
   return (
     <div className="space-y-8">
       <header className="space-y-4">
@@ -107,7 +148,28 @@ export default async function DetalheObraPage({
             {obra.arquivada_em ? <Selo tom="cinza">Arquivada</Selo> : null}
           </div>
           <Suspense fallback={<div className="h-10" />}>
-            <DetalheAcoes obraId={obra.id} arquivada={obra.arquivada_em != null} />
+            <DetalheAcoes
+              obraId={obra.id}
+              obraNome={obra.nome}
+              endereco={obra.endereco}
+              arquivada={obra.arquivada_em != null}
+              etapas={listaEtapas.map((e) => ({
+                id: e.id,
+                nome: e.nome,
+                peso: Number(e.peso),
+                pct_atual: e.pct_atual,
+              }))}
+              proximoNumero={proximoNumero}
+              maxMedicao={maxMedicao}
+              maxAditivo={maxAditivo}
+              diasAditivadosPersistidos={dias.reduce((a, b) => a + b, 0)}
+              terminoContratual={obra.termino_contratual}
+              valorContratadoCentavos={obra.valor_contratado_centavos}
+              pagoPersistidoCentavos={fin.pagoAcumuladoCentavos}
+              aditivosPersistidosCentavos={aditivos.reduce((a, b) => a + b, 0)}
+              climaDias={clima ?? []}
+              rascunhos={rascunhos}
+            />
           </Suspense>
         </div>
       </header>
@@ -191,12 +253,15 @@ export default async function DetalheObraPage({
               </Botao>
             </Link>
           </div>
-          <FeedRelatoriosPlaceholder relatorios={relatorios ?? []} />
+          <FeedRelatoriosPlaceholder
+            obraId={obra.id}
+            relatorios={relatorios ?? []}
+          />
         </section>
       </div>
 
       {!obra.arquivada_em ? (
-        <div className="pt-4 border-t border-divisor">
+        <div className="border-t border-divisor pt-4">
           <ModalArquivarObra obraId={obra.id} nomeObra={obra.nome} />
         </div>
       ) : null}
