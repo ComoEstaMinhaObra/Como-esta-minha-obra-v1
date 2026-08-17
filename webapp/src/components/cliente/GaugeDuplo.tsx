@@ -1,144 +1,141 @@
 "use client";
 
-/** Gauge duplo: arco superior = avanço físico; arco inferior = % desembolso. */
+/** Arcos independentes: avanço no hemisfério superior e desembolso no inferior. */
 export function GaugeDuplo({
   avancoPct,
   pagoPct,
-  tamanho = 220,
+  tamanho = 250,
 }: {
   avancoPct: number;
   pagoPct: number;
   tamanho?: number;
 }) {
-  const stroke = 10;
-  const r = (tamanho - stroke * 2) / 2;
-  const cx = tamanho / 2;
-  const cy = tamanho / 2;
-  const circ = 2 * Math.PI * r;
-
+  const escala = tamanho / 250;
   const avanco = Math.min(100, Math.max(0, avancoPct));
   const pago = Math.min(100, Math.max(0, pagoPct));
+  const r = 102;
+  const cx = 125;
+  const meiaCorda = 101.8;
+  const flecha = Math.sqrt(r ** 2 - meiaCorda ** 2);
+  const ajuste = Math.acos(meiaCorda / r);
+  const abertura = Math.PI - ajuste * 2;
 
-  // Arco superior: 180° da esquerda para a direita (start = π, sweep clockwise in SVG = negative)
-  // Usamos dasharray no círculo completo com offset para meia-lua.
-  const semi = circ / 2;
-  const avancoLen = (avanco / 100) * semi;
-  const pagoLen = (pago / 100) * semi;
-
-  function pontoNoArco(
-    pct: number,
-    // superior: começa em 180° (esq) e vai até 0° (dir); inferior: 0° → 180°
-    arco: "superior" | "inferior",
-  ) {
+  function pontoNoArco(pct: number, arco: "superior" | "inferior") {
     const angulo =
       arco === "superior"
-        ? Math.PI - (pct / 100) * Math.PI
-        : 0 + (pct / 100) * Math.PI;
-    return {
-      x: cx + r * Math.cos(angulo),
-      y: cy - r * Math.sin(angulo),
-    };
+        ? -Math.PI + ajuste + (pct / 100) * abertura
+        : Math.PI - ajuste - (pct / 100) * abertura;
+    const cy = arco === "superior" ? 117.9 + flecha : 132.1 - flecha;
+    return { x: cx + r * Math.cos(angulo), y: cy + r * Math.sin(angulo) };
   }
 
   const marcadorAvanco = pontoNoArco(avanco, "superior");
   const marcadorPago = pontoNoArco(pago, "inferior");
 
   return (
-    <div className="relative mx-auto" style={{ width: tamanho, height: tamanho }}>
-      <svg width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`}>
+    <div
+      className="relative mx-auto"
+      style={{ width: tamanho, height: tamanho }}
+    >
+      <svg
+        width={tamanho}
+        height={tamanho}
+        viewBox="0 0 250 250"
+        className="block"
+      >
         <defs>
-          <linearGradient id="gaugeAmbar" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id="gaugeAmbar" x1="0" y1="1" x2="1" y2="1">
             <stop offset="0%" stopColor="#FFB38A" />
             <stop offset="100%" stopColor="#F25C1F" />
           </linearGradient>
         </defs>
-
-        {/* Trilhos */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
+        <path
+          d="M23.2 117.9 A102 102 0 0 1 226.8 117.9"
           fill="none"
-          stroke="#E4E4E0"
-          strokeWidth={stroke}
-          strokeDasharray={`${semi} ${semi}`}
-          strokeDashoffset={0}
-          transform={`rotate(-180 ${cx} ${cy})`}
-          strokeLinecap="round"
+          stroke="#ECECE9"
+          strokeWidth="3"
+          pathLength="100"
         />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
+        <path
+          d="M23.2 132.1 A102 102 0 0 0 226.8 132.1"
           fill="none"
-          stroke="#E4E4E0"
-          strokeWidth={stroke}
-          strokeDasharray={`${semi} ${semi}`}
-          strokeDashoffset={0}
-          transform={`rotate(0 ${cx} ${cy})`}
-          strokeLinecap="round"
+          stroke="#ECECE9"
+          strokeWidth="3"
+          pathLength="100"
         />
-
-        {/* Avanço (superior) */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
+        <path
+          d="M23.2 117.9 A102 102 0 0 1 226.8 117.9"
           fill="none"
           stroke="url(#gaugeAmbar)"
-          strokeWidth={stroke}
-          strokeDasharray={`${avancoLen} ${circ}`}
-          strokeDashoffset={0}
-          transform={`rotate(-180 ${cx} ${cy})`}
+          strokeWidth="3"
           strokeLinecap="round"
+          pathLength="100"
+          strokeDasharray={`${avanco} 100`}
         />
-
-        {/* Desembolso (inferior, dir→esq visualmente: de 0° varrendo para 180°) */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
+        <path
+          d="M23.2 132.1 A102 102 0 0 0 226.8 132.1"
           fill="none"
           stroke="url(#gaugeAmbar)"
-          strokeWidth={stroke}
-          strokeDasharray={`${pagoLen} ${circ}`}
-          strokeDashoffset={0}
-          transform={`rotate(0 ${cx} ${cy})`}
+          strokeWidth="3"
           strokeLinecap="round"
+          pathLength="100"
+          strokeDasharray={`${pago} 100`}
         />
-
         <circle
           cx={marcadorAvanco.x}
           cy={marcadorAvanco.y}
-          r={6}
-          fill="#F25C1F"
-          stroke="#fff"
-          strokeWidth={2}
+          r="5.5"
+          fill="#FAFAF9"
+          stroke="#F25C1F"
+          strokeWidth="1.5"
         />
         <circle
           cx={marcadorPago.x}
           cy={marcadorPago.y}
-          r={6}
-          fill="#F25C1F"
-          stroke="#fff"
-          strokeWidth={2}
+          r="5.5"
+          fill="#FAFAF9"
+          stroke="#F25C1F"
+          strokeWidth="1.5"
         />
       </svg>
-
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <p className="font-serif text-[42px] font-light leading-none text-tinta">
+      <div
+        className="pointer-events-none absolute inset-x-0 text-center"
+        style={{ top: 52 * escala }}
+      >
+        <p
+          className="font-serif font-light leading-[0.9] tracking-[-0.02em] text-tinta"
+          style={{ fontSize: 52 * escala }}
+        >
           {avanco}
-          <span className="text-2xl">%</span>
+          <span className="text-cinza-3" style={{ fontSize: 26 * escala }}>
+            %
+          </span>
         </p>
-        <p className="mt-1 text-[10px] tracking-[0.14em] uppercase text-cinza-2">
-          avanço
+        <p
+          className="mt-2 tracking-[0.22em] uppercase text-cinza-2"
+          style={{ fontSize: 9.5 * escala }}
+        >
+          avanço físico
         </p>
-        <p className="mt-3 font-serif text-[28px] font-light leading-none text-tinta">
+      </div>
+      <div
+        className="pointer-events-none absolute inset-x-0 text-center"
+        style={{ bottom: 52 * escala }}
+      >
+        <p
+          className="font-serif font-light leading-[0.9] tracking-[-0.02em] text-tinta"
+          style={{ fontSize: 52 * escala }}
+        >
           {pago}
-          <span className="text-lg">%</span>
+          <span className="text-cinza-3" style={{ fontSize: 26 * escala }}>
+            %
+          </span>
         </p>
-        <p className="mt-1 text-[10px] tracking-[0.14em] uppercase text-cinza-2">
-          pago
+        <p
+          className="mt-2 tracking-[0.22em] uppercase text-cinza-2"
+          style={{ fontSize: 9.5 * escala }}
+        >
+          desembolso
         </p>
       </div>
     </div>

@@ -38,10 +38,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body
-        className={`${spaceGrotesk.variable} ${sourceSerif.variable} bg-fundo text-tinta font-sans antialiased`}
-      >
+    <html
+      lang="pt-BR"
+      className={`${spaceGrotesk.variable} ${sourceSerif.variable}`}
+    >
+      <body className="bg-fundo font-sans text-tinta antialiased">
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

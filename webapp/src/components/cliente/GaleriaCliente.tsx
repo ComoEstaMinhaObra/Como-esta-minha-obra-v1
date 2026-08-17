@@ -29,32 +29,33 @@ export function GaleriaCliente({ grupos }: { grupos: GrupoGaleria[] }) {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-8">
         {grupos.map((g) => (
           <section key={g.dataIso}>
-            <div className="mb-2 flex items-baseline justify-between">
-              <h2 className="text-sm font-medium text-tinta">
+            <div className="flex items-baseline gap-2.5">
+              <h2 className="whitespace-nowrap text-[10.5px] tracking-[0.18em] uppercase text-tinta">
                 {formatarDataBr(g.dataIso)}
               </h2>
-              <span className="text-xs text-cinza-2">
+              <span className="h-px flex-1 bg-divisor" />
+              <span className="whitespace-nowrap text-[10.5px] text-cinza-3">
                 {g.fotos.length} foto{g.fotos.length === 1 ? "" : "s"}
               </span>
             </div>
-            <ul className="grid grid-cols-2 gap-2">
+            <ul className="mt-3.5 grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-4">
               {g.fotos.map((f) => (
                 <li key={f.id}>
                   <button
                     type="button"
                     onClick={() => setAtiva(f)}
-                    className="w-full overflow-hidden rounded-[14px] border border-borda text-left"
+                    className="w-full text-left"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={f.url}
                       alt={f.etapaNome}
-                      className="aspect-square w-full object-cover"
+                      className="aspect-square w-full rounded-[14px] object-cover"
                     />
-                    <p className="truncate px-2 py-1.5 text-[10px] text-cinza-2">
+                    <p className="mt-[6px] truncate text-[10px] tracking-[0.1em] uppercase text-cinza-2">
                       {f.etapaNome}
                     </p>
                   </button>
@@ -69,6 +70,7 @@ export function GaleriaCliente({ grupos }: { grupos: GrupoGaleria[] }) {
         aberto={!!ativa}
         onFechar={() => setAtiva(null)}
         titulo={ativa?.etapaNome}
+        variante="midia"
       >
         {ativa ? (
           <div className="space-y-3 text-white">
@@ -76,9 +78,9 @@ export function GaleriaCliente({ grupos }: { grupos: GrupoGaleria[] }) {
             <img
               src={ativa.url}
               alt={ativa.etapaNome}
-              className="w-full rounded-lg"
+              className="aspect-[4/3] w-full rounded-[14px] object-cover"
             />
-            <p className="text-sm text-white/70">
+            <p className="text-[10.5px] tracking-[0.16em] uppercase text-white/60">
               publicada em {formatarDataBr(ativa.publicadaEm.slice(0, 10))}
             </p>
           </div>

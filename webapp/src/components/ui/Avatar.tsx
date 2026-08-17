@@ -16,8 +16,17 @@ export function Avatar({
 }) {
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-full bg-escuro-2 text-white ${className}`}
-      style={{ width: tamanho, height: tamanho, fontSize: tamanho * 0.32 }}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full border border-[#D9D9D4] bg-transparent text-cinza-2 ${className}`}
+      style={{
+        width: tamanho,
+        minWidth: tamanho,
+        maxWidth: tamanho,
+        height: tamanho,
+        minHeight: tamanho,
+        maxHeight: tamanho,
+        fontSize: tamanho * 0.31,
+        letterSpacing: "0.06em",
+      }}
       aria-hidden
     >
       {iniciaisDe(nome)}

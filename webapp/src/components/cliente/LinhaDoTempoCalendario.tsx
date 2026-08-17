@@ -47,14 +47,17 @@ export function LinhaDoTempoCalendario({
   const fim = parseISO(fimIso);
   const meses =
     inicio <= fim
-      ? eachMonthOfInterval({ start: startOfMonth(inicio), end: endOfMonth(fim) })
+      ? eachMonthOfInterval({
+          start: startOfMonth(inicio),
+          end: endOfMonth(fim),
+        })
       : [];
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
   return (
     <>
-      <div className="space-y-8">
+      <div className="grid grid-cols-1 gap-y-[38px] md:grid-cols-2 md:gap-x-8">
         {meses.map((mesDate) => {
           const mesInicio = startOfMonth(mesDate);
           const mesFim = endOfMonth(mesDate);
@@ -70,22 +73,21 @@ export function LinhaDoTempoCalendario({
 
           return (
             <section key={format(mesDate, "yyyy-MM")}>
-              <div className="mb-3 flex items-baseline justify-between">
-                <h2 className="font-serif text-lg font-light capitalize">
+              <div className="flex items-baseline gap-2.5">
+                <h2 className="whitespace-nowrap text-[10.5px] tracking-[0.18em] uppercase text-tinta">
                   {format(mesDate, "MMMM yyyy", { locale: ptBR })}
                 </h2>
-                <span className="text-xs text-cinza-2">
+                <span className="h-px flex-1 bg-divisor" />
+                <span className="whitespace-nowrap text-[10.5px] text-cinza-3">
                   {comRelatorio} relatório{comRelatorio === 1 ? "" : "s"}
                 </span>
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-cinza-3">
+              <div className="mt-4 grid grid-cols-7 text-center text-[9px] tracking-[0.1em] text-cinza-3">
                 {DIAS_SEMANA.map((d, i) => (
-                  <div key={`${d}-${i}`} className="py-1">
-                    {d}
-                  </div>
+                  <div key={`${d}-${i}`}>{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="mt-2 grid grid-cols-7 gap-y-[6px]">
                 {Array.from({ length: offset }).map((_, i) => (
                   <div key={`pad-${i}`} />
                 ))}
@@ -99,7 +101,7 @@ export function LinhaDoTempoCalendario({
                     return (
                       <div
                         key={iso}
-                        className="aspect-square rounded-full text-[11px] text-cinza-3/40"
+                        className="h-9 w-9 rounded-full text-[12.5px] text-cinza-3/40"
                       />
                     );
                   }
@@ -111,7 +113,7 @@ export function LinhaDoTempoCalendario({
                         type="button"
                         onClick={() => setPdf(rel)}
                         aria-label={`Relatório nº ${rel.numero} em ${iso}`}
-                        className="flex aspect-square items-center justify-center rounded-full bg-marca text-[11px] font-medium text-white"
+                        className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-marca text-[12.5px] font-normal text-white"
                       >
                         {format(d, "d")}
                       </button>
@@ -121,11 +123,7 @@ export function LinhaDoTempoCalendario({
                   return (
                     <div
                       key={iso}
-                      className={`flex aspect-square items-center justify-center rounded-full text-[11px] ${
-                        futuro
-                          ? "bg-[#F0EFEC] text-cinza-3"
-                          : "text-cinza-2"
-                      }`}
+                      className={`mx-auto flex h-9 w-9 items-center justify-center rounded-full text-[12.5px] ${futuro ? "text-cinza-3" : "text-tinta"}`}
                     >
                       {format(d, "d")}
                     </div>
@@ -141,12 +139,14 @@ export function LinhaDoTempoCalendario({
         aberto={!!pdf}
         onFechar={() => setPdf(null)}
         titulo={pdf ? `Relatório nº ${pdf.numero}` : undefined}
+        preencher
+        variante="pdf"
       >
         {pdf ? (
           <iframe
             title={`PDF relatório ${pdf.numero}`}
             src={`/api/relatorios/${pdf.id}/pdf`}
-            className="h-[70vh] w-full rounded-lg bg-white"
+            className="min-h-0 flex-1 w-full rounded-[14px] bg-white"
           />
         ) : null}
       </Lightbox>

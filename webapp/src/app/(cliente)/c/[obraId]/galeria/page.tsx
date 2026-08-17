@@ -1,11 +1,10 @@
 import { redirect } from "next/navigation";
-import { ClienteHeader } from "@/components/cliente/ClienteHeader";
+import { ClientePageHeader } from "@/components/cliente/ClientePageHeader";
 import {
   GaleriaCliente,
   type GrupoGaleria,
 } from "@/components/cliente/GaleriaCliente";
 import { carregarDadosCliente } from "@/lib/cliente/carregar-dados";
-import { primeiroNome } from "@/lib/datas";
 
 export default async function GaleriaPage({
   params,
@@ -43,21 +42,20 @@ export default async function GaleriaPage({
     .map(([dataIso, fotos]) => ({ dataIso, fotos }));
 
   return (
-    <div className="space-y-4">
-      <ClienteHeader
-        saudacao={`Olá, ${primeiroNome(dados.usuario.nome)}`}
-        nomeObra={dados.obra.nome}
-        nomeUsuario={dados.usuario.nome}
+    <div className="min-h-screen px-7 pb-[120px] pt-[34px] md:px-8 lg:px-10">
+      <ClientePageHeader
+        eyebrow={dados.obra.nome}
+        titulo="Galeria"
+        subtitulo={`${dados.fotos.length} foto${dados.fotos.length === 1 ? "" : "s"} da obra`}
       />
-      <p className="text-[10px] tracking-[0.16em] uppercase text-cinza-2">
-        Galeria
-      </p>
       {dados.semRelatorio ? (
-        <p className="text-sm text-cinza-2">
+        <p className="mt-8 text-sm text-cinza-2">
           As fotos aparecem aqui quando o primeiro relatório for enviado.
         </p>
       ) : (
-        <GaleriaCliente grupos={grupos} />
+        <div className="mt-8">
+          <GaleriaCliente grupos={grupos} />
+        </div>
       )}
     </div>
   );

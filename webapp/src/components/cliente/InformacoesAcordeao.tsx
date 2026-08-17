@@ -30,7 +30,7 @@ function BotaoAbrirFechar() {
     <button
       type="button"
       onClick={() => (algum ? fecharTodos() : abrirTodos())}
-      className="text-xs text-marca"
+      className="rounded-full border border-borda px-2.5 py-[5px] text-[9px] tracking-[0.1em] uppercase text-cinza-2"
     >
       {algum ? "Fechar tudo" : "Abrir tudo"}
     </button>
@@ -95,8 +95,7 @@ export function InformacoesAcordeao({
   const pctAditivos =
     obra.valorContratadoCentavos > 0
       ? Math.round(
-          (agregados.aditivosAcumuladoCentavos /
-            obra.valorContratadoCentavos) *
+          (agregados.aditivosAcumuladoCentavos / obra.valorContratadoCentavos) *
             100,
         )
       : 0;
@@ -107,8 +106,8 @@ export function InformacoesAcordeao({
   }
 
   return (
-    <Acordeao ids={IDS} className="rounded-[20px] border border-borda bg-cartao px-4">
-      <div className="flex justify-end border-b border-divisor py-2">
+    <Acordeao ids={IDS}>
+      <div className="flex justify-end pb-2">
         <BotaoAbrirFechar />
       </div>
 
@@ -149,6 +148,7 @@ export function InformacoesAcordeao({
         id="prazos"
         titulo="Prazos"
         resumo={`${agregados.diasRestantes} dias restantes`}
+        resumoTom="cinza"
       >
         <Linha
           label="Início contratual"
@@ -177,10 +177,7 @@ export function InformacoesAcordeao({
           destaque
         />
         <Linha label="Dias de obra" valor={String(agregados.diasDeObra)} />
-        <Linha
-          label="Dias restantes"
-          valor={String(agregados.diasRestantes)}
-        />
+        <Linha label="Dias restantes" valor={String(agregados.diasRestantes)} />
       </AcordeaoItem>
 
       <AcordeaoItem
@@ -191,7 +188,7 @@ export function InformacoesAcordeao({
         <ul className="space-y-3">
           {etapas.map((e) => (
             <li key={e.nome} className="space-y-1">
-              <div className="flex items-center justify-between gap-2 text-sm">
+              <div className="flex items-center justify-between gap-2 text-[12.5px]">
                 <span className="min-w-0 truncate">{e.nome}</span>
                 <span
                   className={
@@ -295,7 +292,7 @@ function Linha({
 }) {
   return (
     <div
-      className={`flex items-start justify-between gap-3 py-1.5 text-sm ${
+      className={`flex items-start justify-between gap-3 py-[7px] text-[12.5px] ${
         destaque ? "font-medium text-tinta" : "text-tinta"
       }`}
     >

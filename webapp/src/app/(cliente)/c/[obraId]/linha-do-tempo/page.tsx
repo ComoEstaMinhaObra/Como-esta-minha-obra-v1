@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import { ClienteHeader } from "@/components/cliente/ClienteHeader";
+import { ClientePageHeader } from "@/components/cliente/ClientePageHeader";
 import { LinhaDoTempoCalendario } from "@/components/cliente/LinhaDoTempoCalendario";
 import { carregarDadosCliente } from "@/lib/cliente/carregar-dados";
-import { primeiroNome } from "@/lib/datas";
 
 export default async function LinhaDoTempoPage({
   params,
@@ -23,30 +22,33 @@ export default async function LinhaDoTempoPage({
   const total = dados.todosRelatorios.length;
 
   return (
-    <div className="space-y-4">
-      <ClienteHeader
-        saudacao={`Olá, ${primeiroNome(dados.usuario.nome)}`}
-        nomeObra={dados.obra.nome}
-        nomeUsuario={dados.usuario.nome}
+    <div className="min-h-screen px-7 pb-[120px] pt-[34px] md:px-8 lg:px-10">
+      <ClientePageHeader
+        eyebrow={dados.obra.nome}
+        titulo="Linha do tempo"
+        subtitulo={`${total} relatório${total === 1 ? "" : "s"} desde o início da obra`}
       />
-      <div>
-        <p className="text-[10px] tracking-[0.16em] uppercase text-cinza-2">
-          Linha do tempo
-        </p>
-        <p className="mt-1 text-sm text-cinza-2">
-          {total} relatório{total === 1 ? "" : "s"} no período da obra
+      <div className="mt-[18px] flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-marca" />
+        <p className="text-[11px] text-cinza-2">
+          dias com relatório · toque para abrir
         </p>
       </div>
       {dados.semRelatorio ? (
-        <p className="text-sm text-cinza-2">
+        <p className="mt-8 text-sm text-cinza-2">
           O calendário fica ativo após o envio do primeiro relatório.
         </p>
       ) : (
-        <LinhaDoTempoCalendario
-          inicioIso={dados.obra.inicioContratual}
-          fimIso={dados.agregados.entregaPrevista}
-          relatorios={dados.todosRelatorios}
-        />
+        <div className="mt-[38px]">
+          <LinhaDoTempoCalendario
+            inicioIso={dados.obra.inicioContratual}
+            fimIso={
+              dados.ultimoRelatorio?.enviadoEm.slice(0, 10) ??
+              dados.obra.inicioContratual
+            }
+            relatorios={dados.todosRelatorios}
+          />
+        </div>
       )}
     </div>
   );

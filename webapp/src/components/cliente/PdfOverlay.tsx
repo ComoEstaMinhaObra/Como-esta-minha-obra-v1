@@ -19,7 +19,7 @@ export function PdfOverlay({
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="rounded-full bg-marca px-4 py-2 text-sm text-white"
+        className="shrink-0 whitespace-nowrap rounded-full border border-white/25 px-3 py-[9px] text-[9.5px] tracking-[0.1em] uppercase text-white"
       >
         Abrir em PDF
       </button>
@@ -27,12 +27,16 @@ export function PdfOverlay({
         aberto={aberto}
         onFechar={() => setAberto(false)}
         titulo={`Relatório nº ${numero}`}
+        preencher
+        variante="pdf"
       >
-        <p className="mb-3 text-sm text-white/70">{dataLabel}</p>
+        <p className="mb-3 text-[10.5px] tracking-[0.16em] uppercase text-white/60">
+          {dataLabel}
+        </p>
         <iframe
           title={`PDF relatório ${numero}`}
           src={`/api/relatorios/${relatorioId}/pdf`}
-          className="h-[70vh] w-full rounded-lg bg-white"
+          className="min-h-0 flex-1 w-full rounded-[14px] bg-white"
         />
       </Lightbox>
     </>

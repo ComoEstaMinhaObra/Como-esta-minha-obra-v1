@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme {
+@theme inline {
   --color-fundo: #fafaf9;
   --color-tinta: #141414;
   --color-cinza-2: #8a8a85; /* texto secundário */
@@ -30,4 +30,18 @@ body {
   margin: 0;
   background-color: var(--color-fundo);
   color: var(--color-tinta);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-weight: 300;
+}
+
+@media (min-width: 391px) {
+  body:has([data-cliente-shell]) {
+    background-color: #ededed;
+  }
+}
+
+@media (min-width: 1024px) {
+  body:has([data-cliente-shell]) {
+    width: 100vw;
+  }
 }

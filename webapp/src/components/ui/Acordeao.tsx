@@ -48,12 +48,14 @@ export function AcordeaoItem({
   children,
   nivel = 1,
   resumo,
+  resumoTom = "marca",
 }: {
   id: string;
   titulo: string;
   children: React.ReactNode;
   nivel?: 1 | 2;
   resumo?: React.ReactNode;
+  resumoTom?: "marca" | "cinza";
 }) {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("AcordeaoItem precisa estar dentro de Acordeao");
@@ -67,28 +69,35 @@ export function AcordeaoItem({
         aria-expanded={estaAberto}
         aria-controls={itemId}
         onClick={() => ctx.toggle(id)}
-        className="flex w-full items-center justify-between gap-3 py-3 text-left"
+        className="flex w-full items-center justify-between gap-3 py-[18px] text-left"
       >
         <span
           className={
             nivel === 1
-              ? "font-serif text-base font-light"
-              : "text-sm text-cinza-2"
+              ? "text-[15px] font-normal"
+              : "text-[12.5px] text-cinza-2"
           }
         >
           {titulo}
         </span>
         <span className="flex items-center gap-2">
           {resumo ? (
-            <span className="text-xs text-marca">{resumo}</span>
+            <span
+              className={`text-[11px] tracking-[0.08em] uppercase ${resumoTom === "marca" ? "text-marca" : "text-cinza-2"}`}
+            >
+              {resumo}
+            </span>
           ) : null}
-          <span className="text-cinza-3 text-lg leading-none" aria-hidden>
+          <span
+            className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border border-borda text-[13px] leading-none text-cinza-2"
+            aria-hidden
+          >
             {estaAberto ? "−" : "+"}
           </span>
         </span>
       </button>
       {estaAberto ? (
-        <div id={itemId} className="pb-4 text-sm">
+        <div id={itemId} className="pb-4 text-[12.5px]">
           {children}
         </div>
       ) : null}
