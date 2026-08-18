@@ -19,6 +19,10 @@ import { criarObraAction, atualizarCapaObra } from "./actions";
 
 type EtapaForm = { nome: string; peso: number };
 
+const formatadorPeso = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 2,
+});
+
 export function FormNovaObra() {
   const { toast } = useToast();
   const router = useRouter();
@@ -42,6 +46,7 @@ export function FormNovaObra() {
   );
   const [novaEtapa, setNovaEtapa] = useState("");
   const [upsellLimite, setUpsellLimite] = useState(false);
+  const pesoTotal = etapas.reduce((total, etapa) => total + etapa.peso, 0);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -152,37 +157,75 @@ export function FormNovaObra() {
       </Cartao>
 
       <Cartao className="space-y-4 p-5">
-        <RotuloSecao>4 · Etapas</RotuloSecao>
+        <div className="flex items-baseline justify-between gap-4">
+          <RotuloSecao>4 · Etapas</RotuloSecao>
+          <output
+            aria-label={`${etapas.length} ${etapas.length === 1 ? "etapa adicionada" : "etapas adicionadas"}`}
+            className="shrink-0 text-xs text-cinza-2"
+          >
+            <span className="mr-1 font-serif text-2xl leading-none text-tinta tabular-nums">
+              {etapas.length}
+            </span>
+            {etapas.length === 1 ? "etapa adicionada" : "etapas adicionadas"}
+          </output>
+        </div>
         <ul className="space-y-2">
-          {etapas.map((etapa, idx) => (
-            <li key={`${etapa.nome}-${idx}`} className="flex items-center gap-2">
-              <span className="w-6 text-xs text-cinza-3">{idx + 1}</span>
-              <span className="flex-1 text-sm">{etapa.nome}</span>
-              <input
-                type="number"
-                min={0.01}
-                step="any"
-                title="peso na média do avanço geral"
-                value={etapa.peso}
-                onChange={(e) => {
-                  const peso = Number(e.target.value);
-                  setEtapas((prev) =>
-                    prev.map((x, i) => (i === idx ? { ...x, peso: peso > 0 ? peso : 1 } : x)),
-                  );
-                }}
-                className="w-16 rounded-full border border-borda px-2 py-1 text-sm"
-                aria-label={`Peso de ${etapa.nome}`}
-              />
-              <button
-                type="button"
-                aria-label={`Remover ${etapa.nome}`}
-                className="text-cinza-2"
-                onClick={() => setEtapas((prev) => prev.filter((_, i) => i !== idx))}
+          {etapas.map((etapa, idx) => {
+            const percentualPeso =
+              pesoTotal > 0 ? (etapa.peso / pesoTotal) * 100 : 0;
+
+            return (
+              <li
+                key={`${etapa.nome}-${idx}`}
+                className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-1 sm:grid-cols-[1.5rem_minmax(0,1fr)_auto_auto_auto]"
               >
-                ×
-              </button>
-            </li>
-          ))}
+                <span className="row-span-2 text-xs text-cinza-3 sm:row-span-1">
+                  {idx + 1}
+                </span>
+                <span className="min-w-0 text-sm">{etapa.nome}</span>
+                <output
+                  aria-label={`Peso relativo de ${etapa.nome}: ${formatadorPeso.format(etapa.peso)} de ${formatadorPeso.format(pesoTotal)}, equivalente a ${formatadorPeso.format(percentualPeso)}% da obra`}
+                  className="col-start-2 row-start-2 flex items-baseline gap-1.5 text-xs tabular-nums sm:col-start-auto sm:row-start-auto sm:justify-end"
+                  title="Participação desta etapa no peso total da obra"
+                >
+                  <span className="text-cinza-2">
+                    {formatadorPeso.format(etapa.peso)}/
+                    {formatadorPeso.format(pesoTotal)}
+                  </span>
+                  <span className="font-medium text-marca">
+                    {formatadorPeso.format(percentualPeso)}%
+                  </span>
+                </output>
+                <input
+                  type="number"
+                  min={0.01}
+                  step="any"
+                  title="peso na média do avanço geral"
+                  value={etapa.peso}
+                  onChange={(e) => {
+                    const peso = Number(e.target.value);
+                    setEtapas((prev) =>
+                      prev.map((x, i) =>
+                        i === idx ? { ...x, peso: peso > 0 ? peso : 1 } : x,
+                      ),
+                    );
+                  }}
+                  className="col-start-3 row-start-2 w-16 rounded-full border border-borda px-2 py-1 text-sm tabular-nums sm:col-start-auto sm:row-start-auto"
+                  aria-label={`Peso de ${etapa.nome}`}
+                />
+                <button
+                  type="button"
+                  aria-label={`Remover ${etapa.nome}`}
+                  className="col-start-3 row-start-1 text-cinza-2 sm:col-start-auto sm:row-start-auto"
+                  onClick={() =>
+                    setEtapas((prev) => prev.filter((_, i) => i !== idx))
+                  }
+                >
+                  ×
+                </button>
+              </li>
+            );
+          })}
         </ul>
         <div className="flex gap-2">
           <input
