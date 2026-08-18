@@ -6,7 +6,11 @@ import {
   calcularFinanceiro,
   calcularNovaDataTermino,
 } from "@/lib/relatorios/calculos";
-import type { RelatorioSnapshot } from "@/lib/relatorios/tipos";
+import { montarSnapshotRelatorioEmMemoria } from "@/lib/relatorios/montar-snapshot";
+import type {
+  RelatorioRascunho,
+  RelatorioSnapshot,
+} from "@/lib/relatorios/tipos";
 import { createClient } from "@/lib/supabase/server";
 import { diasDeObra, diasRestantes, hojeIsoBahia } from "@/lib/datas";
 
@@ -34,6 +38,8 @@ export type ClienteObraContexto = {
     nome: string;
   };
   temAcesso: boolean;
+  ehEmpreiteiroResponsavel: boolean;
+  previewAtivo: boolean;
   semRelatorio: boolean;
   ultimoRelatorio: {
     id: string;
@@ -101,10 +107,14 @@ export type ClienteObraContexto = {
 
 export type CarregarClienteResult =
   | { ok: true; dados: ClienteObraContexto }
-  | { ok: false; motivo: "nao_autenticado" | "sem_acesso" | "obra_nao_encontrada" };
+  | {
+      ok: false;
+      motivo: "nao_autenticado" | "sem_acesso" | "obra_nao_encontrada";
+    };
 
 export const carregarDadosCliente = cache(async function carregarDadosCliente(
   obraId: string,
+  previewRelatorioId?: string,
 ): Promise<CarregarClienteResult> {
   const supabase = await createClient();
   const {
@@ -115,25 +125,22 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
     return { ok: false, motivo: "nao_autenticado" };
   }
 
-  const { data: temAcesso } = await supabase.rpc("tem_acesso_obra", {
-    p_obra: obraId,
-  });
-
-  if (!temAcesso) {
-    return { ok: false, motivo: "sem_acesso" };
-  }
-
   const { data: obra } = await supabase
     .from("obras")
     .select(
-      "id, nome, endereco, cliente_nome, construtora, engenheiro, escritorio_arquitetura, arquiteto, projetista_estruturas, projetista_instalacoes, inicio_contratual, termino_contratual, valor_contratado_centavos, lat, lng, arquivada_em",
+      "id, nome, endereco, cliente_nome, construtora, engenheiro, escritorio_arquitetura, arquiteto, projetista_estruturas, projetista_instalacoes, inicio_contratual, termino_contratual, valor_contratado_centavos, lat, lng, arquivada_em, owner_id",
     )
     .eq("id", obraId)
     .maybeSingle();
 
-  if (!obra || obra.arquivada_em) {
+  if (!obra) {
+    return { ok: false, motivo: "sem_acesso" };
+  }
+  if (obra.arquivada_em) {
     return { ok: false, motivo: "obra_nao_encontrada" };
   }
+
+  const ehEmpreiteiroResponsavel = obra.owner_id === user.id;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -181,48 +188,56 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
       .order("ordem", { ascending: true }),
   ]);
 
-  const listaEtapas = etapas ?? [];
-  const avancoGeral = calcularAvancoGeral(
-    listaEtapas.map((e) => ({ peso: Number(e.peso), pct: e.pct_atual })),
+  let listaEtapas: ClienteObraContexto["etapas"] = (etapas ?? []).map(
+    (etapa) => ({
+      id: etapa.id,
+      nome: etapa.nome,
+      ordem: etapa.ordem,
+      peso: Number(etapa.peso),
+      pctAtual: etapa.pct_atual,
+    }),
   );
-
-  const listaLanc = lancamentos ?? [];
-  const aditivos = listaLanc
-    .filter((l) => l.tipo === "aditivo")
-    .map((l) => l.valor_centavos);
-  const estornosAditivos = listaLanc
-    .filter((l) => l.tipo === "estorno" && l.grupo === "aditivos")
-    .map((l) => l.valor_centavos);
-  const pago = listaLanc
-    .filter((l) =>
-      ["sinal", "medicao", "material", "estorno"].includes(l.tipo),
-    )
-    .filter((l) => !(l.tipo === "estorno" && l.grupo === "aditivos"))
-    .map((l) => l.valor_centavos);
-
-  const fin = calcularFinanceiro({
-    valorContratadoCentavos: obra.valor_contratado_centavos,
-    aditivosCentavos: aditivos,
-    pagoCentavos: pago,
-    estornosAditivosCentavos: estornosAditivos,
-  });
-
-  const diasLista = (diasAditivos ?? []).map((d) => d.dias);
-  const totalDiasAditivados = diasLista.reduce((a, b) => a + b, 0);
-  const entregaPrevista = calcularNovaDataTermino(
-    obra.termino_contratual,
-    diasLista,
+  let listaLanc: ClienteObraContexto["lancamentos"] = (lancamentos ?? []).map(
+    (lancamento) => ({
+      tipo: lancamento.tipo,
+      grupo: lancamento.grupo,
+      rotulo: lancamento.rotulo,
+      valorCentavos: lancamento.valor_centavos,
+      numero: lancamento.numero,
+    }),
   );
-  const hoje = hojeIsoBahia();
-
+  let listaDias: ClienteObraContexto["diasAditivados"] = (
+    diasAditivos ?? []
+  ).map((dia) => ({
+    motivo: dia.motivo,
+    descricao: dia.descricao,
+    dias: dia.dias,
+  }));
+  const climaAll: ClienteObraContexto["climaDias"] = (clima ?? []).map(
+    (dia) => ({
+      data: dia.data,
+      condicao: dia.condicao,
+      probChuva: dia.prob_chuva,
+    }),
+  );
   const enviados = (relatorios ?? []).filter(
-    (r) => r.status === "enviado" && r.enviado_em && r.snapshot,
+    (relatorio) =>
+      relatorio.status === "enviado" &&
+      relatorio.enviado_em &&
+      relatorio.snapshot,
   );
 
   const ultimo = enviados[0] ?? null;
-  const anterior = enviados[1] ?? null;
-
+  let anterior = enviados[1] ?? null;
   let ultimoRelatorio: ClienteObraContexto["ultimoRelatorio"] = null;
+  let previewAtivo = false;
+  let fotosPreview: {
+    etapaId: string;
+    etapaNome: string;
+    storagePath: string;
+    ordem: number;
+  }[] = [];
+
   if (ultimo?.snapshot && ultimo.enviado_em) {
     ultimoRelatorio = {
       id: ultimo.id,
@@ -232,7 +247,113 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
     };
   }
 
-  const etapaPorId = new Map(listaEtapas.map((e) => [e.id, e.nome]));
+  if (previewRelatorioId && ehEmpreiteiroResponsavel) {
+    const { data: relatorioPreview } = await supabase
+      .from("relatorios")
+      .select("id, numero, status, dados_rascunho")
+      .eq("id", previewRelatorioId)
+      .eq("obra_id", obraId)
+      .eq("status", "rascunho")
+      .maybeSingle();
+
+    if (relatorioPreview?.dados_rascunho) {
+      const rascunho =
+        relatorioPreview.dados_rascunho as unknown as RelatorioRascunho;
+      const enviadoEm = new Date().toISOString();
+      const projecao = montarSnapshotRelatorioEmMemoria({
+        numero: relatorioPreview.numero,
+        enviadoEm,
+        obra: {
+          nome: obra.nome,
+          endereco: obra.endereco,
+          clienteNome: obra.cliente_nome,
+          construtora: obra.construtora,
+          engenheiro: obra.engenheiro,
+          escritorioArquitetura: obra.escritorio_arquitetura,
+          arquiteto: obra.arquiteto,
+          projetistaEstruturas: obra.projetista_estruturas,
+          projetistaInstalacoes: obra.projetista_instalacoes,
+          inicioContratual: obra.inicio_contratual,
+          terminoContratual: obra.termino_contratual,
+          valorContratadoCentavos: obra.valor_contratado_centavos,
+        },
+        etapas: listaEtapas,
+        lancamentos: listaLanc,
+        diasAditivados: listaDias,
+        climaDias: climaAll.slice(-7),
+        rascunho,
+      });
+
+      listaEtapas = projecao.etapasProjetadas.map((etapa) => ({
+        ...etapa,
+        ordem: listaEtapas.find((item) => item.id === etapa.id)?.ordem ?? 0,
+      }));
+      listaLanc = [...listaLanc, ...projecao.lancamentosNovos];
+      listaDias = [...listaDias, ...projecao.diasNovos];
+      ultimoRelatorio = {
+        id: relatorioPreview.id,
+        numero: relatorioPreview.numero,
+        enviadoEm,
+        snapshot: projecao.snapshot,
+      };
+      anterior = enviados[0] ?? null;
+      previewAtivo = true;
+      fotosPreview = rascunho.atividades.flatMap((atividade) => {
+        const etapa = listaEtapas.find((item) => item.id === atividade.etapaId);
+        return atividade.fotosPaths.map((storagePath, ordem) => ({
+          etapaId: atividade.etapaId,
+          etapaNome: etapa?.nome ?? "Etapa",
+          storagePath,
+          ordem: ordem + 1,
+        }));
+      });
+    }
+  }
+
+  const avancoGeral = calcularAvancoGeral(
+    listaEtapas.map((etapa) => ({
+      peso: etapa.peso,
+      pct: etapa.pctAtual,
+    })),
+  );
+
+  const aditivos = listaLanc
+    .filter((lancamento) => lancamento.tipo === "aditivo")
+    .map((lancamento) => lancamento.valorCentavos);
+  const estornosAditivos = listaLanc
+    .filter(
+      (lancamento) =>
+        lancamento.tipo === "estorno" && lancamento.grupo === "aditivos",
+    )
+    .map((lancamento) => lancamento.valorCentavos);
+  const pago = listaLanc
+    .filter((lancamento) =>
+      ["sinal", "medicao", "material", "estorno"].includes(lancamento.tipo),
+    )
+    .filter(
+      (lancamento) =>
+        !(lancamento.tipo === "estorno" && lancamento.grupo === "aditivos"),
+    )
+    .map((lancamento) => lancamento.valorCentavos);
+
+  const fin = calcularFinanceiro({
+    valorContratadoCentavos: obra.valor_contratado_centavos,
+    aditivosCentavos: aditivos,
+    pagoCentavos: pago,
+    estornosAditivosCentavos: estornosAditivos,
+  });
+
+  const diasLista = listaDias.map((dia) => dia.dias);
+  const totalDiasAditivados = diasLista.reduce((a, b) => a + b, 0);
+  const entregaPrevista = calcularNovaDataTermino(
+    obra.termino_contratual,
+    diasLista,
+  );
+  const hoje = hojeIsoBahia();
+
+  const etapaPorId = new Map(
+    listaEtapas.map((etapa) => [etapa.id, etapa.nome]),
+  );
   const relatorioPorId = new Map(
     enviados.map((r) => [r.id, r.enviado_em ?? ""]),
   );
@@ -256,12 +377,24 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
     });
   }
 
+  for (const foto of fotosPreview) {
+    const { data: signed } = await supabase.storage
+      .from("fotos")
+      .createSignedUrl(foto.storagePath, 3600);
+    fotosComUrl.push({
+      id: `preview-${foto.etapaId}-${foto.ordem}`,
+      storagePath: foto.storagePath,
+      etapaId: foto.etapaId,
+      etapaNome: foto.etapaNome,
+      relatorioId: previewRelatorioId ?? "preview",
+      relatorioEnviadoEm:
+        ultimoRelatorio?.enviadoEm ?? new Date().toISOString(),
+      ordem: foto.ordem,
+      urlAssinada: signed?.signedUrl ?? null,
+    });
+  }
+
   // Clima: 7 dias anteriores à data do relatório vigente (ou últimos 7 se sem)
-  const climaAll = (clima ?? []).map((c) => ({
-    data: c.data,
-    condicao: c.condicao,
-    probChuva: c.prob_chuva,
-  }));
   let climaDias = climaAll;
   if (ultimoRelatorio) {
     const dataRef = ultimoRelatorio.enviadoEm.slice(0, 10);
@@ -293,9 +426,12 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
       usuario: {
         id: user.id,
         email: user.email ?? "",
-        nome: profile?.nome?.trim() || user.email?.split("@")[0] || "Proprietário",
+        nome:
+          profile?.nome?.trim() || user.email?.split("@")[0] || "Proprietário",
       },
       temAcesso: true,
+      ehEmpreiteiroResponsavel,
+      previewAtivo,
       semRelatorio: !ultimoRelatorio,
       ultimoRelatorio,
       relatorioAnterior: anterior?.enviado_em
@@ -312,25 +448,9 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
           numero: r.numero,
           enviadoEm: r.enviado_em!,
         })),
-      etapas: listaEtapas.map((e) => ({
-        id: e.id,
-        nome: e.nome,
-        ordem: e.ordem,
-        peso: Number(e.peso),
-        pctAtual: e.pct_atual,
-      })),
-      lancamentos: listaLanc.map((l) => ({
-        tipo: l.tipo,
-        grupo: l.grupo,
-        rotulo: l.rotulo,
-        valorCentavos: l.valor_centavos,
-        numero: l.numero,
-      })),
-      diasAditivados: (diasAditivos ?? []).map((d) => ({
-        motivo: d.motivo,
-        descricao: d.descricao,
-        dias: d.dias,
-      })),
+      etapas: listaEtapas,
+      lancamentos: listaLanc,
+      diasAditivados: listaDias,
       climaDias,
       fotos: fotosComUrl,
       agregados: {

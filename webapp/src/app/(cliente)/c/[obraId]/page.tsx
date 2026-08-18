@@ -84,11 +84,17 @@ function IconeClima({
 
 export default async function ClienteInicioPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ obraId: string }>;
+  searchParams: Promise<{ previewRelatorio?: string | string[] }>;
 }) {
   const { obraId } = await params;
-  const result = await carregarDadosCliente(obraId);
+  const query = await searchParams;
+  const previewRelatorioId = Array.isArray(query.previewRelatorio)
+    ? query.previewRelatorio[0]
+    : query.previewRelatorio;
+  const result = await carregarDadosCliente(obraId, previewRelatorioId);
   if (!result.ok) {
     if (result.motivo === "nao_autenticado")
       redirect(`/entrar?next=${encodeURIComponent(`/c/${obraId}`)}`);
@@ -183,6 +189,11 @@ export default async function ClienteInicioPage({
         nomeObra={obra.nome}
         nomeUsuario={dados.usuario.nome}
       />
+      {dados.previewAtivo ? (
+        <div className="border-y border-[#E8B89F] bg-[#FFF3EC] px-7 py-3 text-center text-[11px] tracking-[0.08em] text-[#9A4E2E] md:px-8 lg:px-10">
+          Pré-visualização do rascunho · nada foi publicado ou alterado
+        </div>
+      ) : null}
       <div className="xl:grid xl:grid-cols-12 xl:gap-x-16 xl:gap-y-14 xl:px-10">
         <section className="px-7 pt-7 md:px-8 lg:px-10 xl:col-span-7 xl:px-0">
           <div className="mb-[26px] flex flex-col items-center gap-[6px] text-center lg:flex-row lg:flex-nowrap lg:justify-start lg:gap-2 lg:text-left">
@@ -352,14 +363,27 @@ export default async function ClienteInicioPage({
                 ) : null}
               </div>
               <p className="mt-1 whitespace-nowrap text-xs text-white/60">
-                publicado hoje · {dataPublicacao(ultimoRelatorio.enviadoEm)}
+                {dados.previewAtivo
+                  ? "pré-visualização · ainda não enviado"
+                  : `publicado hoje · ${dataPublicacao(ultimoRelatorio.enviadoEm)}`}
               </p>
             </div>
-            <PdfOverlay
-              relatorioId={ultimoRelatorio.id}
-              numero={ultimoRelatorio.numero}
-              dataLabel={formatarDataBr(ultimoRelatorio.enviadoEm.slice(0, 10))}
-            />
+            {dados.previewAtivo ? (
+              <Selo
+                tom="ambar"
+                className="shrink-0 whitespace-nowrap px-3 py-2 text-[8px] tracking-[0.12em] uppercase"
+              >
+                rascunho
+              </Selo>
+            ) : (
+              <PdfOverlay
+                relatorioId={ultimoRelatorio.id}
+                numero={ultimoRelatorio.numero}
+                dataLabel={formatarDataBr(
+                  ultimoRelatorio.enviadoEm.slice(0, 10),
+                )}
+              />
+            )}
           </CartaoEscuro>
         </section>
       </div>

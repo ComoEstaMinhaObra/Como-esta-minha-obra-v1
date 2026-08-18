@@ -82,8 +82,7 @@ export function FeedRelatorios({
             r.snapshot?.avancoFisico?.etapas?.filter(
               (e) => e.pctNovo !== e.pctAnterior,
             ) ?? [];
-          const pago =
-            r.snapshot?.financeiro?.pagoAcumuladoCentavos ?? null;
+          const pago = r.snapshot?.financeiro?.pagoAcumuladoCentavos ?? null;
 
           return (
             <Cartao key={r.id} className="space-y-3 p-4">
@@ -129,24 +128,24 @@ export function FeedRelatorios({
                       Ver relatório do cliente
                     </Link>
                     <a
-                        href={`/api/relatorios/${r.id}/pdf`}
-                        className="text-xs underline text-cinza-2"
-                      >
-                        Baixar PDF
-                      </a>
+                      href={`/api/relatorios/${r.id}/pdf`}
+                      className="text-xs underline text-cinza-2"
+                    >
+                      Baixar PDF
+                    </a>
                   </div>
                 </>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  <Botao
-                    variante="secundario"
-                    className="text-xs py-2"
-                    onClick={() =>
-                      toast("Preview do cliente completa em S2.7+")
-                    }
+                  <Link
+                    href={`/c/${obraId}?previewRelatorio=${r.id}`}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    Visualizar como cliente
-                  </Botao>
+                    <Botao variante="secundario" className="text-xs py-2">
+                      Visualizar como cliente
+                    </Botao>
+                  </Link>
                   <Link href={`/obras/${obraId}?editarRelatorio=${r.id}`}>
                     <Botao variante="secundario" className="text-xs py-2">
                       Editar

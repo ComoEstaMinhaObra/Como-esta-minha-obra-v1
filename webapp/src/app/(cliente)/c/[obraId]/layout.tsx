@@ -34,5 +34,12 @@ export default async function ClienteLayout({
     );
   }
 
-  return <ClienteShell obraId={obraId}>{children}</ClienteShell>;
+  return (
+    <ClienteShell
+      obraId={obraId}
+      mostrarRetornoDashboard={result.dados.ehEmpreiteiroResponsavel}
+    >
+      {children}
+    </ClienteShell>
+  );
 }

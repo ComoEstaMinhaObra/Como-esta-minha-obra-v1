@@ -78,9 +78,11 @@ function IconeTab({ nome }: { nome: NomeIcone }) {
 
 export function ClienteShell({
   obraId,
+  mostrarRetornoDashboard,
   children,
 }: {
   obraId: string;
+  mostrarRetornoDashboard: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -104,6 +106,26 @@ export function ClienteShell({
       className={`mx-auto min-h-screen w-full max-w-[390px] bg-fundo pb-[92px] md:max-w-[760px] lg:grid lg:max-w-none ${menuRecolhido ? "lg:grid-cols-[64px_minmax(0,1fr)]" : "lg:grid-cols-[216px_minmax(0,1fr)]"} lg:pb-0`}
     >
       <main className="min-w-0 lg:col-start-2">{children}</main>
+      {mostrarRetornoDashboard ? (
+        <Link
+          href={`/obras/${obraId}`}
+          className="fixed bottom-[106px] right-4 z-40 inline-flex items-center gap-2 rounded-full bg-tinta px-4 py-3 text-[11px] font-medium text-white shadow-[0_12px_30px_rgba(31,29,27,0.24)] transition-transform hover:-translate-y-0.5 md:right-6 lg:bottom-6 lg:right-6"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          Retornar ao Dashboard
+        </Link>
+      ) : null}
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-[390px] grid-cols-4 items-center gap-1 border-t border-divisor bg-fundo/90 px-[22px] pb-[calc(20px+env(safe-area-inset-bottom))] pt-3 backdrop-blur-md md:max-w-[760px] lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:mx-0 lg:flex lg:h-dvh lg:max-w-none lg:flex-col lg:items-stretch lg:border-r lg:border-t-0 lg:border-divisor lg:px-0 lg:py-4">
         <button
           type="button"
@@ -112,26 +134,41 @@ export function ClienteShell({
           title={menuRecolhido ? "Expandir menu" : "Recolher menu"}
           className={`mb-5 hidden h-8 items-center text-cinza-2 transition-colors hover:text-tinta lg:flex ${menuRecolhido ? "lg:justify-center" : "lg:pl-5"}`}
         >
-          <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d={menuRecolhido ? "m9 18 6-6-6-6" : "m15 18-6-6 6-6"} strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <path
+              d={menuRecolhido ? "m9 18 6-6-6-6" : "m15 18-6-6 6-6"}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
         <div className="contents lg:flex lg:flex-col lg:gap-1">
           {tabs.map((tab) => {
             const href = hrefDaTab(tab.href);
             const ativo = estaAtiva(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={href}
-              aria-label={tab.label}
-              aria-current={ativo ? "page" : undefined}
-              className={classeDaTab(ativo)}
-            >
-              <IconeTab nome={tab.icon} />
-              <span className={`whitespace-nowrap ${menuRecolhido ? "lg:hidden" : ""}`}>{tab.label}</span>
-            </Link>
-          );
+            return (
+              <Link
+                key={tab.href}
+                href={href}
+                aria-label={tab.label}
+                aria-current={ativo ? "page" : undefined}
+                className={classeDaTab(ativo)}
+              >
+                <IconeTab nome={tab.icon} />
+                <span
+                  className={`whitespace-nowrap ${menuRecolhido ? "lg:hidden" : ""}`}
+                >
+                  {tab.label}
+                </span>
+              </Link>
+            );
           })}
         </div>
         <div className="contents lg:mt-auto lg:block">
@@ -142,7 +179,11 @@ export function ClienteShell({
             className={classeDaTab(estaAtiva(perfil.href))}
           >
             <IconeTab nome={perfil.icon} />
-            <span className={`whitespace-nowrap ${menuRecolhido ? "lg:hidden" : ""}`}>{perfil.label}</span>
+            <span
+              className={`whitespace-nowrap ${menuRecolhido ? "lg:hidden" : ""}`}
+            >
+              {perfil.label}
+            </span>
           </Link>
         </div>
       </nav>
