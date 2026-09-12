@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ETAPAS_PADRAO } from "@/lib/obras/etapas";
 import { geocodificarEndereco } from "@/lib/clima/geocode";
 import { sincronizarClimaObra } from "@/lib/clima/sincronizar";
+import { codigoRpc } from "@/lib/rpc-erros";
+import { logSeguro } from "@/lib/log";
 
 export type NovaObraInput = {
   nome: string;
@@ -43,6 +45,10 @@ export async function criarObraAction(input: NovaObraInput) {
   let avisoClima: string | undefined;
 
   if (lat == null || lng == null) {
+    const { error: rlErr } = await supabase.rpc("fn_consumir_rate_limit", {
+      p_acao: "geocodificacao",
+    });
+    if (rlErr) return { ok: false as const, erro: codigoRpc(rlErr) };
     const geo = await geocodificarEndereco(input.endereco);
     if (geo) {
       lat = geo.lat;
@@ -72,18 +78,14 @@ export async function criarObraAction(input: NovaObraInput) {
   });
 
   if (error) {
-    if (error.message.includes("LIMITE_OBRAS")) {
-      return { ok: false as const, erro: "LIMITE_OBRAS" };
-    }
-    return { ok: false as const, erro: error.message };
+    return { ok: false as const, erro: codigoRpc(error) };
   }
 
   const obraId = data as string;
 
-  // Fire-and-forget: população inicial de clima_snapshots
   if (lat != null && lng != null) {
-    void sincronizarClimaObra(obraId, lat, lng).catch((err) => {
-      console.error("[clima] sync inicial falhou", obraId, err);
+    void sincronizarClimaObra(obraId, lat, lng).catch(() => {
+      logSeguro("error", { evento: "clima_inicial", ids: { obraId } });
     });
   }
 
@@ -96,10 +98,10 @@ export async function criarObraAction(input: NovaObraInput) {
 
 export async function atualizarCapaObra(obraId: string, path: string) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("obras")
-    .update({ foto_capa_path: path })
-    .eq("id", obraId);
-  if (error) return { ok: false as const, erro: error.message };
+  const { error } = await supabase.rpc("fn_atualizar_capa_obra", {
+    p_obra: obraId,
+    p_path: path,
+  });
+  if (error) return { ok: false as const, erro: codigoRpc(error) };
   return { ok: true as const };
 }

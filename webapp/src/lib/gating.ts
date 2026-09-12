@@ -26,7 +26,9 @@ export function podeCriarObra(a: EstadoAssinatura): boolean {
 }
 
 export function podeEditarRascunho(a: EstadoAssinatura): boolean {
-  return a.status === "trial" || a.status === "ativa";
+  if (a.status === "ativa") return true;
+  if (a.status === "trial") return dentroDoTrial(a);
+  return false;
 }
 
 export function podeEnviarRelatorio(a: EstadoAssinatura): boolean {

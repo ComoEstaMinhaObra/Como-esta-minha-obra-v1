@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { ConviteAcessoEmail } from "@/emails/convite-acesso";
 import { NovoRelatorioEmail } from "@/emails/novo-relatorio";
+import { RetificacaoRelatorioEmail } from "@/emails/retificacao-relatorio";
 
 describe("templates de e-mail", () => {
   it("convite-acesso renderiza elemento", () => {
@@ -24,5 +25,18 @@ describe("templates de e-mail", () => {
     });
     expect(el.type).toBe(NovoRelatorioEmail);
     expect(el.props.numero).toBe(3);
+  });
+
+  it("retificacao renderiza elemento", () => {
+    const el = createElement(RetificacaoRelatorioEmail, {
+      obraNome: "Residência de Francisco",
+      numero: 3,
+      versaoNumero: 2,
+      avancoAntes: 20,
+      avancoDepois: 18,
+      link: "http://localhost:3000/c/x",
+    });
+    expect(el.type).toBe(RetificacaoRelatorioEmail);
+    expect(el.props.versaoNumero).toBe(2);
   });
 });

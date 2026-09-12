@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Botao, RotuloSecao, Slider, useToast } from "@/components/ui";
 import { calcularAvancoGeral } from "@/lib/relatorios/calculos";
 import type { RelatorioRascunho } from "@/lib/relatorios/tipos";
 import { salvarRascunhoRelatorio } from "./relatorio-actions";
+import { retificarRelatorioAction } from "./enviar-relatorio-action";
 import { SecaoFinanceiro } from "./relatorio/SecaoFinanceiro";
 import { SecaoPrazo } from "./relatorio/SecaoPrazo";
 import { SecaoAtividades } from "./relatorio/SecaoAtividades";
@@ -34,11 +35,17 @@ type Props = {
   valorContratadoCentavos: number;
   pagoPersistidoCentavos: number;
   aditivosPersistidosCentavos: number;
+  historicoFinanceiro: {
+    medicoes: { rotulo: string; valorCentavos: number }[];
+    materiais: { rotulo: string; valorCentavos: number }[];
+    aditivos: { rotulo: string; valorCentavos: number }[];
+  };
   climaDias: {
     data: string;
     condicao: "aberto" | "nublado" | "chuvoso";
     prob_chuva: number | null;
   }[];
+  retificando?: boolean;
 };
 
 function rascunhoVazio(etapas: EtapaObra[]): RelatorioRascunho {
@@ -68,14 +75,24 @@ export function ModalRelatorio({
   valorContratadoCentavos,
   pagoPersistidoCentavos,
   aditivosPersistidosCentavos,
+  historicoFinanceiro,
   climaDias,
+  retificando = false,
 }: Props) {
   const { toast } = useToast();
   const [relatorioId, setRelatorioId] = useState(relatorioIdProp);
+  const [motivo, setMotivo] = useState("");
   const [dados, setDados] = useState<RelatorioRascunho>(
     () => rascunhoInicial ?? rascunhoVazio(etapas),
   );
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!aberto) return;
+    setRelatorioId(relatorioIdProp);
+    setDados(rascunhoInicial ?? rascunhoVazio(etapas));
+    setMotivo("");
+  }, [aberto, etapas, rascunhoInicial, relatorioIdProp]);
 
   const geralAntes = useMemo(
     () =>
@@ -103,6 +120,24 @@ export function ModalRelatorio({
 
   function salvar() {
     startTransition(async () => {
+      if (retificando && relatorioId) {
+        if (!motivo.trim()) {
+          toast("Informe o motivo da retificação");
+          return;
+        }
+        const r = await retificarRelatorioAction({
+          relatorioId,
+          motivo: motivo.trim(),
+          dados,
+        });
+        if (!r.ok) {
+          toast(r.erro);
+          return;
+        }
+        toast(`Relatório nº ${r.numero} retificado`);
+        onFechar();
+        return;
+      }
       const r = await salvarRascunhoRelatorio({
         obraId,
         relatorioId,
@@ -169,13 +204,19 @@ export function ModalRelatorio({
                     </div>
                     <Slider
                       valor={atual}
-                      min={etapa.pct_atual}
                       aria-label={etapa.nome}
                       onChange={(pct) =>
                         setDados((prev) => ({
                           ...prev,
                           etapas: prev.etapas.map((e) =>
-                            e.etapaId === etapa.id ? { ...e, pct } : e,
+                            e.etapaId === etapa.id
+                              ? {
+                                  ...e,
+                                  pct: retificando
+                                    ? pct
+                                    : Math.max(pct, etapa.pct_atual),
+                                }
+                              : e,
                           ),
                         }))
                       }
@@ -194,6 +235,7 @@ export function ModalRelatorio({
             valorContratadoCentavos={valorContratadoCentavos}
             pagoPersistidoCentavos={pagoPersistidoCentavos}
             aditivosPersistidosCentavos={aditivosPersistidosCentavos}
+            historico={historicoFinanceiro}
           />
 
           <SecaoAtividades
@@ -215,6 +257,14 @@ export function ModalRelatorio({
         </div>
 
         <footer className="space-y-2 border-t border-divisor px-5 py-4">
+          {retificando ? (
+            <textarea
+              className="w-full rounded-[12px] border border-borda p-3 text-sm"
+              placeholder="Motivo da retificação (obrigatório)"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+          ) : null}
           <Botao
             variante="terciario"
             className="w-full"
@@ -223,10 +273,14 @@ export function ModalRelatorio({
           >
             {pending
               ? "Salvando…"
-              : `Salvar rascunho do relatório nº ${numero}`}
+              : retificando
+                ? `Confirmar retificação do relatório nº ${numero}`
+                : `Salvar rascunho do relatório nº ${numero}`}
           </Botao>
           <p className="text-center text-xs text-cinza-3">
-            Nada é enviado ainda. O cliente só vê após você publicar.
+            {retificando
+              ? "Ao confirmar, a nova versão será publicada e o cliente será avisado."
+              : "Nada é enviado ainda. O cliente só vê após você publicar."}
           </p>
         </footer>
       </div>

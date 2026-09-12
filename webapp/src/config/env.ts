@@ -12,6 +12,7 @@ const publicSchema = z.object({
   NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS: centavos,
   NEXT_PUBLIC_TRIAL_DIAS: z.coerce.number().int().positive(),
   NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: z.coerce.number().int().nonnegative(),
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional().default(""),
 });
 
 const serverSchema = publicSchema.extend({
@@ -52,6 +53,7 @@ function readPublicEnv(): PublicEnv {
     NEXT_PUBLIC_TRIAL_DIAS: process.env.NEXT_PUBLIC_TRIAL_DIAS,
     NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS:
       process.env.NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   });
 
   if (!parsed.success) {

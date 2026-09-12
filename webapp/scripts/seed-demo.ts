@@ -247,12 +247,36 @@ async function main() {
     }
     relatorioIds.push(rel.id);
 
-    // pct por etapa no relatório
+    const { data: versao, error: verErr } = await admin
+      .from("relatorio_versoes")
+      .insert({
+        relatorio_id: rel.id,
+        obra_id: obra.id,
+        numero: 1,
+        tipo: "original",
+        status: "publicada",
+        snapshot,
+        criado_por: userId,
+        publicado_em: snapshot.enviadoEm,
+      })
+      .select("id")
+      .single();
+    if (verErr || !versao) {
+      console.error(`Falha versão ${n}:`, verErr?.message);
+      process.exit(1);
+    }
+    await admin
+      .from("relatorios")
+      .update({ versao_atual_id: versao.id })
+      .eq("id", rel.id);
+
     await admin.from("relatorio_etapas").insert(
       etapasOrdenadas.map((e) => ({
         relatorio_id: rel.id,
         etapa_id: e.id,
         pct: e.pct_atual,
+        obra_id: obra.id,
+        versao_id: versao.id,
       })),
     );
   }

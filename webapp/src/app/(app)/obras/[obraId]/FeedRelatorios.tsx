@@ -11,7 +11,7 @@ import { enviarRelatorioAction } from "./enviar-relatorio-action";
 type RelatorioCard = {
   id: string;
   numero: number;
-  status: "rascunho" | "enviado";
+  status: "rascunho" | "enviado" | "processando";
   geral_antes: number | null;
   geral_depois: number | null;
   enviado_em: string | null;
@@ -30,9 +30,11 @@ type RelatorioCard = {
 export function FeedRelatorios({
   obraId,
   relatorios,
+  ultimoEnviadoId,
 }: {
   obraId: string;
   relatorios: RelatorioCard[];
+  ultimoEnviadoId?: string | null;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -92,6 +94,8 @@ export function FeedRelatorios({
                 </h3>
                 {r.status === "rascunho" ? (
                   <Selo tom="ambar">Rascunho</Selo>
+                ) : r.status === "processando" ? (
+                  <Selo tom="ambar">Processando</Selo>
                 ) : (
                   <Selo tom="verde">Enviado</Selo>
                 )}
@@ -133,6 +137,14 @@ export function FeedRelatorios({
                     >
                       Baixar PDF
                     </a>
+                    {ultimoEnviadoId === r.id ? (
+                      <Link
+                        href={`/obras/${obraId}?retificar=${r.id}`}
+                        className="text-xs underline text-cinza-2"
+                      >
+                        Retificar relatório
+                      </Link>
+                    ) : null}
                   </div>
                 </>
               ) : (

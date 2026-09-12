@@ -4,18 +4,33 @@ import { ReprocessarWebhookBotao } from "./ReprocessarWebhookBotao";
 
 export default async function AdminWebhooksPage() {
   const supabase = await createClient();
-  const { data: logs } = await supabase
-    .from("webhooks_log")
-    .select("id, evento, processado, erro, recebido_em, provedor")
-    .order("recebido_em", { ascending: false })
-    .limit(200);
+  const { data } = await supabase.rpc("fn_admin_webhooks");
+  const payload = (data ?? {}) as {
+    webhooks?: {
+      id: string;
+      eventId: string;
+      evento: string;
+      processado: boolean;
+      erro: string | null;
+      recebidoEm: string;
+    }[];
+    outbox?: {
+      id: string;
+      operacao: string;
+      status: string;
+      tentativas: number;
+      erro: string | null;
+      criadoEm: string;
+    }[];
+  };
+  const logs = payload.webhooks ?? [];
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="font-serif text-3xl font-light">Webhooks</h1>
         <p className="mt-1 text-sm text-cinza-2">
-          Últimos 200 eventos · AbacatePay
+          Eventos sanitizados · reprocessar só estados não processados
         </p>
       </header>
 
@@ -31,30 +46,25 @@ export default async function AdminWebhooksPage() {
             </tr>
           </thead>
           <tbody>
-            {(logs ?? []).length === 0 ? (
+            {logs.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-cinza-2">
                   Nenhum webhook registrado
                 </td>
               </tr>
             ) : (
-              (logs ?? []).map((l) => (
+              logs.map((l) => (
                 <tr key={l.id} className="border-b border-divisor last:border-0">
                   <td className="px-4 py-3 font-mono text-xs">{l.evento}</td>
-                  <td className="px-4 py-3">
-                    {l.processado ? "sim" : "não"}
-                  </td>
+                  <td className="px-4 py-3">{l.processado ? "sim" : "não"}</td>
                   <td className="max-w-[240px] truncate px-4 py-3 text-xs text-cinza-2">
                     {l.erro || "—"}
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    {formatarDataBr(l.recebido_em.slice(0, 10))}{" "}
-                    <span className="text-cinza-3">
-                      {l.recebido_em.slice(11, 19)}
-                    </span>
+                    {formatarDataBr(l.recebidoEm.slice(0, 10))}
                   </td>
                   <td className="px-4 py-3">
-                    <ReprocessarWebhookBotao logId={l.id} />
+                    {!l.processado ? <ReprocessarWebhookBotao logId={l.id} /> : "—"}
                   </td>
                 </tr>
               ))

@@ -1,15 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  produtoEmailExtraId,
-  registrarUso,
-  AbacatePayError,
-} from "@/lib/abacatepay";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { podeAdicionarEmailExtra } from "@/lib/gating";
-import type { AssinaturaStatus } from "@/lib/gating";
+import { processarOutbox } from "@/lib/outbox";
+import { codigoRpc } from "@/lib/rpc-erros";
+import { logSeguro } from "@/lib/log";
 
 export async function listarAcessosObra(obraId: string) {
   const supabase = await createClient();
@@ -17,6 +12,7 @@ export async function listarAcessosObra(obraId: string) {
     .from("obra_acessos")
     .select("id, email, status, cobrado_extra, user_id, criado_em")
     .eq("obra_id", obraId)
+    .in("status", ["convidado", "ativo", "pendente_cobranca"])
     .order("criado_em", { ascending: true });
   if (error) return { ok: false as const, erro: error.message, acessos: [] };
   return { ok: true as const, acessos: data ?? [] };
@@ -29,117 +25,63 @@ export async function liberarAcessoObra(obraId: string, email: string) {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, erro: "NAO_AUTENTICADO" };
 
-  const emailNorm = email.trim().toLowerCase();
-  if (!emailNorm.includes("@")) {
-    return { ok: false as const, erro: "EMAIL_INVALIDO" };
-  }
+  const { data, error } = await supabase.rpc("fn_solicitar_acesso_obra", {
+    p_obra: obraId,
+    p_email: email,
+  });
+  if (error) return { ok: false as const, erro: codigoRpc(error) };
 
-  const { data: obra } = await supabase
-    .from("obras")
-    .select("id, nome, owner_id, arquivada_em")
-    .eq("id", obraId)
-    .maybeSingle();
-  if (!obra || obra.owner_id !== user.id || obra.arquivada_em) {
-    return { ok: false as const, erro: "SEM_PERMISSAO" };
-  }
+  const r = data as {
+    acessoId: string;
+    cobradoExtra: boolean;
+    status: string;
+    outboxId?: string;
+    enviarEmail?: boolean;
+  };
 
-  const { data: existentes } = await supabase
-    .from("obra_acessos")
-    .select("id, email")
-    .eq("obra_id", obraId);
-
-  if ((existentes ?? []).some((a) => a.email.toLowerCase() === emailNorm)) {
-    return { ok: false as const, erro: "EMAIL_DUPLICADO" };
-  }
-
-  const cobradoExtra = (existentes?.length ?? 0) >= 1;
-
-  const { data: assinatura } = await supabase
-    .from("assinaturas")
-    .select(
-      "id, status, limite_obras, trial_fim, relatorios_enviados_trial, abacatepay_subscription_id",
-    )
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (cobradoExtra) {
-    const pode = podeAdicionarEmailExtra({
-      status: (assinatura?.status ?? "trial") as AssinaturaStatus,
-      limiteObras: assinatura?.limite_obras ?? 1,
-      obrasAtivas: 0,
-      trialFim: assinatura?.trial_fim ? new Date(assinatura.trial_fim) : null,
-      relatoriosEnviadosTrial: assinatura?.relatorios_enviados_trial ?? 0,
-    });
-
-    if (!pode) {
-      return { ok: false as const, erro: "PRECISA_ASSINAR" };
+  if (r.outboxId) {
+    const cobranca = await processarOutbox(r.outboxId);
+    if (!cobranca.ok) {
+      revalidatePath(`/obras/${obraId}`);
+      return { ok: false as const, erro: cobranca.erro ?? "COBRANCA_PENDENTE" };
     }
-  }
-
-  const { data: acessoCriado, error } = await supabase
-    .from("obra_acessos")
-    .insert({
-      obra_id: obraId,
-      email: emailNorm,
-      status: "convidado",
-      cobrado_extra: cobradoExtra,
-    })
-    .select("id")
-    .single();
-
-  if (error) return { ok: false as const, erro: error.message };
-
-  // Algoritmo §5.4 passo 2: assinatura ativa + cobrado_extra → record-usage add
-  if (
-    cobradoExtra &&
-    assinatura?.status === "ativa" &&
-    assinatura.abacatepay_subscription_id &&
-    acessoCriado
-  ) {
-    try {
-      const uso = await registrarUso({
-        id: assinatura.abacatepay_subscription_id,
-        productId: produtoEmailExtraId(),
-        units: 1,
-        action: "add",
-      });
-      // assinatura_usos: escrita só via service role (RLS)
-      const admin = createAdminClient();
-      await admin.from("assinatura_usos").insert({
-        assinatura_id: assinatura.id,
-        obra_acesso_id: acessoCriado.id,
-        action: "add",
-        units: 1,
-        abacatepay_usage_id: uso.id,
-        installment_number: uso.installmentNumber,
-      });
-    } catch (e) {
-      console.error(
-        "[email-extra:add]",
-        e instanceof AbacatePayError ? e.message : e,
-      );
+    if (cobranca.enviarEmail && cobranca.email) {
+      await enviarConvite(obraId, cobranca.email, user.id);
     }
+    revalidatePath(`/obras/${obraId}`);
+    return { ok: true as const, cobradoExtra: true };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("nome")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  try {
-    const { enviarEmailConvite } = await import("@/lib/email/enviar");
-    await enviarEmailConvite({
-      para: emailNorm,
-      empreiteiro: profile?.nome || user.email || "Empreiteiro",
-      obraNome: obra.nome,
-    });
-  } catch (e) {
-    console.error("[email:convite] falha", e);
+  if (r.enviarEmail) {
+    await enviarConvite(obraId, email.trim().toLowerCase(), user.id);
   }
 
   revalidatePath(`/obras/${obraId}`);
-  return { ok: true as const, cobradoExtra };
+  return { ok: true as const, cobradoExtra: r.cobradoExtra };
+}
+
+async function enviarConvite(obraId: string, para: string, userId: string) {
+  const supabase = await createClient();
+  const { data: obra } = await supabase
+    .from("obras")
+    .select("nome")
+    .eq("id", obraId)
+    .maybeSingle();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("nome")
+    .eq("id", userId)
+    .maybeSingle();
+  try {
+    const { enviarEmailConvite } = await import("@/lib/email/enviar");
+    await enviarEmailConvite({
+      para,
+      empreiteiro: profile?.nome || "Empreiteiro",
+      obraNome: obra?.nome || "obra",
+    });
+  } catch {
+    logSeguro("error", { evento: "email_convite", ids: { obraId } });
+  }
 }
 
 export async function removerAcessoObra(obraId: string, acessoId: string) {
@@ -149,91 +91,16 @@ export async function removerAcessoObra(obraId: string, acessoId: string) {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, erro: "NAO_AUTENTICADO" };
 
-  const { data: obra } = await supabase
-    .from("obras")
-    .select("id, owner_id")
-    .eq("id", obraId)
-    .maybeSingle();
-  if (!obra || obra.owner_id !== user.id) {
-    return { ok: false as const, erro: "SEM_PERMISSAO" };
+  const { data, error } = await supabase.rpc("fn_revogar_acesso_obra", {
+    p_obra: obraId,
+    p_acesso: acessoId,
+  });
+  if (error) return { ok: false as const, erro: codigoRpc(error) };
+
+  const r = data as { outboxId?: string | null };
+  if (r.outboxId) {
+    await processarOutbox(r.outboxId);
   }
-
-  const { data: acesso } = await supabase
-    .from("obra_acessos")
-    .select("id, cobrado_extra")
-    .eq("id", acessoId)
-    .eq("obra_id", obraId)
-    .maybeSingle();
-
-  if (!acesso) return { ok: false as const, erro: "NAO_ENCONTRADO" };
-
-  // Algoritmo §5.4 passo 3: se cobrado e há add pendente no mesmo installment → subtract
-  if (acesso.cobrado_extra) {
-    const { data: assinatura } = await supabase
-      .from("assinaturas")
-      .select("id, status, abacatepay_subscription_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (
-      assinatura?.status === "ativa" &&
-      assinatura.abacatepay_subscription_id
-    ) {
-      const { data: usoAdd } = await supabase
-        .from("assinatura_usos")
-        .select("id, installment_number")
-        .eq("assinatura_id", assinatura.id)
-        .eq("obra_acesso_id", acessoId)
-        .eq("action", "add")
-        .order("criado_em", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (usoAdd?.installment_number != null) {
-        const { data: jaSubtract } = await supabase
-          .from("assinatura_usos")
-          .select("id")
-          .eq("assinatura_id", assinatura.id)
-          .eq("obra_acesso_id", acessoId)
-          .eq("action", "subtract")
-          .eq("installment_number", usoAdd.installment_number)
-          .maybeSingle();
-
-        if (!jaSubtract) {
-          try {
-            const uso = await registrarUso({
-              id: assinatura.abacatepay_subscription_id,
-              productId: produtoEmailExtraId(),
-              units: 1,
-              action: "subtract",
-            });
-            const admin = createAdminClient();
-            await admin.from("assinatura_usos").insert({
-              assinatura_id: assinatura.id,
-              obra_acesso_id: acessoId,
-              action: "subtract",
-              units: 1,
-              abacatepay_usage_id: uso.id,
-              installment_number: uso.installmentNumber,
-            });
-          } catch (e) {
-            console.error(
-              "[email-extra:subtract]",
-              e instanceof AbacatePayError ? e.message : e,
-            );
-          }
-        }
-      }
-    }
-  }
-
-  const { error } = await supabase
-    .from("obra_acessos")
-    .delete()
-    .eq("id", acessoId)
-    .eq("obra_id", obraId);
-
-  if (error) return { ok: false as const, erro: error.message };
 
   revalidatePath(`/obras/${obraId}`);
   return { ok: true as const };

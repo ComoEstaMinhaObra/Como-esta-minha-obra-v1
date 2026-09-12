@@ -20,7 +20,7 @@ export default async function AdminLayout({
 
   if (!user) notFound();
 
-  const { data: ehAdmin } = await supabase.rpc("is_admin");
+  const { data: ehAdmin } = await supabase.rpc("fn_sou_admin");
   if (!ehAdmin) notFound();
 
   return (

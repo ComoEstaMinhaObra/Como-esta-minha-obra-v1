@@ -1,16 +1,13 @@
 /**
- * Processamento de eventos de webhook AbacatePay (lógica pura + admin client).
- * Eventos tratados: subscription.completed | renewed | cancelled.
+ * Processamento de eventos de webhook AbacatePay.
+ * Idempotência por (provedor, event_id). Payload persistido allowlisted.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  limiteDoPlano,
-  planoPorProdutoId,
-  produtoEmailExtraId,
-  registrarUso,
-} from "@/lib/abacatepay";
+import { limiteDoPlano, planoPorProdutoId } from "@/lib/abacatepay";
 import type { Database, Json } from "@/lib/database.types";
 import type { PlanoId } from "@/config/pricing";
+import { processarOutbox } from "@/lib/outbox";
+import { sanitizarErro } from "@/lib/log";
 
 export type AdminClient = SupabaseClient<Database>;
 
@@ -33,6 +30,30 @@ export type WebhookPayload = {
   };
 };
 
+export function sanitizarPayloadWebhook(payload: WebhookPayload): Json {
+  return {
+    id: payload.id ?? null,
+    event: payload.event ?? null,
+    data: {
+      subscription: {
+        id: payload.data?.subscription?.id ?? null,
+        status: payload.data?.subscription?.status ?? null,
+        externalId: payload.data?.subscription?.externalId ?? null,
+      },
+      checkout: {
+        externalId: payload.data?.checkout?.externalId ?? null,
+        items: (payload.data?.checkout?.items ?? []).map((i) => ({
+          id: i.id ?? null,
+          quantity: i.quantity ?? null,
+        })),
+      },
+      payment: {
+        externalId: payload.data?.payment?.externalId ?? null,
+      },
+    },
+  };
+}
+
 export function extrairExternalIdAssinatura(
   payload: WebhookPayload,
 ): string | null {
@@ -50,21 +71,6 @@ export function extrairExternalIdAssinatura(
 export function extrairProdutoId(payload: WebhookPayload): string | null {
   const item = payload.data?.checkout?.items?.[0];
   return item?.id ?? null;
-}
-
-async function jaProcessado(
-  admin: AdminClient,
-  eventoId: string | undefined,
-): Promise<boolean> {
-  if (!eventoId) return false;
-  const { data } = await admin
-    .from("webhooks_log")
-    .select("id")
-    .eq("provedor", "abacatepay")
-    .eq("processado", true)
-    .contains("payload", { id: eventoId })
-    .limit(1);
-  return (data?.length ?? 0) > 0;
 }
 
 async function localizarAssinatura(
@@ -94,59 +100,39 @@ async function localizarAssinatura(
   return null;
 }
 
-async function registrarUsosRenovacao(
-  admin: AdminClient,
-  assinatura: {
-    id: string;
-    user_id: string;
-    abacatepay_subscription_id: string | null;
-  },
-): Promise<void> {
-  if (!assinatura.abacatepay_subscription_id) return;
-
-  const { data: obras } = await admin
-    .from("obras")
-    .select("id")
-    .eq("owner_id", assinatura.user_id)
-    .is("arquivada_em", null);
-
-  const obraIds = (obras ?? []).map((o) => o.id);
-  if (obraIds.length === 0) return;
-
-  const { count } = await admin
-    .from("obra_acessos")
-    .select("id", { count: "exact", head: true })
-    .in("obra_id", obraIds)
-    .eq("cobrado_extra", true);
-
-  const n = count ?? 0;
-  if (n <= 0) return;
-
-  const uso = await registrarUso({
-    id: assinatura.abacatepay_subscription_id,
-    productId: produtoEmailExtraId(),
-    units: n,
-    action: "add",
-  });
-
-  await admin.from("assinatura_usos").insert({
-    assinatura_id: assinatura.id,
-    action: "add",
-    units: n,
-    abacatepay_usage_id: uso.id,
-    installment_number: uso.installmentNumber,
-    obra_acesso_id: null,
-  });
-}
-
 export async function processarEventoAssinatura(
   admin: AdminClient,
   payload: WebhookPayload,
+  opcoes: { forcar?: boolean } = {},
 ): Promise<{ ok: boolean; mensagem: string }> {
   const evento = payload.event ?? "desconhecido";
+  const eventId = payload.id;
+  if (!eventId) {
+    return { ok: false, mensagem: "EVENTO_SEM_ID" };
+  }
 
-  if (payload.id && (await jaProcessado(admin, payload.id))) {
-    return { ok: true, mensagem: "evento ja processado (idempotente)" };
+  const { data: claim, error: claimErr } = await admin.rpc(
+    "fn_claim_webhook_evento",
+    {
+      p_event_id: eventId,
+      p_evento: evento,
+      p_payload: sanitizarPayloadWebhook(payload),
+      p_force: opcoes.forcar ?? false,
+    },
+  );
+  if (claimErr) throw new Error(sanitizarErro(claimErr));
+  const c = claim as {
+    logId: string;
+    duplicado: boolean;
+    emProcessamento?: boolean;
+  };
+  if (c.duplicado) {
+    return {
+      ok: true,
+      mensagem: c.emProcessamento
+        ? "evento já está em processamento"
+        : "evento ja processado (idempotente)",
+    };
   }
 
   if (
@@ -154,107 +140,93 @@ export async function processarEventoAssinatura(
     evento !== "subscription.renewed" &&
     evento !== "subscription.cancelled"
   ) {
+    await admin
+      .from("webhooks_log")
+      .update({ processado: true, processado_em: new Date().toISOString(), erro: null })
+      .eq("id", c.logId);
     return { ok: true, mensagem: `evento ignorado: ${evento}` };
   }
 
-  const assinatura = await localizarAssinatura(admin, payload);
-  if (!assinatura) {
-    throw new Error(
-      `Assinatura local nao encontrada para evento ${evento} (externalId/subId)`,
-    );
-  }
-
-  if (evento === "subscription.completed") {
-    const produtoId = extrairProdutoId(payload);
-    let plano: PlanoId | null = produtoId
-      ? planoPorProdutoId(produtoId)
-      : null;
-    if (!plano && assinatura.plano !== "trial") {
-      plano = assinatura.plano as PlanoId;
-    }
-    if (!plano) {
-      throw new Error(
-        `Nao foi possivel mapear produto ${produtoId ?? "?"} para plano`,
-      );
+  try {
+    const assinatura = await localizarAssinatura(admin, payload);
+    if (!assinatura) {
+      throw new Error("ASSINATURA_AUSENTE");
     }
 
-    const subId = payload.data?.subscription?.id ?? null;
+    if (evento === "subscription.completed") {
+      const produtoId = extrairProdutoId(payload);
+      let plano: PlanoId | null = produtoId
+        ? planoPorProdutoId(produtoId)
+        : null;
+      if (!plano && assinatura.plano !== "trial") {
+        plano = assinatura.plano as PlanoId;
+      }
+      if (!plano) {
+        throw new Error("PRODUTO_NAO_MAPEADO");
+      }
+      const subId = payload.data?.subscription?.id ?? null;
+      const { error } = await admin
+        .from("assinaturas")
+        .update({
+          status: "ativa",
+          plano,
+          limite_obras: limiteDoPlano(plano),
+          abacatepay_subscription_id: subId,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", assinatura.id);
+      if (error) throw new Error(sanitizarErro(error));
+      await admin
+        .from("webhooks_log")
+        .update({ processado: true, processado_em: new Date().toISOString(), erro: null })
+        .eq("id", c.logId);
+      return { ok: true, mensagem: `assinatura ${assinatura.id} ativada` };
+    }
+
+    if (evento === "subscription.renewed") {
+      const { error } = await admin
+        .from("assinaturas")
+        .update({
+          status: "ativa",
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", assinatura.id);
+      if (error) throw new Error(sanitizarErro(error));
+
+      const { data: outbox } = await admin.rpc("fn_enfileirar_renovacao_emails", {
+        p_assinatura: assinatura.id,
+        p_event_id: eventId,
+        p_parcela: 0,
+      });
+      const ids = ((outbox as { outboxIds?: string[] } | null)?.outboxIds) ?? [];
+      for (const id of ids) {
+        await processarOutbox(id);
+      }
+      await admin
+        .from("webhooks_log")
+        .update({ processado: true, processado_em: new Date().toISOString(), erro: null })
+        .eq("id", c.logId);
+      return { ok: true, mensagem: `assinatura ${assinatura.id} renovada` };
+    }
+
     const { error } = await admin
       .from("assinaturas")
       .update({
-        status: "ativa",
-        plano,
-        limite_obras: limiteDoPlano(plano),
-        abacatepay_subscription_id: subId,
+        status: "cancelada",
         atualizado_em: new Date().toISOString(),
       })
       .eq("id", assinatura.id);
-
-    if (error) throw new Error(error.message);
-    return { ok: true, mensagem: `assinatura ${assinatura.id} ativada (${plano})` };
+    if (error) throw new Error(sanitizarErro(error));
+    await admin
+      .from("webhooks_log")
+      .update({ processado: true, processado_em: new Date().toISOString(), erro: null })
+      .eq("id", c.logId);
+    return { ok: true, mensagem: `assinatura ${assinatura.id} cancelada` };
+  } catch (e) {
+    await admin
+      .from("webhooks_log")
+      .update({ processado: false, erro: sanitizarErro(e) })
+      .eq("id", c.logId);
+    throw e;
   }
-
-  if (evento === "subscription.renewed") {
-    const { error } = await admin
-      .from("assinaturas")
-      .update({
-        status: "ativa",
-        atualizado_em: new Date().toISOString(),
-      })
-      .eq("id", assinatura.id);
-    if (error) throw new Error(error.message);
-
-    // Passo 4 do algoritmo de e-mail extra (§5.4)
-    await registrarUsosRenovacao(admin, assinatura);
-    return {
-      ok: true,
-      mensagem: `assinatura ${assinatura.id} renovada + usos e-mail extra`,
-    };
-  }
-
-  // subscription.cancelled
-  const { error } = await admin
-    .from("assinaturas")
-    .update({
-      status: "cancelada",
-      atualizado_em: new Date().toISOString(),
-    })
-    .eq("id", assinatura.id);
-  if (error) throw new Error(error.message);
-  return { ok: true, mensagem: `assinatura ${assinatura.id} cancelada` };
-}
-
-export async function gravarWebhookLog(
-  admin: AdminClient,
-  evento: string,
-  payload: Json,
-  processado: boolean,
-  erro: string | null,
-): Promise<string> {
-  const { data, error } = await admin
-    .from("webhooks_log")
-    .insert({
-      provedor: "abacatepay",
-      evento,
-      payload,
-      processado,
-      erro,
-    })
-    .select("id")
-    .single();
-
-  if (error) throw new Error(`webhooks_log: ${error.message}`);
-  return data.id;
-}
-
-export async function marcarWebhookProcessado(
-  admin: AdminClient,
-  logId: string,
-  processado: boolean,
-  erro: string | null,
-): Promise<void> {
-  await admin
-    .from("webhooks_log")
-    .update({ processado, erro })
-    .eq("id", logId);
 }

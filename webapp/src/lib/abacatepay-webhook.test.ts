@@ -79,6 +79,15 @@ function mockAdmin(assinaturaRow: Record<string, unknown> | null) {
   const update = vi.fn(() => ({ eq: updateEq }));
 
   return {
+    rpc: vi.fn(async (fn: string) => {
+      if (fn === "fn_claim_webhook_evento") {
+        return { data: { logId: "log-1", duplicado: false }, error: null };
+      }
+      if (fn === "fn_enfileirar_renovacao_emails") {
+        return { data: { outboxIds: [] }, error: null };
+      }
+      return { data: null, error: null };
+    }),
     from: vi.fn((table: string) => {
       if (table === "webhooks_log") {
         return {
@@ -86,7 +95,7 @@ function mockAdmin(assinaturaRow: Record<string, unknown> | null) {
           insert: vi.fn(() =>
             chain({ data: { id: "log-1" }, error: null }),
           ),
-          update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({}) })),
+          update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })),
         };
       }
       if (table === "assinaturas") {
@@ -97,27 +106,16 @@ function mockAdmin(assinaturaRow: Record<string, unknown> | null) {
           update,
         };
       }
-      if (table === "obras") {
-        return {
-          select: vi.fn(() => chain({ data: [] })),
-        };
-      }
-      if (table === "obra_acessos") {
-        return {
-          select: vi.fn(() => chain({ count: 0, data: null })),
-        };
-      }
-      if (table === "assinatura_usos") {
-        return {
-          insert: vi.fn().mockResolvedValue({ error: null }),
-        };
-      }
       return { select: vi.fn(() => chain({ data: null })) };
     }),
     _update: update,
     _updateEq: updateEq,
   };
 }
+
+vi.mock("@/lib/outbox", () => ({
+  processarOutbox: vi.fn().mockResolvedValue({ ok: true }),
+}));
 
 vi.mock("@/lib/abacatepay", () => ({
   limiteDoPlano: (id: string) =>

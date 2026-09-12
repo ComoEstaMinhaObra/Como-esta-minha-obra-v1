@@ -7,7 +7,7 @@ import { formatarBRL } from "@/lib/formatacao";
 export const metadata: Metadata = {
   title: "Preços",
   description:
-    "Planos mensais por número de obras ativas. Trial sem cartão. E-mail extra a partir do segundo destinatário.",
+    "Planos mensais por número de obras ativas. Trial sem cartão. E-mail adicional a partir do segundo destinatário.",
   openGraph: {
     title: "Preços · Como Está Minha Obra",
     description:
@@ -16,8 +16,23 @@ export const metadata: Metadata = {
   },
 };
 
+const PLANOS_BASE = PLANOS.filter((p) => p.id === "obra_1" || p.id === "obra_3");
+
+const COLUNAS = [
+  { id: "obra_1", nome: PLANOS[0].nome },
+  { id: "obra_3", nome: PLANOS[1].nome },
+  { id: "acima_4", nome: "A partir de 4 obras" },
+] as const;
+
 const FEATURES = [
-  { nome: "Obras ativas", valores: PLANOS.map((p) => String(p.limiteObras)) },
+  {
+    nome: "Obras ativas",
+    valores: [
+      String(PLANOS[0].limiteObras),
+      String(PLANOS[1].limiteObras),
+      "Acima de 4 obras",
+    ],
+  },
   { nome: "Relatórios", valores: ["Ilimitados", "Ilimitados", "Ilimitados"] },
   { nome: "Página do cliente", valores: ["Sim", "Sim", "Sim"] },
   { nome: "PDF", valores: ["Sim", "Sim", "Sim"] },
@@ -34,13 +49,13 @@ export default function PrecosPage() {
       <header className="max-w-2xl space-y-3">
         <h1 className="font-serif text-4xl font-light">Preços</h1>
         <p className="text-cinza-2">
-          {TRIAL.dias} dias grátis com {TRIAL.limiteRelatorios} relatório. Sem
-          cartão no trial. Valores em reais, cobrados mensalmente.
+          {TRIAL.dias} dias grátis com emissão de {TRIAL.limiteRelatorios}{" "}
+          relatório. Valores em reais, cobrados mensalmente.
         </p>
       </header>
 
       <div className="mt-12 grid gap-4 min-[800px]:grid-cols-3">
-        {PLANOS.map((p) => (
+        {PLANOS_BASE.map((p) => (
           <div
             key={p.id}
             className={`flex flex-col rounded-[20px] p-6 ${
@@ -73,7 +88,7 @@ export default function PrecosPage() {
                 {p.limiteObras > 1 ? "s" : ""}
               </li>
               <li>Relatórios ilimitados</li>
-              <li>Página do cliente + PDF + clima</li>
+              <li>Página do cliente + PDF</li>
             </ul>
             <Link href="/entrar" className="mt-6 block">
               <Botao
@@ -85,6 +100,23 @@ export default function PrecosPage() {
             </Link>
           </div>
         ))}
+        <div className="flex flex-col rounded-[20px] border border-borda bg-cartao p-6">
+          <h2 className="font-serif text-2xl font-light">Acima de 4 obras</h2>
+          <p className="mt-3 font-serif text-4xl font-light">
+            R$ 319,90/mês
+            <span className="text-sm text-cinza-2"> + R$ 99,90/mês/obra</span>
+          </p>
+          <ul className="mt-5 flex-1 space-y-2 text-sm text-cinza-2">
+            <li>A partir de 4 obras ativas</li>
+            <li>Relatórios ilimitados</li>
+            <li>Página do cliente + PDF</li>
+          </ul>
+          <Link href="/entrar" className="mt-6 block">
+            <Botao className="w-full" variante="terciario">
+              Começar grátis
+            </Botao>
+          </Link>
+        </div>
       </div>
 
       <section className="mt-16 overflow-x-auto">
@@ -93,9 +125,9 @@ export default function PrecosPage() {
           <thead>
             <tr className="border-b border-divisor text-cinza-2">
               <th className="py-3 pr-4 font-normal">Recurso</th>
-              {PLANOS.map((p) => (
-                <th key={p.id} className="py-3 px-2 font-normal">
-                  {p.nome}
+              {COLUNAS.map((col) => (
+                <th key={col.id} className="py-3 px-2 font-normal">
+                  {col.nome}
                 </th>
               ))}
             </tr>
@@ -105,7 +137,7 @@ export default function PrecosPage() {
               <tr key={row.nome} className="border-b border-divisor">
                 <td className="py-3 pr-4">{row.nome}</td>
                 {row.valores.map((v, i) => (
-                  <td key={PLANOS[i].id} className="py-3 px-2 text-cinza-2">
+                  <td key={COLUNAS[i].id} className="py-3 px-2 text-cinza-2">
                     {v}
                   </td>
                 ))}
@@ -116,7 +148,7 @@ export default function PrecosPage() {
       </section>
 
       <section className="mt-16 max-w-xl border-t border-divisor pt-10">
-        <h2 className="font-serif text-2xl font-light">E-mail extra</h2>
+        <h2 className="font-serif text-2xl font-light">E-mail adicional</h2>
         <p className="mt-3 text-sm text-cinza-2">
           O primeiro e-mail com acesso por obra é gratuito. Cada destinatário
           adicional custa{" "}

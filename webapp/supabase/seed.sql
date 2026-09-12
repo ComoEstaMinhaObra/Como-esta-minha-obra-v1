@@ -1,0 +1,1 @@
+-- Seed local vazio. Fixtures de segurança são criadas pelos testes.

@@ -17,6 +17,7 @@ export function SecaoFinanceiro({
   valorContratadoCentavos,
   pagoPersistidoCentavos,
   aditivosPersistidosCentavos,
+  historico,
 }: {
   dados: RelatorioRascunho;
   onChange: (d: RelatorioRascunho) => void;
@@ -25,6 +26,11 @@ export function SecaoFinanceiro({
   valorContratadoCentavos: number;
   pagoPersistidoCentavos: number;
   aditivosPersistidosCentavos: number;
+  historico: {
+    medicoes: { rotulo: string; valorCentavos: number }[];
+    materiais: { rotulo: string; valorCentavos: number }[];
+    aditivos: { rotulo: string; valorCentavos: number }[];
+  };
 }) {
   const fin = dados.financeiro;
 
@@ -61,8 +67,14 @@ export function SecaoFinanceiro({
 
       <Grupo
         titulo="Pago em medições"
-        total={fin.medicoes.reduce((a, m) => a + m.valorCentavos, 0)}
+        total={
+          historico.medicoes.reduce((a, m) => a + m.valorCentavos, 0) +
+          fin.medicoes.reduce((a, m) => a + m.valorCentavos, 0)
+        }
       >
+        {historico.medicoes.map((m, i) => (
+          <Linha key={`anterior-${i}`} rotulo={m.rotulo} valor={m.valorCentavos} />
+        ))}
         {fin.medicoes.map((m, i) => (
           <Linha key={i} rotulo={proximoRotuloMedicao(maxMedicao, i)} valor={m.valorCentavos} onRemover={() =>
             onChange({
@@ -110,8 +122,14 @@ export function SecaoFinanceiro({
 
       <Grupo
         titulo="Pago em materiais"
-        total={fin.materiais.reduce((a, m) => a + m.valorCentavos, 0)}
+        total={
+          historico.materiais.reduce((a, m) => a + m.valorCentavos, 0) +
+          fin.materiais.reduce((a, m) => a + m.valorCentavos, 0)
+        }
       >
+        {historico.materiais.map((m, i) => (
+          <Linha key={`anterior-${i}`} rotulo={m.rotulo} valor={m.valorCentavos} />
+        ))}
         {fin.materiais.map((m, i) => (
           <div key={i} className="grid gap-2 min-[800px]:grid-cols-[1fr_140px_auto]">
             <CampoTexto
@@ -174,8 +192,14 @@ export function SecaoFinanceiro({
 
       <Grupo
         titulo="Aditivos"
-        total={fin.aditivos.reduce((a, m) => a + m.valorCentavos, 0)}
+        total={
+          historico.aditivos.reduce((a, m) => a + m.valorCentavos, 0) +
+          fin.aditivos.reduce((a, m) => a + m.valorCentavos, 0)
+        }
       >
+        {historico.aditivos.map((a, i) => (
+          <Linha key={`anterior-${i}`} rotulo={a.rotulo} valor={a.valorCentavos} />
+        ))}
         {fin.aditivos.map((a, i) => (
           <div key={i} className="space-y-2 rounded-[16px] border border-borda p-3">
             <p className="text-xs text-marca">
@@ -376,7 +400,7 @@ function Linha({
 }: {
   rotulo: string;
   valor: number;
-  onRemover: () => void;
+  onRemover?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between text-sm">
@@ -384,9 +408,11 @@ function Linha({
         {rotulo}
       </span>
       <span>{formatarBRL(valor)}</span>
-      <button type="button" className="text-cinza-2" onClick={onRemover}>
-        ×
-      </button>
+      {onRemover ? (
+        <button type="button" className="text-cinza-2" onClick={onRemover}>
+          ×
+        </button>
+      ) : null}
     </div>
   );
 }

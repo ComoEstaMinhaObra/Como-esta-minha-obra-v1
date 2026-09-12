@@ -7,7 +7,7 @@ import { formatarBRL } from "@/lib/formatacao";
 export const metadata: Metadata = {
   title: "Como Está Minha Obra",
   description:
-    "Relatórios semanais com avanço físico, financeiro, fotos e clima — o cliente acompanha sem WhatsApp eterno.",
+    "Relatórios semanais com avanço físico, financeiro, fotos, clima e dados contratuais para acompanhar sua obra de perto.",
   openGraph: {
     title: "Como Está Minha Obra",
     description:
@@ -18,15 +18,15 @@ export const metadata: Metadata = {
 
 const FAQ = [
   {
-    q: "O trial pede cartão?",
-    a: `Não. Você tem ${TRIAL.dias} dias e ${TRIAL.limiteRelatorios} envio de relatório sem cartão. O checkout só aparece na conversão.`,
+    q: "Na versão Trial, é solicitada a inclusão de método de pagamento?",
+    a: `Não. Você tem ${TRIAL.dias} dias e ${TRIAL.limiteRelatorios} envio de relatório sem inclusão de método de pagamento. O checkout só aparece na conversão.`,
   },
   {
     q: "Posso cancelar quando quiser?",
-    a: "Sim. Em Conta você cancela a assinatura. A conta fica em modo somente leitura: obras e PDFs continuam acessíveis.",
+    a: "Você pode cancelar a sua assinatura quando quiser e ela fica disponível até o vencimento do período.",
   },
   {
-    q: "O que é e-mail extra?",
+    q: "O que é e-mail adicional?",
     a: `O primeiro destinatário por obra é grátis. Do segundo em diante cobramos ${formatarBRL(EMAIL_EXTRA.precoCentavos)} por ciclo, na próxima parcela.`,
   },
   {
@@ -38,6 +38,8 @@ const FAQ = [
     a: "Usamos Supabase (RLS), Storage privado e operadores alinhados à LGPD. Detalhes em Política de privacidade.",
   },
 ] as const;
+
+const PLANOS_BASE = PLANOS.filter((p) => p.id === "obra_1" || p.id === "obra_3");
 
 export default function LandingPage() {
   return (
@@ -68,8 +70,8 @@ export default function LandingPage() {
             Da fundação à entrega, tudo registrado.
           </h1>
           <p className="mt-5 max-w-md text-base text-white/70 min-[800px]:text-lg animate-[fadeUp_0.8s_ease_0.16s_both]">
-            Relatórios semanais com avanço físico, financeiro, fotos e clima —
-            o cliente acompanha sem WhatsApp eterno.
+            Relatórios semanais com avanço físico, financeiro, fotos, clima e
+            dados contratuais — acompanhe sua obra de perto!
           </p>
           <div className="mt-8 flex flex-wrap gap-3 animate-[fadeUp_0.8s_ease_0.24s_both]">
             <Link href="/entrar">
@@ -95,7 +97,7 @@ export default function LandingPage() {
           Proposta de valor
         </p>
         <h2 className="mt-3 max-w-2xl font-serif text-3xl font-light min-[800px]:text-4xl">
-          Pare de gerenciar obra no WhatsApp.
+          Pare de acompanhar a sua obra apenas recebendo fotos.
         </h2>
         <div className="mt-10 grid gap-10 min-[800px]:grid-cols-2">
           <div>
@@ -119,34 +121,38 @@ export default function LandingPage() {
             </ul>
           </div>
         </div>
+        <div className="mt-12 max-w-2xl space-y-6 text-sm text-cinza-2">
+          <p>
+            É necessário ter uma plataforma semanal consolidada que ajudará a
+            acompanhar o avanço do seu patrimônio bem de perto.
+          </p>
+          <p>
+            Transformamos a comunicação entre construtores e clientes em uma
+            experiência de total transparência, organização e confiança. Nossa
+            plataforma permite que construtores apresentem a evolução de suas
+            obras de forma prática e contínua, enquanto os clientes acompanham
+            cada etapa do investimento semanalmente e de qualquer lugar.
+          </p>
+          <p>
+            Mais do que um relatório de obra, entregamos tranquilidade para quem
+            constrói e segurança para quem investe.
+          </p>
+        </div>
       </section>
 
       {/* Como funciona */}
       <section className="border-y border-divisor bg-cartao">
         <div className="mx-auto max-w-[1240px] px-4 py-20">
           <h2 className="font-serif text-3xl font-light">Como funciona</h2>
-          <ol className="mt-10 grid gap-8 min-[800px]:grid-cols-3">
+          <ol className="mt-10 grid gap-10 min-[800px]:grid-cols-3">
             {[
-              {
-                n: "01",
-                t: "Crie a obra",
-                d: "Ficha completa, etapas com peso e equipe. Em minutos.",
-              },
-              {
-                n: "02",
-                t: "Envie o relatório",
-                d: "Avanço, financeiro, fotos, prazo e clima — um envio por semana.",
-              },
-              {
-                n: "03",
-                t: "Cliente acompanha",
-                d: "Página dedicada no celular, sem instalar app.",
-              },
+              { n: "01", t: "Crie a obra" },
+              { n: "02", t: "Envie o relatório" },
+              { n: "03", t: "Cliente acompanha" },
             ].map((p) => (
               <li key={p.n}>
                 <p className="font-serif text-4xl font-light text-marca">{p.n}</p>
                 <h3 className="mt-3 font-serif text-xl font-light">{p.t}</h3>
-                <p className="mt-2 text-sm text-cinza-2">{p.d}</p>
               </li>
             ))}
           </ol>
@@ -155,11 +161,13 @@ export default function LandingPage() {
 
       {/* Features */}
       <section className="mx-auto max-w-[1240px] px-4 py-20">
-        <h2 className="font-serif text-3xl font-light">O que entra no relatório</h2>
+        <h2 className="font-serif text-3xl font-light">
+          O que estará no relatório
+        </h2>
         <ul className="mt-10 grid gap-6 min-[800px]:grid-cols-3">
           {[
-            "Avanço físico ponderado por etapa",
-            "Financeiro: medições, materiais, aditivos",
+            "Avanço físico ponderado por etapa da obra",
+            "Financeiro: medições, materiais e aditivos",
             "Fotos organizadas por atividade",
             "Clima dos últimos dias (Open-Meteo)",
             "PDF gerado no envio",
@@ -184,7 +192,7 @@ export default function LandingPage() {
             sem cartão
           </p>
           <div className="mt-10 grid gap-6 min-[800px]:grid-cols-3">
-            {PLANOS.map((p) => (
+            {PLANOS_BASE.map((p) => (
               <div
                 key={p.id}
                 className={`rounded-[20px] p-6 ${
@@ -209,7 +217,22 @@ export default function LandingPage() {
                 </p>
               </div>
             ))}
+            <div className="rounded-[20px] border border-white/15 bg-white/5 p-6">
+              <h3 className="font-serif text-2xl font-light">
+                Acima de 4 obras
+              </h3>
+              <p className="mt-2 font-serif text-3xl font-light">
+                R$ 319,90/mês
+                <span className="text-sm opacity-70"> + R$ 99,90/mês/obra</span>
+              </p>
+              <p className="mt-4 text-sm opacity-80">A partir de 4 obras</p>
+            </div>
           </div>
+          <p className="mt-8 max-w-2xl text-sm text-white/60">
+            O envio de relatório ocorre para um e-mail cadastrado; haverá o
+            acréscimo de {formatarBRL(EMAIL_EXTRA.precoCentavos)}/mês por
+            e-mail adicional de envio do relatório.
+          </p>
           <div className="mt-8">
             <Link href="/entrar">
               <Botao variante="primario">Começar grátis</Botao>
@@ -220,7 +243,7 @@ export default function LandingPage() {
 
       {/* FAQ */}
       <section className="mx-auto max-w-[1240px] px-4 py-20">
-        <h2 className="font-serif text-3xl font-light">Perguntas frequentes</h2>
+        <h2 className="font-serif text-3xl font-light">Dúvidas</h2>
         <dl className="mt-10 space-y-6">
           {FAQ.map((item) => (
             <div key={item.q} className="border-t border-divisor pt-4">

@@ -63,13 +63,13 @@ export default async function DetalheObraPage({
       .order("ordem"),
     supabase
       .from("lancamentos")
-      .select("tipo, grupo, valor_centavos, numero")
+      .select("tipo, grupo, valor_centavos, numero, rotulo, relatorio_id")
       .eq("obra_id", obraId),
     supabase.from("dias_aditivados").select("dias").eq("obra_id", obraId),
     supabase
       .from("relatorios")
       .select(
-        "id, numero, status, geral_antes, geral_depois, enviado_em, criado_em, dados_rascunho, pdf_path, snapshot",
+        "id, numero, status, geral_antes, geral_depois, enviado_em, criado_em, dados_rascunho, pdf_path, snapshot, versao_atual_id",
       )
       .eq("obra_id", obraId)
       .order("numero", { ascending: false }),
@@ -121,6 +121,17 @@ export default async function DetalheObraPage({
       .filter((l) => l.tipo === "aditivo")
       .map((l) => l.numero ?? 0),
   );
+
+  const lancamentosAnteriores = (lancamentos ?? [])
+    .filter((l) => l.tipo === "medicao" || l.tipo === "material" || l.tipo === "aditivo")
+    .map((l) => ({
+      tipo: l.tipo as "medicao" | "material" | "aditivo",
+      rotulo: l.rotulo,
+      valorCentavos: l.valor_centavos,
+      numero: l.numero,
+      relatorioId: l.relatorio_id,
+    }))
+    .sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
   const proximoNumero =
     Math.max(0, ...(relatorios ?? []).map((r) => r.numero)) + 1;
 
@@ -132,6 +143,17 @@ export default async function DetalheObraPage({
       status: r.status as "rascunho" | "enviado",
       dados_rascunho: r.dados_rascunho as RelatorioRascunho | null,
     }));
+
+  const ultimoEnviadoRow = (relatorios ?? []).find(
+    (r) => r.status === "enviado",
+  );
+  const { data: versaoAtual } = ultimoEnviadoRow
+    ? await supabase.rpc("fn_dados_versao_atual", {
+        p_relatorio: ultimoEnviadoRow.id,
+      })
+    : { data: null };
+  const dadosUltimoEnviado =
+    (versaoAtual as unknown as RelatorioRascunho | null) ?? null;
 
   return (
     <div className="space-y-8">
@@ -167,8 +189,18 @@ export default async function DetalheObraPage({
               valorContratadoCentavos={obra.valor_contratado_centavos}
               pagoPersistidoCentavos={fin.pagoAcumuladoCentavos}
               aditivosPersistidosCentavos={aditivos.reduce((a, b) => a + b, 0)}
+              lancamentosAnteriores={lancamentosAnteriores}
               climaDias={clima ?? []}
               rascunhos={rascunhos}
+              ultimoEnviado={
+                ultimoEnviadoRow
+                  ? {
+                      id: ultimoEnviadoRow.id,
+                      numero: ultimoEnviadoRow.numero,
+                      dados: dadosUltimoEnviado,
+                    }
+                  : null
+              }
             />
           </Suspense>
         </div>
@@ -255,10 +287,13 @@ export default async function DetalheObraPage({
           </div>
           <FeedRelatorios
             obraId={obra.id}
+            ultimoEnviadoId={
+              (relatorios ?? []).find((r) => r.status === "enviado")?.id ?? null
+            }
             relatorios={(relatorios ?? []).map((r) => ({
               id: r.id,
               numero: r.numero,
-              status: r.status as "rascunho" | "enviado",
+              status: r.status as "rascunho" | "enviado" | "processando",
               geral_antes: r.geral_antes,
               geral_depois: r.geral_depois,
               enviado_em: r.enviado_em,

@@ -26,10 +26,69 @@ jobs:
         run: npm run lint
       - name: test
         run: npm run test
+      - name: audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
+          NEXT_PUBLIC_PRECO_1_OBRA_CENTAVOS: "12990"
+          NEXT_PUBLIC_PRECO_3_OBRAS_CENTAVOS: "31990"
+          NEXT_PUBLIC_PRECO_5_OBRAS_CENTAVOS: "49990"
+          NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS: "2990"
+          NEXT_PUBLIC_TRIAL_DIAS: "14"
+          NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: "1"
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
+          SUPABASE_SECRET_KEY: ci_placeholder_secret
+          ABACATEPAY_API_KEY: abc_dev_xxx
+          ABACATEPAY_WEBHOOK_SECRET: ci_webhook_secret
+          ABACATEPAY_PROD_OBRA_1: prod_xxx
+          ABACATEPAY_PROD_OBRA_3: prod_xxx
+          ABACATEPAY_PROD_OBRA_5: prod_xxx
+          ABACATEPAY_PROD_EMAIL_EXTRA: prod_xxx
+          RESEND_API_KEY: re_xxx
+          EMAIL_FROM: "Como Está Minha Obra <relatorios@comoestaminhaobra.com.br>"
+          CRON_SECRET: ci_cron_secret
+
+  supabase:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - run: npm ci
+      - name: Start local stack
+        run: npx supabase start --exclude logflare,vector --ignore-health-check
+      - name: Lint database
+        run: npx supabase db lint
+      - name: pgTAP
+        run: npx supabase test db
+      - name: JWT / PostgREST / Storage
+        run: |
+          eval "$(npx supabase status -o env)"
+          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+          NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
+          SUPABASE_URL="$API_URL" \
+          SUPABASE_ANON_KEY="$ANON_KEY" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+          npm run test:security
+      - name: Stop local stack
+        if: always()
+        run: npx supabase stop --no-backup
 
   e2e:
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: webapp
@@ -46,7 +105,6 @@ jobs:
       - name: e2e smoke (chromium)
         run: npm run test:e2e
         env:
-          # Placeholders suficientes para boot do Next (publicEnv); rotas smoke não batem APIs secretas.
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
@@ -56,6 +114,7 @@ jobs:
           NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS: "2990"
           NEXT_PUBLIC_TRIAL_DIAS: "14"
           NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: "1"
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
           SUPABASE_SECRET_KEY: ci_placeholder_secret
           ABACATEPAY_API_KEY: abc_dev_xxx
           ABACATEPAY_WEBHOOK_SECRET: ci_webhook_secret

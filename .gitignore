@@ -9,3 +9,5 @@ webapp/playwright-report/
 webapp/test-results/
 *.log
 .vercel/
+/tmp/
+/output/

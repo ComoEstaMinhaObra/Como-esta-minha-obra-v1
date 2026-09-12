@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AbacatePayError, cancelarAssinatura } from "@/lib/abacatepay";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizarErro } from "@/lib/log";
 
 export async function sair() {
   const supabase = await createClient();
@@ -34,18 +35,9 @@ export async function cancelarAssinaturaConta() {
   try {
     await cancelarAssinatura(assinatura.abacatepay_subscription_id);
   } catch (e) {
-    const msg = e instanceof AbacatePayError ? e.message : String(e);
+    const msg = e instanceof AbacatePayError ? sanitizarErro(e) : "CANCELAR";
     return { ok: false as const, erro: `CANCELAR: ${msg}` };
   }
-
-  // Webhook subscription.cancelled confirma; update otimista para UX.
-  await supabase
-    .from("assinaturas")
-    .update({
-      status: "cancelada",
-      atualizado_em: new Date().toISOString(),
-    })
-    .eq("id", assinatura.id);
 
   revalidatePath("/conta");
   revalidatePath("/planos");

@@ -34,6 +34,14 @@ body {
   font-weight: 300;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 @media (min-width: 391px) {
   body:has([data-cliente-shell]) {
     background-color: #ededed;

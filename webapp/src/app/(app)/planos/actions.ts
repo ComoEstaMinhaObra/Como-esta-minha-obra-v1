@@ -33,6 +33,11 @@ export async function iniciarCheckout(planoIdRaw: string) {
   } = await supabase.auth.getUser();
   if (!user?.email) return { ok: false as const, erro: "NAO_AUTENTICADO" };
 
+  const { error: rlErr } = await supabase.rpc("fn_consumir_rate_limit", {
+    p_acao: "checkout",
+  });
+  if (rlErr) return { ok: false as const, erro: "RATE_LIMITED" };
+
   const { data: assinatura } = await supabase
     .from("assinaturas")
     .select(
@@ -62,10 +67,11 @@ export async function iniciarCheckout(planoIdRaw: string) {
         name: profile?.nome || undefined,
       });
       customerId = customer.id;
-      await supabase
-        .from("assinaturas")
-        .update({ abacatepay_customer_id: customerId })
-        .eq("id", assinatura.id);
+      const { error: customerError } = await supabase.rpc(
+        "fn_registrar_customer_id",
+        { p_customer_id: customerId },
+      );
+      if (customerError) throw customerError;
     } catch (e) {
       const msg = e instanceof AbacatePayError ? e.message : String(e);
       return { ok: false as const, erro: `CLIENTE: ${msg}` };
@@ -122,6 +128,11 @@ export async function agendarTrocaDePlano(planoIdRaw: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, erro: "NAO_AUTENTICADO" };
+
+  const { error: rlErr } = await supabase.rpc("fn_consumir_rate_limit", {
+    p_acao: "checkout",
+  });
+  if (rlErr) return { ok: false as const, erro: "RATE_LIMITED" };
 
   const { data: assinatura } = await supabase
     .from("assinaturas")

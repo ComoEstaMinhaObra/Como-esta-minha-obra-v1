@@ -15,6 +15,14 @@ type RelatorioLista = {
   dados_rascunho: RelatorioRascunho | null;
 };
 
+type LancamentoAnterior = {
+  tipo: "medicao" | "material" | "aditivo";
+  rotulo: string;
+  valorCentavos: number;
+  numero: number | null;
+  relatorioId: string | null;
+};
+
 export function DetalheAcoes({
   obraId,
   obraNome,
@@ -29,8 +37,10 @@ export function DetalheAcoes({
   valorContratadoCentavos,
   pagoPersistidoCentavos,
   aditivosPersistidosCentavos,
+  lancamentosAnteriores,
   climaDias,
   rascunhos,
+  ultimoEnviado,
 }: {
   obraId: string;
   obraNome: string;
@@ -45,15 +55,65 @@ export function DetalheAcoes({
   valorContratadoCentavos: number;
   pagoPersistidoCentavos: number;
   aditivosPersistidosCentavos: number;
+  lancamentosAnteriores: LancamentoAnterior[];
   climaDias: {
     data: string;
     condicao: "aberto" | "nublado" | "chuvoso";
     prob_chuva: number | null;
   }[];
   rascunhos: RelatorioLista[];
+  ultimoEnviado?: {
+    id: string;
+    numero: number;
+    dados: RelatorioRascunho | null;
+  } | null;
 }) {
   const router = useRouter();
   const search = useSearchParams();
+  const retificarId = search.get("retificar");
+  const retificando = Boolean(
+    retificarId && ultimoEnviado?.id === retificarId && ultimoEnviado.dados,
+  );
+  const dadosRetificacao = retificando ? ultimoEnviado?.dados ?? null : null;
+  const pagoRetificacao = dadosRetificacao
+    ? dadosRetificacao.financeiro.medicoes.reduce(
+        (total, item) => total + item.valorCentavos,
+        0,
+      ) +
+      dadosRetificacao.financeiro.materiais.reduce(
+        (total, item) => total + item.valorCentavos,
+        0,
+      ) -
+      dadosRetificacao.financeiro.estornos
+        .filter((item) => item.grupo !== "aditivos")
+        .reduce((total, item) => total + Math.abs(item.valorCentavos), 0)
+    : 0;
+  const aditivoRetificacao = dadosRetificacao
+    ? dadosRetificacao.financeiro.aditivos.reduce(
+        (total, item) => total + item.valorCentavos,
+        0,
+      ) -
+      dadosRetificacao.financeiro.estornos
+        .filter((item) => item.grupo === "aditivos")
+        .reduce((total, item) => total + Math.abs(item.valorCentavos), 0)
+    : 0;
+  const diasRetificacao = dadosRetificacao
+    ? dadosRetificacao.prazo.reduce((total, item) => total + item.dias, 0)
+    : 0;
+  const anteriores = lancamentosAnteriores.filter(
+    (l) => l.relatorioId !== retificarId,
+  );
+  const historicoFinanceiro = {
+    medicoes: anteriores
+      .filter((l) => l.tipo === "medicao")
+      .map((l) => ({ rotulo: l.rotulo, valorCentavos: l.valorCentavos })),
+    materiais: anteriores
+      .filter((l) => l.tipo === "material")
+      .map((l) => ({ rotulo: l.rotulo, valorCentavos: l.valorCentavos })),
+    aditivos: anteriores
+      .filter((l) => l.tipo === "aditivo")
+      .map((l) => ({ rotulo: l.rotulo, valorCentavos: l.valorCentavos })),
+  };
   const [compartilharAberto, setCompartilharAberto] = useState(
     () => search.get("compartilhar") === "1",
   );
@@ -73,7 +133,11 @@ export function DetalheAcoes({
         setRelatorioAberto(true);
       }
     }
-  }, [search, arquivada, rascunhos]);
+    if (retificando && !arquivada) {
+      setEditando(null);
+      setRelatorioAberto(true);
+    }
+  }, [search, arquivada, rascunhos, retificando]);
 
   function fecharRelatorio() {
     setRelatorioAberto(false);
@@ -124,17 +188,39 @@ export function DetalheAcoes({
         obraId={obraId}
         obraNome={obraNome}
         endereco={endereco}
-        numero={editando?.numero ?? proximoNumero}
-        relatorioId={editando?.id}
+        numero={
+          retificando && ultimoEnviado
+            ? ultimoEnviado.numero
+            : (editando?.numero ?? proximoNumero)
+        }
+        relatorioId={
+          editando?.id ?? (retificando ? (retificarId ?? undefined) : undefined)
+        }
+        retificando={retificando}
         etapas={etapas}
-        rascunhoInicial={editando?.dados_rascunho ?? undefined}
-        maxMedicao={maxMedicao}
-        maxAditivo={maxAditivo}
-        diasAditivadosPersistidos={diasAditivadosPersistidos}
+        rascunhoInicial={
+          editando?.dados_rascunho ?? dadosRetificacao ?? undefined
+        }
+        maxMedicao={
+          retificando
+            ? Math.max(0, maxMedicao - (dadosRetificacao?.financeiro.medicoes.length ?? 0))
+            : maxMedicao
+        }
+        maxAditivo={
+          retificando
+            ? Math.max(0, maxAditivo - (dadosRetificacao?.financeiro.aditivos.length ?? 0))
+            : maxAditivo
+        }
+        diasAditivadosPersistidos={
+          diasAditivadosPersistidos - diasRetificacao
+        }
         terminoContratual={terminoContratual}
         valorContratadoCentavos={valorContratadoCentavos}
-        pagoPersistidoCentavos={pagoPersistidoCentavos}
-        aditivosPersistidosCentavos={aditivosPersistidosCentavos}
+        pagoPersistidoCentavos={pagoPersistidoCentavos - pagoRetificacao}
+        aditivosPersistidosCentavos={
+          aditivosPersistidosCentavos - aditivoRetificacao
+        }
+        historicoFinanceiro={historicoFinanceiro}
         climaDias={climaDias}
       />
     </>

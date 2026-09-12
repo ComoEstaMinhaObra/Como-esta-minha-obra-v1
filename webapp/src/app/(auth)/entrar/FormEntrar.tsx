@@ -5,8 +5,22 @@ import { useSearchParams } from "next/navigation";
 import { Botao, CampoTexto, useToast } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { publicEnv } from "@/config/env";
+import {
+  TurnstileCampo,
+  resetarTurnstile,
+} from "@/components/auth/TurnstileCampo";
 
 type Modo = "entrar" | "criar" | "recuperar";
+
+function senhaForte(senha: string): boolean {
+  return (
+    senha.length >= 10 &&
+    /[a-z]/.test(senha) &&
+    /[A-Z]/.test(senha) &&
+    /\d/.test(senha) &&
+    /[^A-Za-z0-9]/.test(senha)
+  );
+}
 
 function mensagemDeErro(mensagem: string): string {
   if (mensagem.includes("Invalid login credentials")) {
@@ -15,10 +29,10 @@ function mensagemDeErro(mensagem: string): string {
   if (mensagem.includes("Email not confirmed")) {
     return "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.";
   }
-  if (mensagem.includes("Password should be at least")) {
-    return "A senha precisa ter pelo menos 6 caracteres.";
+  if (mensagem.includes("Password should be at least") || mensagem.includes("weak")) {
+    return "A senha precisa ter pelo menos 10 caracteres, com maiúscula, minúscula, número e símbolo.";
   }
-  return mensagem;
+  return "Não foi possível concluir. Tente novamente.";
 }
 
 export function FormEntrar() {
@@ -34,6 +48,7 @@ export function FormEntrar() {
     null,
   );
   const [carregando, setCarregando] = useState(false);
+  const [captcha, setCaptcha] = useState<string | null>(null);
 
   const urlCallback = `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback${
     next && next.startsWith("/") ? `?next=${encodeURIComponent(next)}` : ""
@@ -59,25 +74,25 @@ export function FormEntrar() {
       }
 
       if (modo === "criar") {
-        const { data, error } = await supabase.auth.signUp({
+        if (!senhaForte(senha)) {
+          toast(
+            "A senha precisa ter pelo menos 10 caracteres, com maiúscula, minúscula, número e símbolo.",
+          );
+          return;
+        }
+        const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password: senha,
           options: {
             data: { nome: nome.trim() },
             emailRedirectTo: urlCallback,
+            captchaToken: captcha ?? undefined,
           },
         });
+        resetarTurnstile();
+        setCaptcha(null);
         if (error) {
           toast(mensagemDeErro(error.message));
-          return;
-        }
-        if (data.user && data.user.identities?.length === 0) {
-          toast("Este e-mail já possui conta. Entre com sua senha.");
-          setModo("entrar");
-          return;
-        }
-        if (data.session) {
-          window.location.assign(urlCallback);
           return;
         }
         setEnviado("confirmacao");
@@ -88,8 +103,11 @@ export function FormEntrar() {
         email.trim(),
         {
           redirectTo: `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback?next=${encodeURIComponent("/auth/nova-senha")}`,
+          captchaToken: captcha ?? undefined,
         },
       );
+      resetarTurnstile();
+      setCaptcha(null);
       if (error) {
         toast(mensagemDeErro(error.message));
         return;
@@ -173,12 +191,20 @@ export function FormEntrar() {
           rotulo="Senha"
           type="password"
           required
-          minLength={6}
+          minLength={10}
           autoComplete={modo === "criar" ? "new-password" : "current-password"}
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
-          placeholder={modo === "criar" ? "Mínimo 6 caracteres" : "Sua senha"}
+          placeholder={
+            modo === "criar"
+              ? "Mínimo 10 caracteres, maiúscula, número e símbolo"
+              : "Sua senha"
+          }
         />
+      ) : null}
+
+      {modo === "criar" || modo === "recuperar" ? (
+        <TurnstileCampo onToken={setCaptcha} />
       ) : null}
 
       <Botao type="submit" className="w-full" disabled={carregando}>

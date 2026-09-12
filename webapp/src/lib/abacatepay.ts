@@ -164,8 +164,8 @@ async function request<T>(
     const msg =
       parsed?.error ??
       `AbacatePay ${method} ${path} falhou com HTTP ${res.status}`;
-    console.error("[abacatepay]", msg, { status: res.status, body: parsed });
-    throw new AbacatePayError(msg, res.status, parsed);
+    console.error("[abacatepay]", { status: res.status, path });
+    throw new AbacatePayError(msg, res.status, { status: res.status });
   }
 
   return parsed.data;

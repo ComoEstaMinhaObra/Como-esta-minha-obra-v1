@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { GradeFotos, useToast } from "@/components/ui";
 import imageCompression from "browser-image-compression";
 import { createClient } from "@/lib/supabase/client";
 import type { RelatorioRascunho } from "@/lib/relatorios/tipos";
 import type { EtapaObra } from "../ModalRelatorio";
+import { reservarFotoAction } from "../relatorio-actions";
 
 export function SecaoAtividades({
   etapas,
@@ -20,6 +22,7 @@ export function SecaoAtividades({
   relatorioId?: string;
 }) {
   const { toast } = useToast();
+  const [previews, setPreviews] = useState<Record<string, string>>({});
   const marcadas = new Set(dados.atividades.map((a) => a.etapaId));
 
   function toggle(etapaId: string) {
@@ -56,7 +59,16 @@ export function SecaoAtividades({
       fileType: "image/webp",
       maxSizeMB: 1.5,
     });
-    const path = `${obraId}/${relatorioId}/${etapaId}/${crypto.randomUUID()}.webp`;
+    const reserva = await reservarFotoAction({
+      obraId,
+      relatorioId,
+      etapaId,
+    });
+    if (!reserva.ok) {
+      toast("Não foi possível reservar a foto");
+      return;
+    }
+    const path = reserva.storagePath;
     const supabase = createClient();
     const { error } = await supabase.storage
       .from("fotos")
@@ -65,6 +77,7 @@ export function SecaoAtividades({
       toast("Falha no upload da foto");
       return;
     }
+    setPreviews((prev) => ({ ...prev, [path]: URL.createObjectURL(compressed) }));
     onChange({
       ...dados,
       atividades: dados.atividades.map((a) =>
@@ -122,7 +135,9 @@ export function SecaoAtividades({
                     />
                   </label>
                   <GradeFotos
-                    urls={[]}
+                    urls={atividade.fotosPaths
+                      .map((path) => previews[path])
+                      .filter((url): url is string => Boolean(url))}
                     onAnexar={() => {
                       const input = document.createElement("input");
                       input.type = "file";

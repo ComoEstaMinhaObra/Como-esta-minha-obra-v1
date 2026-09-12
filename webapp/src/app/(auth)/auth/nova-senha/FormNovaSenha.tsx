@@ -62,17 +62,17 @@ export function FormNovaSenha() {
         rotulo="Nova senha"
         type="password"
         required
-        minLength={6}
+        minLength={10}
         autoComplete="new-password"
         value={senha}
         onChange={(e) => setSenha(e.target.value)}
-        placeholder="Mínimo 6 caracteres"
+        placeholder="Mínimo 10 caracteres, maiúscula, número e símbolo"
       />
       <CampoTexto
         rotulo="Confirmar senha"
         type="password"
         required
-        minLength={6}
+        minLength={10}
         autoComplete="new-password"
         value={confirmacao}
         onChange={(e) => setConfirmacao(e.target.value)}

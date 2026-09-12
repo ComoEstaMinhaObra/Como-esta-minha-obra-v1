@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.15"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -162,19 +157,25 @@ export type Database = {
           etapa_id: string
           id: string
           nota: string
+          obra_id: string | null
           relatorio_id: string
+          versao_id: string | null
         }
         Insert: {
           etapa_id: string
           id?: string
           nota?: string
+          obra_id?: string | null
           relatorio_id: string
+          versao_id?: string | null
         }
         Update: {
           etapa_id?: string
           id?: string
           nota?: string
+          obra_id?: string | null
           relatorio_id?: string
+          versao_id?: string | null
         }
         Relationships: [
           {
@@ -185,11 +186,94 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "atividades_etapa_obra_fk"
+            columns: ["etapa_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "etapas"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
             foreignKeyName: "atividades_relatorio_id_fkey"
             columns: ["relatorio_id"]
             isOneToOne: false
             referencedRelation: "relatorios"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atividades_relatorio_obra_fk"
+            columns: ["relatorio_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "atividades_versao_obra_fk"
+            columns: ["versao_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "obra_id"]
+          },
+        ]
+      }
+      avanco_ajustes: {
+        Row: {
+          criado_em: string
+          etapa_id: string
+          id: string
+          obra_id: string
+          pct_antes: number
+          pct_depois: number
+          relatorio_id: string
+          versao_id: string
+        }
+        Insert: {
+          criado_em?: string
+          etapa_id: string
+          id?: string
+          obra_id: string
+          pct_antes: number
+          pct_depois: number
+          relatorio_id: string
+          versao_id: string
+        }
+        Update: {
+          criado_em?: string
+          etapa_id?: string
+          id?: string
+          obra_id?: string
+          pct_antes?: number
+          pct_depois?: number
+          relatorio_id?: string
+          versao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avanco_ajustes_etapa_obra_fk"
+            columns: ["etapa_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "etapas"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "avanco_ajustes_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "avanco_ajustes_relatorio_obra_fk"
+            columns: ["relatorio_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "avanco_ajustes_versao_obra_fk"
+            columns: ["versao_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "obra_id"]
           },
         ]
       }
@@ -236,6 +320,7 @@ export type Database = {
           motivo: Database["public"]["Enums"]["motivo_aditivo"]
           obra_id: string
           relatorio_id: string
+          versao_id: string | null
         }
         Insert: {
           descricao?: string | null
@@ -244,6 +329,7 @@ export type Database = {
           motivo: Database["public"]["Enums"]["motivo_aditivo"]
           obra_id: string
           relatorio_id: string
+          versao_id?: string | null
         }
         Update: {
           descricao?: string | null
@@ -252,6 +338,7 @@ export type Database = {
           motivo?: Database["public"]["Enums"]["motivo_aditivo"]
           obra_id?: string
           relatorio_id?: string
+          versao_id?: string | null
         }
         Relationships: [
           {
@@ -267,6 +354,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "relatorios"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dias_aditivados_relatorio_obra_fk"
+            columns: ["relatorio_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "dias_aditivados_versao_obra_fk"
+            columns: ["versao_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "obra_id"]
           },
         ]
       }
@@ -308,30 +409,36 @@ export type Database = {
       fotos: {
         Row: {
           atividade_id: string | null
+          estado: Database["public"]["Enums"]["foto_estado"]
           etapa_id: string
           id: string
           obra_id: string
           ordem: number
           relatorio_id: string
           storage_path: string
+          versao_id: string | null
         }
         Insert: {
           atividade_id?: string | null
+          estado?: Database["public"]["Enums"]["foto_estado"]
           etapa_id: string
           id?: string
           obra_id: string
           ordem?: number
           relatorio_id: string
           storage_path: string
+          versao_id?: string | null
         }
         Update: {
           atividade_id?: string | null
+          estado?: Database["public"]["Enums"]["foto_estado"]
           etapa_id?: string
           id?: string
           obra_id?: string
           ordem?: number
           relatorio_id?: string
           storage_path?: string
+          versao_id?: string | null
         }
         Relationships: [
           {
@@ -342,11 +449,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fotos_atividade_obra_fk"
+            columns: ["atividade_id", "obra_id", "relatorio_id", "etapa_id"]
+            isOneToOne: false
+            referencedRelation: "atividades"
+            referencedColumns: ["id", "obra_id", "relatorio_id", "etapa_id"]
+          },
+          {
             foreignKeyName: "fotos_etapa_id_fkey"
             columns: ["etapa_id"]
             isOneToOne: false
             referencedRelation: "etapas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fotos_etapa_obra_fk"
+            columns: ["etapa_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "etapas"
+            referencedColumns: ["id", "obra_id"]
           },
           {
             foreignKeyName: "fotos_obra_id_fkey"
@@ -362,6 +483,20 @@ export type Database = {
             referencedRelation: "relatorios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fotos_relatorio_obra_fk"
+            columns: ["relatorio_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "fotos_versao_obra_fk"
+            columns: ["versao_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "obra_id"]
+          },
         ]
       }
       lancamentos: {
@@ -375,6 +510,7 @@ export type Database = {
           rotulo: string
           tipo: Database["public"]["Enums"]["lancamento_tipo"]
           valor_centavos: number
+          versao_id: string | null
         }
         Insert: {
           criado_em?: string
@@ -386,6 +522,7 @@ export type Database = {
           rotulo: string
           tipo: Database["public"]["Enums"]["lancamento_tipo"]
           valor_centavos: number
+          versao_id?: string | null
         }
         Update: {
           criado_em?: string
@@ -397,6 +534,7 @@ export type Database = {
           rotulo?: string
           tipo?: Database["public"]["Enums"]["lancamento_tipo"]
           valor_centavos?: number
+          versao_id?: string | null
         }
         Relationships: [
           {
@@ -413,6 +551,20 @@ export type Database = {
             referencedRelation: "relatorios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lancamentos_relatorio_obra_fk"
+            columns: ["relatorio_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "lancamentos_versao_obra_fk"
+            columns: ["versao_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "obra_id"]
+          },
         ]
       }
       obra_acessos: {
@@ -422,6 +574,9 @@ export type Database = {
           email: string
           id: string
           obra_id: string
+          owner_id: string | null
+          revogado_em: string | null
+          revogado_por: string | null
           status: Database["public"]["Enums"]["acesso_status"]
           user_id: string | null
         }
@@ -431,6 +586,9 @@ export type Database = {
           email: string
           id?: string
           obra_id: string
+          owner_id?: string | null
+          revogado_em?: string | null
+          revogado_por?: string | null
           status?: Database["public"]["Enums"]["acesso_status"]
           user_id?: string | null
         }
@@ -440,6 +598,9 @@ export type Database = {
           email?: string
           id?: string
           obra_id?: string
+          owner_id?: string | null
+          revogado_em?: string | null
+          revogado_por?: string | null
           status?: Database["public"]["Enums"]["acesso_status"]
           user_id?: string | null
         }
@@ -449,6 +610,20 @@ export type Database = {
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_acessos_obra_owner_fk"
+            columns: ["obra_id", "owner_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id", "owner_id"]
+          },
+          {
+            foreignKeyName: "obra_acessos_revogado_por_fkey"
+            columns: ["revogado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -558,18 +733,24 @@ export type Database = {
       relatorio_etapas: {
         Row: {
           etapa_id: string
+          obra_id: string | null
           pct: number
           relatorio_id: string
+          versao_id: string
         }
         Insert: {
           etapa_id: string
+          obra_id?: string | null
           pct: number
           relatorio_id: string
+          versao_id: string
         }
         Update: {
           etapa_id?: string
+          obra_id?: string | null
           pct?: number
           relatorio_id?: string
+          versao_id?: string
         }
         Relationships: [
           {
@@ -580,11 +761,98 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "relatorio_etapas_etapa_obra_fk"
+            columns: ["etapa_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "etapas"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
             foreignKeyName: "relatorio_etapas_relatorio_id_fkey"
             columns: ["relatorio_id"]
             isOneToOne: false
             referencedRelation: "relatorios"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relatorio_etapas_relatorio_obra_fk"
+            columns: ["relatorio_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "relatorio_etapas_versao_obra_fk"
+            columns: ["versao_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "obra_id"]
+          },
+        ]
+      }
+      relatorio_versoes: {
+        Row: {
+          criado_em: string
+          criado_por: string
+          dados_aplicacao: Json | null
+          id: string
+          motivo: string | null
+          numero: number
+          obra_id: string
+          pdf_path: string | null
+          pdf_sha256: string | null
+          publicado_em: string | null
+          relatorio_id: string
+          snapshot: Json
+          status: Database["public"]["Enums"]["versao_status"]
+          tipo: Database["public"]["Enums"]["versao_tipo"]
+        }
+        Insert: {
+          criado_em?: string
+          criado_por: string
+          dados_aplicacao?: Json | null
+          id?: string
+          motivo?: string | null
+          numero: number
+          obra_id: string
+          pdf_path?: string | null
+          pdf_sha256?: string | null
+          publicado_em?: string | null
+          relatorio_id: string
+          snapshot: Json
+          status: Database["public"]["Enums"]["versao_status"]
+          tipo: Database["public"]["Enums"]["versao_tipo"]
+        }
+        Update: {
+          criado_em?: string
+          criado_por?: string
+          dados_aplicacao?: Json | null
+          id?: string
+          motivo?: string | null
+          numero?: number
+          obra_id?: string
+          pdf_path?: string | null
+          pdf_sha256?: string | null
+          publicado_em?: string | null
+          relatorio_id?: string
+          snapshot?: Json
+          status?: Database["public"]["Enums"]["versao_status"]
+          tipo?: Database["public"]["Enums"]["versao_tipo"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relatorio_versoes_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relatorio_versoes_relatorio_obra_fk"
+            columns: ["relatorio_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorios"
+            referencedColumns: ["id", "obra_id"]
           },
         ]
       }
@@ -593,6 +861,7 @@ export type Database = {
           criado_em: string
           dados_rascunho: Json | null
           enviado_em: string | null
+          erro_operacional: string | null
           geral_antes: number | null
           geral_depois: number | null
           id: string
@@ -601,11 +870,14 @@ export type Database = {
           pdf_path: string | null
           snapshot: Json | null
           status: Database["public"]["Enums"]["relatorio_status"]
+          versao_atual_id: string | null
+          versao_pendente_id: string | null
         }
         Insert: {
           criado_em?: string
           dados_rascunho?: Json | null
           enviado_em?: string | null
+          erro_operacional?: string | null
           geral_antes?: number | null
           geral_depois?: number | null
           id?: string
@@ -614,11 +886,14 @@ export type Database = {
           pdf_path?: string | null
           snapshot?: Json | null
           status?: Database["public"]["Enums"]["relatorio_status"]
+          versao_atual_id?: string | null
+          versao_pendente_id?: string | null
         }
         Update: {
           criado_em?: string
           dados_rascunho?: Json | null
           enviado_em?: string | null
+          erro_operacional?: string | null
           geral_antes?: number | null
           geral_depois?: number | null
           id?: string
@@ -627,6 +902,8 @@ export type Database = {
           pdf_path?: string | null
           snapshot?: Json | null
           status?: Database["public"]["Enums"]["relatorio_status"]
+          versao_atual_id?: string | null
+          versao_pendente_id?: string | null
         }
         Relationships: [
           {
@@ -636,35 +913,61 @@ export type Database = {
             referencedRelation: "obras"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "relatorios_versao_atual_fk"
+            columns: ["versao_atual_id", "id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "relatorio_id", "obra_id"]
+          },
+          {
+            foreignKeyName: "relatorios_versao_pendente_fk"
+            columns: ["versao_pendente_id", "id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "relatorio_id", "obra_id"]
+          },
         ]
       }
       webhooks_log: {
         Row: {
+          claim_em: string | null
           erro: string | null
+          event_id: string
           evento: string
           id: string
           payload: Json
           processado: boolean
+          processado_em: string | null
           provedor: string
           recebido_em: string
+          tentativas: number
         }
         Insert: {
+          claim_em?: string | null
           erro?: string | null
+          event_id: string
           evento: string
           id?: string
           payload: Json
           processado?: boolean
+          processado_em?: string | null
           provedor?: string
           recebido_em?: string
+          tentativas?: number
         }
         Update: {
+          claim_em?: string | null
           erro?: string | null
+          event_id?: string
           evento?: string
           id?: string
           payload?: Json
           processado?: boolean
+          processado_em?: string | null
           provedor?: string
           recebido_em?: string
+          tentativas?: number
         }
         Relationships: []
       }
@@ -681,7 +984,35 @@ export type Database = {
           ordem: number
         }[]
       }
+      fn_admin_contas: { Args: never; Returns: Json }
+      fn_admin_kpis: { Args: never; Returns: Json }
+      fn_admin_obras: { Args: { p_owner?: string }; Returns: Json }
+      fn_admin_reprocessar_webhook: { Args: { p_log: string }; Returns: Json }
+      fn_admin_webhooks: { Args: never; Returns: Json }
+      fn_arquivar_obra: {
+        Args: { p_nome: string; p_obra: string }
+        Returns: Json
+      }
+      fn_atualizar_capa_obra: {
+        Args: { p_obra: string; p_path: string }
+        Returns: undefined
+      }
       fn_avanco_geral: { Args: { p_obra: string }; Returns: number }
+      fn_claim_outbox: { Args: { p_outbox: string }; Returns: Json }
+      fn_claim_webhook_evento: {
+        Args: {
+          p_event_id: string
+          p_evento: string
+          p_force?: boolean
+          p_payload: Json
+        }
+        Returns: Json
+      }
+      fn_confirmar_outbox: {
+        Args: { p_installment: number; p_outbox: string; p_usage_id: string }
+        Returns: Json
+      }
+      fn_consumir_rate_limit: { Args: { p_acao: string }; Returns: undefined }
       fn_criar_obra: {
         Args: {
           p_arquiteto?: string
@@ -704,15 +1035,81 @@ export type Database = {
         }
         Returns: string
       }
+      fn_enfileirar_renovacao_emails: {
+        Args: { p_assinatura: string; p_event_id: string; p_parcela: number }
+        Returns: Json
+      }
       fn_enviar_relatorio: { Args: { p_relatorio: string }; Returns: Json }
+      fn_dados_versao_atual: {
+        Args: { p_relatorio: string }
+        Returns: Json
+      }
+      fn_falhar_outbox: {
+        Args: { p_erro: string; p_incerto: boolean; p_outbox: string }
+        Returns: undefined
+      }
+      fn_finalizar_envio_relatorio: {
+        Args: { p_pdf_path: string; p_pdf_sha256: string; p_versao: string }
+        Returns: Json
+      }
+      fn_finalizar_retificacao: {
+        Args: { p_pdf_path: string; p_pdf_sha256: string; p_versao: string }
+        Returns: Json
+      }
+      fn_listar_obras_empreiteiro: { Args: never; Returns: Json }
+      fn_listar_outbox_pendente: { Args: never; Returns: Json }
+      fn_marcar_versao_falhou: {
+        Args: { p_erro: string; p_versao: string }
+        Returns: undefined
+      }
+      fn_preparar_envio_relatorio: {
+        Args: { p_relatorio: string }
+        Returns: Json
+      }
+      fn_preparar_retificacao: {
+        Args: { p_dados: Json; p_motivo: string; p_relatorio: string }
+        Returns: Json
+      }
       fn_proximos_rotulos: { Args: { p_obra: string }; Returns: Json }
+      fn_purgar_rate_limits: { Args: never; Returns: number }
+      fn_purgar_webhooks: { Args: never; Returns: number }
+      fn_remover_foto_rascunho: {
+        Args: { p_storage_path: string }
+        Returns: undefined
+      }
+      fn_reservar_foto: {
+        Args: { p_etapa: string; p_obra: string; p_relatorio: string }
+        Returns: Json
+      }
+      fn_revogar_acesso_obra: {
+        Args: { p_acesso: string; p_obra: string }
+        Returns: Json
+      }
+      fn_salvar_rascunho: {
+        Args: { p_dados: Json; p_obra: string; p_relatorio: string }
+        Returns: Json
+      }
+      fn_solicitar_acesso_obra: {
+        Args: { p_email: string; p_obra: string }
+        Returns: Json
+      }
+      fn_reagendar_outbox: {
+        Args: { p_erro: string; p_outbox: string }
+        Returns: undefined
+      }
+      fn_registrar_customer_id: {
+        Args: { p_customer_id: string }
+        Returns: undefined
+      }
+      fn_sou_admin: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       tem_acesso_obra: { Args: { p_obra: string }; Returns: boolean }
     }
     Enums: {
-      acesso_status: "convidado" | "ativo"
+      acesso_status: "convidado" | "ativo" | "pendente_cobranca" | "revogado"
       assinatura_status: "trial" | "ativa" | "inadimplente" | "cancelada"
       clima_condicao: "aberto" | "nublado" | "chuvoso"
+      foto_estado: "reservada" | "publicada"
       lancamento_grupo: "medicoes" | "materiais" | "aditivos"
       lancamento_tipo: "sinal" | "medicao" | "material" | "aditivo" | "estorno"
       motivo_aditivo:
@@ -723,8 +1120,18 @@ export type Database = {
         | "interferencias"
         | "forca_maior"
         | "outro"
+      outbox_operacao: "add" | "subtract"
+      outbox_status:
+        | "pendente"
+        | "processando"
+        | "confirmado"
+        | "falhou"
+        | "incerto"
+        | "cancelado"
       plano_tipo: "trial" | "obra_1" | "obra_3" | "obra_5"
-      relatorio_status: "rascunho" | "enviado"
+      relatorio_status: "rascunho" | "enviado" | "processando"
+      versao_status: "processando" | "publicada" | "falhou"
+      versao_tipo: "original" | "retificacao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -855,9 +1262,10 @@ export const Constants = {
   },
   public: {
     Enums: {
-      acesso_status: ["convidado", "ativo"],
+      acesso_status: ["convidado", "ativo", "pendente_cobranca", "revogado"],
       assinatura_status: ["trial", "ativa", "inadimplente", "cancelada"],
       clima_condicao: ["aberto", "nublado", "chuvoso"],
+      foto_estado: ["reservada", "publicada"],
       lancamento_grupo: ["medicoes", "materiais", "aditivos"],
       lancamento_tipo: ["sinal", "medicao", "material", "aditivo", "estorno"],
       motivo_aditivo: [
@@ -869,8 +1277,18 @@ export const Constants = {
         "forca_maior",
         "outro",
       ],
+      outbox_operacao: ["add", "subtract"],
+      outbox_status: [
+        "pendente",
+        "processando",
+        "confirmado",
+        "falhou",
+        "incerto",
+      ],
       plano_tipo: ["trial", "obra_1", "obra_3", "obra_5"],
-      relatorio_status: ["rascunho", "enviado"],
+      relatorio_status: ["rascunho", "enviado", "processando"],
+      versao_status: ["processando", "publicada", "falhou"],
+      versao_tipo: ["original", "retificacao"],
     },
   },
 } as const

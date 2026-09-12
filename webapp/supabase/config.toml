@@ -117,12 +117,20 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+[storage.buckets.capas]
+public = false
+file_size_limit = "2MiB"
+allowed_mime_types = ["image/webp"]
+
+[storage.buckets.fotos]
+public = false
+file_size_limit = "2MiB"
+allowed_mime_types = ["image/webp"]
+
+[storage.buckets.pdfs]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["application/pdf"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
@@ -179,10 +187,10 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+minimum_password_length = 10
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+password_requirements = "lower_upper_letters_digits_symbols"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -223,9 +231,9 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.

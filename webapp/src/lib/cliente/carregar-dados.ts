@@ -46,6 +46,7 @@ export type ClienteObraContexto = {
     numero: number;
     enviadoEm: string;
     snapshot: RelatorioSnapshot;
+    versaoNumero: number;
   } | null;
   relatorioAnterior: {
     id: string;
@@ -56,6 +57,8 @@ export type ClienteObraContexto = {
     id: string;
     numero: number;
     enviadoEm: string;
+    versaoNumero: number;
+    motivo: string | null;
   }[];
   etapas: {
     id: string;
@@ -91,6 +94,14 @@ export type ClienteObraContexto = {
     ordem: number;
     urlAssinada: string | null;
   }[];
+  historicoVersoes: {
+    relatorioId: string;
+    numero: number;
+    versaoNumero: number;
+    motivo: string | null;
+    publicadoEm: string | null;
+    pdfPath: string | null;
+  }[];
   agregados: {
     avancoGeral: number;
     pctPago: number;
@@ -112,6 +123,18 @@ export type CarregarClienteResult =
       motivo: "nao_autenticado" | "sem_acesso" | "obra_nao_encontrada";
     };
 
+function snapEtapas(
+  snapshot: RelatorioSnapshot,
+): ClienteObraContexto["etapas"] {
+  return snapshot.avancoFisico.etapas.map((etapa, ordem) => ({
+    id: `snap-${ordem}`,
+    nome: etapa.nome,
+    ordem: ordem + 1,
+    peso: Number(etapa.peso),
+    pctAtual: etapa.pctNovo,
+  }));
+}
+
 export const carregarDadosCliente = cache(async function carregarDadosCliente(
   obraId: string,
   previewRelatorioId?: string,
@@ -125,22 +148,28 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
     return { ok: false, motivo: "nao_autenticado" };
   }
 
-  const { data: obra } = await supabase
-    .from("obras")
-    .select(
-      "id, nome, endereco, cliente_nome, construtora, engenheiro, escritorio_arquitetura, arquiteto, projetista_estruturas, projetista_instalacoes, inicio_contratual, termino_contratual, valor_contratado_centavos, lat, lng, arquivada_em, owner_id",
-    )
-    .eq("id", obraId)
-    .maybeSingle();
+  const [{ data: obra }, { data: acessoProprio }] = await Promise.all([
+    supabase
+      .from("obras")
+      .select(
+        "id, nome, endereco, cliente_nome, construtora, engenheiro, escritorio_arquitetura, arquiteto, projetista_estruturas, projetista_instalacoes, inicio_contratual, termino_contratual, valor_contratado_centavos, lat, lng, owner_id",
+      )
+      .eq("id", obraId)
+      .maybeSingle(),
+    supabase
+      .from("obra_acessos")
+      .select("id")
+      .eq("obra_id", obraId)
+      .eq("user_id", user.id)
+      .eq("status", "ativo")
+      .maybeSingle(),
+  ]);
 
-  if (!obra) {
+  if (!obra && !acessoProprio) {
     return { ok: false, motivo: "sem_acesso" };
   }
-  if (obra.arquivada_em) {
-    return { ok: false, motivo: "obra_nao_encontrada" };
-  }
 
-  const ehEmpreiteiroResponsavel = obra.owner_id === user.id;
+  const ehEmpreiteiroResponsavel = obra?.owner_id === user.id;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -148,117 +177,131 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
     .eq("id", user.id)
     .maybeSingle();
 
-  const [
-    { data: etapas },
-    { data: lancamentos },
-    { data: diasAditivos },
-    { data: relatorios },
-    { data: clima },
-    { data: fotosRows },
-  ] = await Promise.all([
-    supabase
-      .from("etapas")
-      .select("id, nome, ordem, peso, pct_atual")
-      .eq("obra_id", obraId)
-      .order("ordem"),
-    supabase
-      .from("lancamentos")
-      .select("tipo, grupo, rotulo, valor_centavos, numero")
-      .eq("obra_id", obraId)
-      .order("criado_em", { ascending: true }),
-    supabase
-      .from("dias_aditivados")
-      .select("motivo, descricao, dias")
-      .eq("obra_id", obraId),
-    supabase
-      .from("relatorios")
-      .select("id, numero, status, enviado_em, snapshot")
-      .eq("obra_id", obraId)
-      .eq("status", "enviado")
-      .order("numero", { ascending: false }),
-    supabase
-      .from("clima_snapshots")
-      .select("data, condicao, prob_chuva")
-      .eq("obra_id", obraId)
-      .order("data", { ascending: true }),
-    supabase
-      .from("fotos")
-      .select("id, storage_path, etapa_id, relatorio_id, ordem")
-      .eq("obra_id", obraId)
-      .order("ordem", { ascending: true }),
-  ]);
+  const { data: relatorios } = await supabase
+    .from("relatorios")
+    .select("id, numero, status, enviado_em, versao_atual_id")
+    .eq("obra_id", obraId)
+    .eq("status", "enviado")
+    .order("numero", { ascending: false });
 
-  let listaEtapas: ClienteObraContexto["etapas"] = (etapas ?? []).map(
-    (etapa) => ({
-      id: etapa.id,
-      nome: etapa.nome,
-      ordem: etapa.ordem,
-      peso: Number(etapa.peso),
-      pctAtual: etapa.pct_atual,
-    }),
+  const idsVersao = (relatorios ?? [])
+    .map((r) => r.versao_atual_id)
+    .filter((id): id is string => Boolean(id));
+
+  const { data: versoes } =
+    idsVersao.length > 0
+      ? await supabase
+          .from("relatorio_versoes")
+          .select("id, relatorio_id, numero, status, snapshot, motivo, publicado_em, pdf_path, criado_por")
+          .in("id", idsVersao)
+          .eq("status", "publicada")
+      : { data: [] };
+
+  const { data: historico } = await supabase
+    .from("relatorio_versoes")
+    .select("id, relatorio_id, numero, motivo, publicado_em, pdf_path, status")
+    .eq("obra_id", obraId)
+    .eq("status", "publicada")
+    .order("numero", { ascending: true });
+
+  const versaoPorRelatorio = new Map(
+    (versoes ?? []).map((v) => [v.relatorio_id, v]),
   );
-  let listaLanc: ClienteObraContexto["lancamentos"] = (lancamentos ?? []).map(
-    (lancamento) => ({
-      tipo: lancamento.tipo,
-      grupo: lancamento.grupo,
-      rotulo: lancamento.rotulo,
-      valorCentavos: lancamento.valor_centavos,
-      numero: lancamento.numero,
-    }),
-  );
-  let listaDias: ClienteObraContexto["diasAditivados"] = (
-    diasAditivos ?? []
-  ).map((dia) => ({
-    motivo: dia.motivo,
-    descricao: dia.descricao,
-    dias: dia.dias,
-  }));
-  const climaAll: ClienteObraContexto["climaDias"] = (clima ?? []).map(
-    (dia) => ({
-      data: dia.data,
-      condicao: dia.condicao,
-      probChuva: dia.prob_chuva,
-    }),
-  );
-  const enviados = (relatorios ?? []).filter(
-    (relatorio) =>
-      relatorio.status === "enviado" &&
-      relatorio.enviado_em &&
-      relatorio.snapshot,
-  );
+
+  const enviados = (relatorios ?? []).filter((r) => {
+    const v = versaoPorRelatorio.get(r.id);
+    return r.enviado_em && v?.snapshot;
+  });
 
   const ultimo = enviados[0] ?? null;
-  let anterior = enviados[1] ?? null;
+  const anterior = enviados[1] ?? null;
   let ultimoRelatorio: ClienteObraContexto["ultimoRelatorio"] = null;
   let previewAtivo = false;
-  let fotosPreview: {
-    etapaId: string;
-    etapaNome: string;
-    storagePath: string;
-    ordem: number;
-  }[] = [];
+  let listaEtapas: ClienteObraContexto["etapas"] = [];
+  let listaLanc: ClienteObraContexto["lancamentos"] = [];
+  let listaDias: ClienteObraContexto["diasAditivados"] = [];
+  let climaDias: ClienteObraContexto["climaDias"] = [];
+  let snapshotVigente: RelatorioSnapshot | null = null;
 
-  if (ultimo?.snapshot && ultimo.enviado_em) {
+  if (ultimo) {
+    const versao = versaoPorRelatorio.get(ultimo.id)!;
+    snapshotVigente = versao.snapshot as unknown as RelatorioSnapshot;
     ultimoRelatorio = {
       id: ultimo.id,
       numero: ultimo.numero,
-      enviadoEm: ultimo.enviado_em,
-      snapshot: ultimo.snapshot as unknown as RelatorioSnapshot,
+      enviadoEm: ultimo.enviado_em!,
+      snapshot: snapshotVigente,
+      versaoNumero: versao.numero,
     };
+    listaEtapas = snapEtapas(snapshotVigente);
+    listaLanc = snapshotVigente.financeiro.lancamentosNovos.map((l) => ({
+      tipo: l.tipo,
+      grupo: l.grupo,
+      rotulo: l.rotulo,
+      valorCentavos: l.valorCentavos,
+      numero: null,
+    }));
+    listaDias = snapshotVigente.prazo.novosDias.map((d) => ({
+      motivo: d.motivo,
+      descricao: d.descricao ?? null,
+      dias: d.dias,
+    }));
+    climaDias = snapshotVigente.clima.dias.map((d) => ({
+      data: typeof d.data === "string" ? d.data.slice(0, 10) : String(d.data),
+      condicao: d.condicao,
+      probChuva: d.probChuva,
+    }));
   }
 
-  if (previewRelatorioId && ehEmpreiteiroResponsavel) {
-    const { data: relatorioPreview } = await supabase
-      .from("relatorios")
-      .select("id, numero, status, dados_rascunho")
-      .eq("id", previewRelatorioId)
-      .eq("obra_id", obraId)
-      .eq("status", "rascunho")
-      .maybeSingle();
+  if (previewRelatorioId && ehEmpreiteiroResponsavel && obra) {
+    const [{ data: relatorioPreview }, { data: etapasVivas }, { data: lancVivos }, { data: diasVivos }, { data: climaVivo }] =
+      await Promise.all([
+        supabase
+          .from("relatorios")
+          .select("id, numero, status, dados_rascunho")
+          .eq("id", previewRelatorioId)
+          .eq("obra_id", obraId)
+          .eq("status", "rascunho")
+          .maybeSingle(),
+        supabase
+          .from("etapas")
+          .select("id, nome, ordem, peso, pct_atual")
+          .eq("obra_id", obraId)
+          .order("ordem"),
+        supabase
+          .from("lancamentos")
+          .select("tipo, grupo, rotulo, valor_centavos, numero")
+          .eq("obra_id", obraId),
+        supabase.from("dias_aditivados").select("motivo, descricao, dias").eq("obra_id", obraId),
+        supabase
+          .from("clima_snapshots")
+          .select("data, condicao, prob_chuva")
+          .eq("obra_id", obraId)
+          .order("data", { ascending: true }),
+      ]);
 
     if (relatorioPreview?.dados_rascunho) {
       const rascunho =
         relatorioPreview.dados_rascunho as unknown as RelatorioRascunho;
+      listaEtapas = (etapasVivas ?? []).map((etapa) => ({
+        id: etapa.id,
+        nome: etapa.nome,
+        ordem: etapa.ordem,
+        peso: Number(etapa.peso),
+        pctAtual: etapa.pct_atual,
+      }));
+      listaLanc = (lancVivos ?? []).map((l) => ({
+        tipo: l.tipo,
+        grupo: l.grupo,
+        rotulo: l.rotulo,
+        valorCentavos: l.valor_centavos,
+        numero: l.numero,
+      }));
+      listaDias = (diasVivos ?? []).map((d) => ({
+        motivo: d.motivo,
+        descricao: d.descricao,
+        dias: d.dias,
+      }));
       const enviadoEm = new Date().toISOString();
       const projecao = montarSnapshotRelatorioEmMemoria({
         numero: relatorioPreview.numero,
@@ -280,10 +323,13 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         etapas: listaEtapas,
         lancamentos: listaLanc,
         diasAditivados: listaDias,
-        climaDias: climaAll.slice(-7),
+        climaDias: (climaVivo ?? []).map((c) => ({
+          data: c.data,
+          condicao: c.condicao,
+          probChuva: c.prob_chuva,
+        })).slice(-7),
         rascunho,
       });
-
       listaEtapas = projecao.etapasProjetadas.map((etapa) => ({
         ...etapa,
         ordem: listaEtapas.find((item) => item.id === etapa.id)?.ordem ?? 0,
@@ -295,133 +341,110 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         numero: relatorioPreview.numero,
         enviadoEm,
         snapshot: projecao.snapshot,
+        versaoNumero: 0,
       };
-      anterior = enviados[0] ?? null;
+      snapshotVigente = projecao.snapshot;
       previewAtivo = true;
-      fotosPreview = rascunho.atividades.flatMap((atividade) => {
-        const etapa = listaEtapas.find((item) => item.id === atividade.etapaId);
-        return atividade.fotosPaths.map((storagePath, ordem) => ({
-          etapaId: atividade.etapaId,
-          etapaNome: etapa?.nome ?? "Etapa",
-          storagePath,
-          ordem: ordem + 1,
-        }));
-      });
     }
   }
 
-  const avancoGeral = calcularAvancoGeral(
-    listaEtapas.map((etapa) => ({
-      peso: etapa.peso,
-      pct: etapa.pctAtual,
-    })),
-  );
+  const avancoGeral = snapshotVigente
+    ? snapshotVigente.avancoFisico.geralDepois
+    : calcularAvancoGeral(listaEtapas.map((e) => ({ peso: e.peso, pct: e.pctAtual })));
 
-  const aditivos = listaLanc
-    .filter((lancamento) => lancamento.tipo === "aditivo")
-    .map((lancamento) => lancamento.valorCentavos);
-  const estornosAditivos = listaLanc
-    .filter(
-      (lancamento) =>
-        lancamento.tipo === "estorno" && lancamento.grupo === "aditivos",
-    )
-    .map((lancamento) => lancamento.valorCentavos);
-  const pago = listaLanc
-    .filter((lancamento) =>
-      ["sinal", "medicao", "material", "estorno"].includes(lancamento.tipo),
-    )
-    .filter(
-      (lancamento) =>
-        !(lancamento.tipo === "estorno" && lancamento.grupo === "aditivos"),
-    )
-    .map((lancamento) => lancamento.valorCentavos);
+  const obraPublicada = snapshotVigente?.obra;
+  const inicioPublico = obraPublicada?.inicioContratual ?? hojeIsoBahia();
+  const terminoPublico = obraPublicada?.terminoContratual ?? inicioPublico;
+  const valorPublico =
+    snapshotVigente?.financeiro.valorContratadoCentavos ?? 0;
 
-  const fin = calcularFinanceiro({
-    valorContratadoCentavos: obra.valor_contratado_centavos,
-    aditivosCentavos: aditivos,
-    pagoCentavos: pago,
-    estornosAditivosCentavos: estornosAditivos,
-  });
+  const fin = snapshotVigente
+    ? {
+        pctPago: snapshotVigente.financeiro.pctPago,
+        contratadoTotalCentavos: snapshotVigente.financeiro.contratadoTotalCentavos,
+        pagoAcumuladoCentavos: snapshotVigente.financeiro.pagoAcumuladoCentavos,
+        saldoCentavos: snapshotVigente.financeiro.saldoCentavos,
+        aditivosAcumuladoCentavos: snapshotVigente.financeiro.aditivosAcumuladoCentavos,
+      }
+    : calcularFinanceiro({
+        valorContratadoCentavos: valorPublico,
+        aditivosCentavos: [],
+        pagoCentavos: [],
+        estornosAditivosCentavos: [],
+      });
 
-  const diasLista = listaDias.map((dia) => dia.dias);
-  const totalDiasAditivados = diasLista.reduce((a, b) => a + b, 0);
-  const entregaPrevista = calcularNovaDataTermino(
-    obra.termino_contratual,
-    diasLista,
-  );
+  const totalDiasAditivados =
+    snapshotVigente?.prazo.totalDiasAditivados ??
+    listaDias.map((d) => d.dias).reduce((a, b) => a + b, 0);
+  const entregaPrevista =
+    snapshotVigente?.prazo.novaDataTermino ??
+    calcularNovaDataTermino(terminoPublico, listaDias.map((d) => d.dias));
   const hoje = hojeIsoBahia();
 
-  const etapaPorId = new Map(
-    listaEtapas.map((etapa) => [etapa.id, etapa.nome]),
-  );
-  const relatorioPorId = new Map(
-    enviados.map((r) => [r.id, r.enviado_em ?? ""]),
-  );
-
   const fotosComUrl: ClienteObraContexto["fotos"] = [];
-  for (const f of fotosRows ?? []) {
-    const enviadoEm = relatorioPorId.get(f.relatorio_id);
-    if (!enviadoEm) continue; // só fotos de relatórios enviados
-    const { data: signed } = await supabase.storage
-      .from("fotos")
-      .createSignedUrl(f.storage_path, 3600);
-    fotosComUrl.push({
-      id: f.id,
-      storagePath: f.storage_path,
-      etapaId: f.etapa_id,
-      etapaNome: etapaPorId.get(f.etapa_id) ?? "Etapa",
-      relatorioId: f.relatorio_id,
-      relatorioEnviadoEm: enviadoEm,
-      ordem: f.ordem,
-      urlAssinada: signed?.signedUrl ?? null,
+  const paths = new Map<string, { etapaNome: string; relatorioId: string; enviadoEm: string; ordem: number }>();
+  for (const r of enviados) {
+    const snap = versaoPorRelatorio.get(r.id)?.snapshot as unknown as RelatorioSnapshot | undefined;
+    if (!snap) continue;
+    snap.atividades.forEach((atividade, i) => {
+      atividade.fotosPaths.forEach((storagePath, ordem) => {
+        paths.set(storagePath, {
+          etapaNome: atividade.etapaNome,
+          relatorioId: r.id,
+          enviadoEm: r.enviado_em ?? "",
+          ordem: ordem + 1 + i,
+        });
+      });
+    });
+  }
+  if (previewAtivo && ultimoRelatorio) {
+    ultimoRelatorio.snapshot.atividades.forEach((atividade) => {
+      atividade.fotosPaths.forEach((storagePath, ordem) => {
+        paths.set(storagePath, {
+          etapaNome: atividade.etapaNome,
+          relatorioId: ultimoRelatorio!.id,
+          enviadoEm: ultimoRelatorio!.enviadoEm,
+          ordem: ordem + 1,
+        });
+      });
     });
   }
 
-  for (const foto of fotosPreview) {
+  for (const [storagePath, meta] of paths) {
     const { data: signed } = await supabase.storage
       .from("fotos")
-      .createSignedUrl(foto.storagePath, 3600);
+      .createSignedUrl(storagePath, 3600);
     fotosComUrl.push({
-      id: `preview-${foto.etapaId}-${foto.ordem}`,
-      storagePath: foto.storagePath,
-      etapaId: foto.etapaId,
-      etapaNome: foto.etapaNome,
-      relatorioId: previewRelatorioId ?? "preview",
-      relatorioEnviadoEm:
-        ultimoRelatorio?.enviadoEm ?? new Date().toISOString(),
-      ordem: foto.ordem,
+      id: storagePath,
+      storagePath,
+      etapaId: meta.etapaNome,
+      etapaNome: meta.etapaNome,
+      relatorioId: meta.relatorioId,
+      relatorioEnviadoEm: meta.enviadoEm,
+      ordem: meta.ordem,
       urlAssinada: signed?.signedUrl ?? null,
     });
-  }
-
-  // Clima: 7 dias anteriores à data do relatório vigente (ou últimos 7 se sem)
-  let climaDias = climaAll;
-  if (ultimoRelatorio) {
-    const dataRef = ultimoRelatorio.enviadoEm.slice(0, 10);
-    climaDias = climaAll.filter((c) => c.data <= dataRef).slice(-7);
-  } else {
-    climaDias = climaAll.slice(-7);
   }
 
   return {
     ok: true,
     dados: {
       obra: {
-        id: obra.id,
-        nome: obra.nome,
-        endereco: obra.endereco,
-        clienteNome: obra.cliente_nome,
-        construtora: obra.construtora,
-        engenheiro: obra.engenheiro,
-        escritorioArquitetura: obra.escritorio_arquitetura,
-        arquiteto: obra.arquiteto,
-        projetistaEstruturas: obra.projetista_estruturas,
-        projetistaInstalacoes: obra.projetista_instalacoes,
-        inicioContratual: obra.inicio_contratual,
-        terminoContratual: obra.termino_contratual,
-        valorContratadoCentavos: obra.valor_contratado_centavos,
-        lat: obra.lat,
-        lng: obra.lng,
+        id: obraId,
+        nome: obraPublicada?.nome ?? "Obra",
+        endereco: obraPublicada?.endereco ?? "",
+        clienteNome: obraPublicada?.clienteNome ?? "",
+        construtora: obraPublicada?.construtora ?? null,
+        engenheiro: obraPublicada?.engenheiro ?? null,
+        escritorioArquitetura: obraPublicada?.escritorioArquitetura ?? null,
+        arquiteto: obraPublicada?.arquiteto ?? null,
+        projetistaEstruturas: obraPublicada?.projetistaEstruturas ?? null,
+        projetistaInstalacoes: obraPublicada?.projetistaInstalacoes ?? null,
+        inicioContratual: inicioPublico,
+        terminoContratual: terminoPublico,
+        valorContratadoCentavos: valorPublico,
+        lat: null,
+        lng: null,
       },
       usuario: {
         id: user.id,
@@ -441,18 +464,26 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
             enviadoEm: anterior.enviado_em,
           }
         : null,
-      todosRelatorios: enviados
-        .filter((r) => r.enviado_em)
-        .map((r) => ({
-          id: r.id,
-          numero: r.numero,
-          enviadoEm: r.enviado_em!,
-        })),
+      todosRelatorios: enviados.map((r) => ({
+        id: r.id,
+        numero: r.numero,
+        enviadoEm: r.enviado_em!,
+        versaoNumero: versaoPorRelatorio.get(r.id)?.numero ?? 1,
+        motivo: versaoPorRelatorio.get(r.id)?.motivo ?? null,
+      })),
       etapas: listaEtapas,
       lancamentos: listaLanc,
       diasAditivados: listaDias,
       climaDias,
       fotos: fotosComUrl,
+      historicoVersoes: (historico ?? []).map((h) => ({
+        relatorioId: h.relatorio_id,
+        numero: 0,
+        versaoNumero: h.numero,
+        motivo: h.motivo,
+        publicadoEm: h.publicado_em,
+        pdfPath: h.pdf_path,
+      })),
       agregados: {
         avancoGeral,
         pctPago: fin.pctPago,
@@ -460,9 +491,9 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         pagoAcumuladoCentavos: fin.pagoAcumuladoCentavos,
         saldoCentavos: fin.saldoCentavos,
         aditivosAcumuladoCentavos: fin.aditivosAcumuladoCentavos,
-        entregaPrevista,
-        diasDeObra: diasDeObra(obra.inicio_contratual, hoje),
-        diasRestantes: diasRestantes(entregaPrevista, hoje),
+        entregaPrevista: String(entregaPrevista).slice(0, 10),
+        diasDeObra: diasDeObra(inicioPublico, hoje),
+        diasRestantes: diasRestantes(String(entregaPrevista).slice(0, 10), hoje),
         totalDiasAditivados,
       },
     },
