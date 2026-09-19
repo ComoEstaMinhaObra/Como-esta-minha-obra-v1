@@ -1,4 +1,6 @@
-export function codigoRpc(erro: { message?: string } | null | undefined): string {
+export function codigoRpc(
+  erro: { message?: string } | null | undefined,
+): string {
   const msg = erro?.message ?? "";
   const conhecido = [
     "NAO_AUTENTICADO",
@@ -20,6 +22,7 @@ export function codigoRpc(erro: { message?: string } | null | undefined): string
     "RASCUNHO_INVALIDO",
     "RASCUNHO_DUPLICADO",
     "ETAPA_INVALIDA",
+    "PESOS_ETAPAS_INVALIDOS",
     "PCT_INVALIDO",
     "PCT_REGREDIU",
     "PCT_ABAIXO_PISO",

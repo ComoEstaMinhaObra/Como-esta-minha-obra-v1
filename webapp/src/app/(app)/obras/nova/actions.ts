@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { ETAPAS_PADRAO } from "@/lib/obras/etapas";
+import { validarEtapasSelecionadas } from "@/lib/obras/pesos-etapas";
 import { geocodificarEndereco } from "@/lib/clima/geocode";
 import { sincronizarClimaObra } from "@/lib/clima/sincronizar";
 import { codigoRpc } from "@/lib/rpc-erros";
@@ -35,10 +35,13 @@ export async function criarObraAction(input: NovaObraInput) {
     return { ok: false as const, erro: "NAO_AUTENTICADO" };
   }
 
-  const etapas =
-    input.etapas.length > 0
-      ? input.etapas
-      : ETAPAS_PADRAO.map((nome) => ({ nome, peso: 1 }));
+  const etapas = input.etapas.map((etapa) => ({
+    nome: etapa.nome.trim(),
+    peso: etapa.peso,
+  }));
+  if (!validarEtapasSelecionadas(etapas)) {
+    return { ok: false as const, erro: "PESOS_ETAPAS_INVALIDOS" };
+  }
 
   let lat = input.lat ?? null;
   let lng = input.lng ?? null;

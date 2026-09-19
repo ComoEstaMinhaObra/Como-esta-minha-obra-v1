@@ -1,8 +1,25 @@
 "use client";
 
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import imageCompression from "browser-image-compression";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import {
   Botao,
   CampoData,
@@ -13,15 +30,125 @@ import {
   useToast,
 } from "@/components/ui";
 import { ModalUpsellLimite } from "@/components/ui/ModalUpsellLimite";
+import {
+  pesoDigitadoParaNumero,
+  pesoParaCentesimos,
+  sanitizarPesoDigitado,
+  validarEtapasSelecionadas,
+} from "@/lib/obras/pesos-etapas";
 import { createClient } from "@/lib/supabase/client";
 import { ETAPAS_PADRAO } from "@/lib/obras/etapas";
 import { criarObraAction, atualizarCapaObra } from "./actions";
 
-type EtapaForm = { nome: string; peso: number };
+type EtapaForm = {
+  id: string;
+  nome: string;
+  peso: string;
+  selecionada: boolean;
+};
 
 const formatadorPeso = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 2,
 });
+
+type LinhaEtapaProps = {
+  etapa: EtapaForm;
+  indice: number;
+  onPesoChange: (peso: string) => void;
+  onSelecionadaChange: (selecionada: boolean) => void;
+};
+
+function LinhaEtapa({
+  etapa,
+  indice,
+  onPesoChange,
+  onSelecionadaChange,
+}: LinhaEtapaProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: etapa.id });
+  const peso = pesoDigitadoParaNumero(etapa.peso);
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`grid grid-cols-[1.5rem_1.25rem_minmax(0,1fr)_1.5rem] items-center gap-x-2 gap-y-1 rounded-xl py-1.5 transition-shadow sm:grid-cols-[1.5rem_1.25rem_minmax(0,1fr)_5.5rem_1.5rem] ${
+        isDragging ? "z-10 bg-white px-2 shadow-lg" : ""
+      }`}
+    >
+      <button
+        type="button"
+        className="row-span-2 flex h-8 w-6 touch-none items-center justify-center text-cinza-3 hover:text-tinta focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca sm:row-span-1"
+        aria-label={`Mover ${etapa.nome}`}
+        title="Arraste para reordenar"
+        {...attributes}
+        {...listeners}
+      >
+        <svg aria-hidden="true" viewBox="0 0 18 14" className="h-4 w-4">
+          <path
+            d="M1 2h16M1 7h16M1 12h16"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+      <span className="row-span-2 text-xs tabular-nums text-cinza-3 sm:row-span-1">
+        {indice + 1}
+      </span>
+      <span
+        className={`min-w-0 truncate text-sm ${
+          etapa.selecionada ? "text-tinta" : "text-cinza-2"
+        }`}
+        title={etapa.nome}
+      >
+        {etapa.nome}
+      </span>
+      <label className="relative col-start-3 row-start-2 block w-[5.5rem] sm:col-start-auto sm:row-start-auto">
+        <span className="sr-only">Peso de {etapa.nome} em porcentagem</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          value={etapa.peso}
+          onChange={(e) => onPesoChange(sanitizarPesoDigitado(e.target.value))}
+          onBlur={() => {
+            if (!etapa.peso) onPesoChange("0");
+          }}
+          aria-invalid={etapa.selecionada && peso <= 0}
+          className="w-full rounded-full border border-borda bg-white py-1.5 pr-7 pl-2.5 text-right text-sm tabular-nums outline-none transition focus:border-marca focus:ring-2 focus:ring-marca/15 aria-[invalid=true]:border-marca"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-cinza-2"
+        >
+          %
+        </span>
+      </label>
+      <label className="col-start-4 row-start-1 row-span-2 flex h-8 items-center justify-center sm:col-start-auto sm:row-start-auto sm:row-span-1">
+        <span className="sr-only">
+          {etapa.selecionada ? "Remover" : "Adicionar"} {etapa.nome} do escopo
+        </span>
+        <input
+          type="checkbox"
+          checked={etapa.selecionada}
+          onChange={(e) => onSelecionadaChange(e.target.checked)}
+          className="h-4 w-4 accent-marca"
+        />
+      </label>
+    </li>
+  );
+}
 
 export function FormNovaObra() {
   const { toast } = useToast();
@@ -41,15 +168,77 @@ export function FormNovaObra() {
   const [valor, setValor] = useState(0);
   const [sinal, setSinal] = useState(0);
   const [capaFile, setCapaFile] = useState<File | null>(null);
-  const [etapas, setEtapas] = useState<EtapaForm[]>(
-    ETAPAS_PADRAO.map((n) => ({ nome: n, peso: 1 })),
+  const [etapas, setEtapas] = useState<EtapaForm[]>(() =>
+    ETAPAS_PADRAO.map((nome, indice) => ({
+      id: `padrao-${indice}`,
+      nome,
+      peso: "0",
+      selecionada: false,
+    })),
   );
   const [novaEtapa, setNovaEtapa] = useState("");
   const [upsellLimite, setUpsellLimite] = useState(false);
-  const pesoTotal = etapas.reduce((total, etapa) => total + etapa.peso, 0);
+  const proximoIdPersonalizado = useRef(0);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+  const etapasSelecionadas = etapas
+    .filter((etapa) => etapa.selecionada)
+    .map((etapa) => ({
+      nome: etapa.nome,
+      peso: pesoDigitadoParaNumero(etapa.peso),
+    }));
+  const pesoTotalCentavos = etapasSelecionadas.reduce(
+    (total, etapa) => total + pesoParaCentesimos(etapa.peso),
+    0,
+  );
+  const pesoTotal = pesoTotalCentavos / 100;
+  const temEtapaSelecionadaSemPeso = etapasSelecionadas.some(
+    (etapa) => etapa.peso <= 0,
+  );
+  const etapasValidas = validarEtapasSelecionadas(etapasSelecionadas);
+
+  function adicionarEtapaPersonalizada() {
+    const nome = novaEtapa.trim();
+    if (!nome) return;
+    proximoIdPersonalizado.current += 1;
+    setEtapas((prev) => [
+      ...prev,
+      {
+        id: `personalizada-${proximoIdPersonalizado.current}`,
+        nome,
+        peso: "0",
+        selecionada: true,
+      },
+    ]);
+    setNovaEtapa("");
+  }
+
+  function reordenarEtapas(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setEtapas((prev) => {
+      const origem = prev.findIndex((etapa) => etapa.id === active.id);
+      const destino = prev.findIndex((etapa) => etapa.id === over.id);
+      return origem >= 0 && destino >= 0
+        ? arrayMove(prev, origem, destino)
+        : prev;
+    });
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!etapasValidas) {
+      toast(
+        temEtapaSelecionadaSemPeso
+          ? "Toda etapa selecionada precisa ter peso maior que 0%."
+          : "Os pesos das etapas selecionadas devem totalizar 100%.",
+      );
+      return;
+    }
     setCarregando(true);
     try {
       const supabase = createClient();
@@ -75,7 +264,7 @@ export function FormNovaObra() {
         terminoContratual: termino,
         valorContratadoCentavos: valor,
         sinalCentavos: sinal,
-        etapas,
+        etapas: etapasSelecionadas,
       });
 
       if (!result.ok) {
@@ -85,6 +274,12 @@ export function FormNovaObra() {
         }
         if (result.erro === "NAO_AUTENTICADO") {
           router.push("/entrar");
+          return;
+        }
+        if (result.erro === "PESOS_ETAPAS_INVALIDOS") {
+          toast(
+            "Selecione etapas com pesos maiores que 0% e total igual a 100%.",
+          );
           return;
         }
         toast(result.erro);
@@ -122,15 +317,54 @@ export function FormNovaObra() {
 
       <Cartao className="space-y-4 p-5">
         <RotuloSecao>1 · Informações</RotuloSecao>
-        <CampoTexto rotulo="Nome da obra" required value={nome} onChange={(e) => setNome(e.target.value)} />
-        <CampoTexto rotulo="Endereço" required value={endereco} onChange={(e) => setEndereco(e.target.value)} />
-        <CampoTexto rotulo="Cliente" required value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} />
-        <CampoTexto rotulo="Construtora" value={construtora} onChange={(e) => setConstrutora(e.target.value)} />
-        <CampoTexto rotulo="Engenheiro" value={engenheiro} onChange={(e) => setEngenheiro(e.target.value)} />
-        <CampoTexto rotulo="Escritório de arquitetura" value={escritorio} onChange={(e) => setEscritorio(e.target.value)} />
-        <CampoTexto rotulo="Arquiteto" value={arquiteto} onChange={(e) => setArquiteto(e.target.value)} />
-        <CampoTexto rotulo="Projetista de estruturas" value={projEst} onChange={(e) => setProjEst(e.target.value)} />
-        <CampoTexto rotulo="Projetista de instalações" value={projInst} onChange={(e) => setProjInst(e.target.value)} />
+        <CampoTexto
+          rotulo="Nome da obra"
+          required
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Endereço"
+          required
+          value={endereco}
+          onChange={(e) => setEndereco(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Cliente"
+          required
+          value={clienteNome}
+          onChange={(e) => setClienteNome(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Construtora"
+          value={construtora}
+          onChange={(e) => setConstrutora(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Engenheiro"
+          value={engenheiro}
+          onChange={(e) => setEngenheiro(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Escritório de arquitetura"
+          value={escritorio}
+          onChange={(e) => setEscritorio(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Arquiteto"
+          value={arquiteto}
+          onChange={(e) => setArquiteto(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Projetista de estruturas"
+          value={projEst}
+          onChange={(e) => setProjEst(e.target.value)}
+        />
+        <CampoTexto
+          rotulo="Projetista de instalações"
+          value={projInst}
+          onChange={(e) => setProjInst(e.target.value)}
+        />
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="text-cinza-2">Foto de capa</span>
           <input
@@ -143,8 +377,18 @@ export function FormNovaObra() {
 
       <Cartao className="space-y-4 p-5">
         <RotuloSecao>2 · Prazos</RotuloSecao>
-        <CampoData rotulo="Início contratual" required value={inicio} onChange={(e) => setInicio(e.target.value)} />
-        <CampoData rotulo="Término contratual" required value={termino} onChange={(e) => setTermino(e.target.value)} />
+        <CampoData
+          rotulo="Início contratual"
+          required
+          value={inicio}
+          onChange={(e) => setInicio(e.target.value)}
+        />
+        <CampoData
+          rotulo="Término contratual"
+          required
+          value={termino}
+          onChange={(e) => setTermino(e.target.value)}
+        />
         <p className="text-xs text-cinza-3">
           Dias aditivados são registrados pelos relatórios.
         </p>
@@ -152,81 +396,80 @@ export function FormNovaObra() {
 
       <Cartao className="space-y-4 p-5">
         <RotuloSecao>3 · Financeiro</RotuloSecao>
-        <CampoMoeda rotulo="Valor contratado" valorCentavos={valor} onChangeCentavos={setValor} />
-        <CampoMoeda rotulo="Sinal (R$)" valorCentavos={sinal} onChangeCentavos={setSinal} />
+        <CampoMoeda
+          rotulo="Valor contratado"
+          valorCentavos={valor}
+          onChangeCentavos={setValor}
+        />
+        <CampoMoeda
+          rotulo="Sinal (R$)"
+          valorCentavos={sinal}
+          onChangeCentavos={setSinal}
+        />
       </Cartao>
 
       <Cartao className="space-y-4 p-5">
-        <div className="flex items-baseline justify-between gap-4">
+        <div>
           <RotuloSecao>4 · Etapas</RotuloSecao>
-          <output
-            aria-label={`${etapas.length} ${etapas.length === 1 ? "etapa adicionada" : "etapas adicionadas"}`}
-            className="shrink-0 text-xs text-cinza-2"
+          <p className="mt-1 text-xs text-cinza-2">
+            Selecione as etapas do escopo, distribua 100% entre elas e arraste
+            para ordenar.
+          </p>
+        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={reordenarEtapas}
+        >
+          <SortableContext
+            items={etapas.map((etapa) => etapa.id)}
+            strategy={verticalListSortingStrategy}
           >
-            <span className="mr-1 font-serif text-2xl leading-none text-tinta tabular-nums">
-              {etapas.length}
-            </span>
-            {etapas.length === 1 ? "etapa adicionada" : "etapas adicionadas"}
+            <ul className="space-y-1" aria-label="Etapas da obra">
+              {etapas.map((etapa, indice) => (
+                <LinhaEtapa
+                  key={etapa.id}
+                  etapa={etapa}
+                  indice={indice}
+                  onPesoChange={(peso) =>
+                    setEtapas((prev) =>
+                      prev.map((item) =>
+                        item.id === etapa.id ? { ...item, peso } : item,
+                      ),
+                    )
+                  }
+                  onSelecionadaChange={(selecionada) =>
+                    setEtapas((prev) =>
+                      prev.map((item) =>
+                        item.id === etapa.id ? { ...item, selecionada } : item,
+                      ),
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+        <div className="flex items-center justify-between border-t border-divisor pt-3 text-sm">
+          <span className="text-cinza-2">Total:</span>
+          <output
+            aria-live="polite"
+            className={`font-medium tabular-nums ${
+              etapasValidas ? "text-tinta" : "text-marca"
+            }`}
+          >
+            {formatadorPeso.format(pesoTotal)}%
           </output>
         </div>
-        <ul className="space-y-2">
-          {etapas.map((etapa, idx) => {
-            const percentualPeso =
-              pesoTotal > 0 ? (etapa.peso / pesoTotal) * 100 : 0;
-
-            return (
-              <li
-                key={`${etapa.nome}-${idx}`}
-                className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 py-1 sm:grid-cols-[1.5rem_minmax(0,1fr)_auto_auto_auto]"
-              >
-                <span className="row-span-2 text-xs text-cinza-3 sm:row-span-1">
-                  {idx + 1}
-                </span>
-                <span className="min-w-0 text-sm">{etapa.nome}</span>
-                <output
-                  aria-label={`Peso relativo de ${etapa.nome}: ${formatadorPeso.format(etapa.peso)} de ${formatadorPeso.format(pesoTotal)}, equivalente a ${formatadorPeso.format(percentualPeso)}% da obra`}
-                  className="col-start-2 row-start-2 flex items-baseline gap-1.5 text-xs tabular-nums sm:col-start-auto sm:row-start-auto sm:justify-end"
-                  title="Participação desta etapa no peso total da obra"
-                >
-                  <span className="text-cinza-2">
-                    {formatadorPeso.format(etapa.peso)}/
-                    {formatadorPeso.format(pesoTotal)}
-                  </span>
-                  <span className="font-medium text-marca">
-                    {formatadorPeso.format(percentualPeso)}%
-                  </span>
-                </output>
-                <input
-                  type="number"
-                  min={0.01}
-                  step="any"
-                  title="peso na média do avanço geral"
-                  value={etapa.peso}
-                  onChange={(e) => {
-                    const peso = Number(e.target.value);
-                    setEtapas((prev) =>
-                      prev.map((x, i) =>
-                        i === idx ? { ...x, peso: peso > 0 ? peso : 1 } : x,
-                      ),
-                    );
-                  }}
-                  className="col-start-3 row-start-2 w-16 rounded-full border border-borda px-2 py-1 text-sm tabular-nums sm:col-start-auto sm:row-start-auto"
-                  aria-label={`Peso de ${etapa.nome}`}
-                />
-                <button
-                  type="button"
-                  aria-label={`Remover ${etapa.nome}`}
-                  className="col-start-3 row-start-1 text-cinza-2 sm:col-start-auto sm:row-start-auto"
-                  onClick={() =>
-                    setEtapas((prev) => prev.filter((_, i) => i !== idx))
-                  }
-                >
-                  ×
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        {!etapasValidas ? (
+          <p role="status" className="text-xs text-marca">
+            {etapasSelecionadas.length === 0
+              ? "Selecione ao menos uma etapa."
+              : temEtapaSelecionadaSemPeso
+                ? "Toda etapa selecionada precisa ter peso maior que 0%."
+                : "Os pesos das etapas selecionadas devem totalizar 100%."}
+          </p>
+        ) : null}
         <div className="flex gap-2">
           <input
             value={novaEtapa}
@@ -234,9 +477,7 @@ export function FormNovaObra() {
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                if (!novaEtapa.trim()) return;
-                setEtapas((prev) => [...prev, { nome: novaEtapa.trim(), peso: 1 }]);
-                setNovaEtapa("");
+                adicionarEtapaPersonalizada();
               }
             }}
             placeholder="Nova etapa"
@@ -245,18 +486,19 @@ export function FormNovaObra() {
           <Botao
             type="button"
             variante="secundario"
-            onClick={() => {
-              if (!novaEtapa.trim()) return;
-              setEtapas((prev) => [...prev, { nome: novaEtapa.trim(), peso: 1 }]);
-              setNovaEtapa("");
-            }}
+            onClick={adicionarEtapaPersonalizada}
+            aria-label="Adicionar etapa personalizada"
           >
             +
           </Botao>
         </div>
       </Cartao>
 
-      <Botao type="submit" disabled={carregando} className="w-full">
+      <Botao
+        type="submit"
+        disabled={carregando || !etapasValidas}
+        className="w-full"
+      >
         {carregando ? "Criando…" : "Criar página de acompanhamento"}
       </Botao>
 

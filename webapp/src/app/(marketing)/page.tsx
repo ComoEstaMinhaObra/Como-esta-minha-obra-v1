@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Botao } from "@/components/ui";
+import { Botao, Cartao } from "@/components/ui";
 import { EMAIL_EXTRA, PLANOS, TRIAL } from "@/config/pricing";
 import { formatarBRL } from "@/lib/formatacao";
 
@@ -96,11 +96,15 @@ export default function LandingPage() {
         <p className="text-[10px] uppercase tracking-[0.18em] text-cinza-2">
           Proposta de valor
         </p>
-        <h2 className="mt-3 max-w-2xl font-serif text-3xl font-light min-[800px]:text-4xl">
+        <h2 className="mt-3 font-serif text-3xl font-light min-[800px]:text-4xl">
           Pare de acompanhar a sua obra apenas recebendo fotos.
         </h2>
-        <div className="mt-10 grid gap-10 min-[800px]:grid-cols-2">
-          <div>
+        <p className="mt-4 text-sm text-cinza-2 min-[800px]:text-base">
+          Receba um relatório semanal consolidado que ajudará a acompanhar o
+          avanço do seu patrimônio bem de perto.
+        </p>
+        <div className="mt-10 grid gap-6 min-[800px]:grid-cols-2">
+          <Cartao className="p-6">
             <h3 className="font-serif text-xl font-light text-cinza-2">
               Sem a plataforma
             </h3>
@@ -110,8 +114,8 @@ export default function LandingPage() {
               <li>Avanço físico e financeiro vivem em planilhas soltas</li>
               <li>Histórico se perde quando o celular troca</li>
             </ul>
-          </div>
-          <div>
+          </Cartao>
+          <Cartao className="p-6">
             <h3 className="font-serif text-xl font-light">Com a plataforma</h3>
             <ul className="mt-4 space-y-3 text-sm">
               <li>Um relatório semanal estruturado, com PDF</li>
@@ -119,9 +123,9 @@ export default function LandingPage() {
               <li>Avanço ponderado, medições e clima no mesmo lugar</li>
               <li>Convite por e-mail — acesso controlado, não link público</li>
             </ul>
-          </div>
+          </Cartao>
         </div>
-        <div className="mt-12 max-w-2xl space-y-6 text-sm text-cinza-2">
+        <div className="mt-12 space-y-6 text-sm text-cinza-2">
           <p>
             É necessário ter uma plataforma semanal consolidada que ajudará a
             acompanhar o avanço do seu patrimônio bem de perto.
