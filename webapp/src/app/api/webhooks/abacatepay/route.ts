@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerEnv } from "@/config/env";
+import { getCobrancaEnv } from "@/config/env";
 import {
   validateWebhookSignature,
   WEBHOOK_SIGNATURE_HEADER,
@@ -12,7 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logSeguro, sanitizarErro } from "@/lib/log";
 
 export async function POST(request: Request) {
-  const env = getServerEnv();
+  const env = getCobrancaEnv();
   const rawBody = await request.text();
 
   const url = new URL(request.url);

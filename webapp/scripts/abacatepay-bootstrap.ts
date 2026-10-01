@@ -1,6 +1,8 @@
 /**
- * Bootstrap idempotente dos produtos AbacatePay (S4.2).
+ * Bootstrap idempotente dos produtos AbacatePay (cobrança por obra).
  * Uso: npm run abacatepay:bootstrap
+ * Cria no ambiente da ABACATEPAY_API_KEY (chave de dev mode = produtos de dev mode;
+ * chave de produção = produtos de produção; os ambientes são separados).
  * Nao roda contra API real se ABACATEPAY_API_KEY for placeholder.
  */
 import fs from "node:fs";
@@ -30,7 +32,9 @@ carregarEnv(".env");
 carregarEnv(".env.local");
 
 async function main() {
-  const { PLANOS, EMAIL_EXTRA } = await import("../src/config/pricing");
+  const { OBRA_ATIVA, EMAIL_ADICIONAL } = await import(
+    "../src/config/pricing"
+  );
   const { criarProduto, listarProdutos } = await import(
     "../src/lib/abacatepay"
   );
@@ -45,50 +49,41 @@ async function main() {
 
   const resultados: Record<string, string> = {};
 
-  for (const plano of PLANOS) {
-    const existentes = await listarProdutos({
-      externalId: plano.externalId,
-      limit: 10,
-    });
-    const achado = (existentes ?? []).find(
-      (p) => p.externalId === plano.externalId,
-    );
-    const p =
+  async function garantirProduto(
+    externalId: string,
+    nome: string,
+    precoCentavos: number,
+    cycle?: "MONTHLY",
+  ) {
+    const existentes = await listarProdutos({ externalId, limit: 10 });
+    const achado = (existentes ?? []).find((p) => p.externalId === externalId);
+    const produto =
       achado ??
       (await criarProduto({
-        externalId: plano.externalId,
-        name: `Como Esta Minha Obra — ${plano.nome}`,
-        price: plano.precoCentavos,
+        externalId,
+        name: `Como Esta Minha Obra — ${nome}`,
+        price: precoCentavos,
         currency: "BRL",
-        cycle: "MONTHLY",
+        ...(cycle ? { cycle } : {}),
       }));
-    console.log(`${achado ? "✓" : "+"} ${plano.externalId} → ${p.id}`);
-    const envKey =
-      plano.id === "obra_1"
-        ? "ABACATEPAY_PROD_OBRA_1"
-        : plano.id === "obra_3"
-          ? "ABACATEPAY_PROD_OBRA_3"
-          : "ABACATEPAY_PROD_OBRA_5";
-    resultados[envKey] = p.id;
+    console.log(`${achado ? "✓" : "+"} ${externalId} → ${produto.id}`);
+    return produto;
   }
 
-  const existentesEmail = await listarProdutos({
-    externalId: EMAIL_EXTRA.externalId,
-    limit: 10,
-  });
-  const achadoEmail = (existentesEmail ?? []).find(
-    (p) => p.externalId === EMAIL_EXTRA.externalId,
+  // Cobrança por obra (decisões de 28/09 e 01/10/2026): um produto mensal por obra ativa
+  // (uma assinatura por obra, quantity 1) e o e-mail adicional avulso (sem ciclo).
+  const obra = await garantirProduto(
+    OBRA_ATIVA.externalId,
+    OBRA_ATIVA.nome,
+    OBRA_ATIVA.precoCentavos,
+    "MONTHLY",
   );
-  const email =
-    achadoEmail ??
-    (await criarProduto({
-      externalId: EMAIL_EXTRA.externalId,
-      name: `Como Esta Minha Obra — ${EMAIL_EXTRA.nome}`,
-      price: EMAIL_EXTRA.precoCentavos,
-      currency: "BRL",
-    }));
-  console.log(
-    `${achadoEmail ? "✓" : "+"} ${EMAIL_EXTRA.externalId} → ${email.id}`,
+  resultados.ABACATEPAY_PROD_OBRA_ATIVA = obra.id;
+
+  const email = await garantirProduto(
+    EMAIL_ADICIONAL.externalId,
+    EMAIL_ADICIONAL.nome,
+    EMAIL_ADICIONAL.precoCentavos,
   );
   resultados.ABACATEPAY_PROD_EMAIL_EXTRA = email.id;
 

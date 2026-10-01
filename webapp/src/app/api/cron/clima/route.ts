@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerEnv } from "@/config/env";
+import { getCronEnv } from "@/config/env";
 import { sincronizarClimaObra } from "@/lib/clima/sincronizar";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
-  const env = getServerEnv();
+  const env = getCronEnv();
   const auth = request.headers.get("authorization");
   if (auth !== `Bearer ${env.CRON_SECRET}`) {
     return NextResponse.json({ erro: "nao autorizado" }, { status: 401 });

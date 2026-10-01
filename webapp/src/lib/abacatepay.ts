@@ -3,7 +3,7 @@
  * Endpoints e campos conforme docs.abacatepay.com — sem campos inventados.
  */
 import "server-only";
-import { getServerEnv } from "@/config/env";
+import { getCobrancaEnv } from "@/config/env";
 import type { PlanoId } from "@/config/pricing";
 import { planoPorId } from "@/config/pricing";
 
@@ -141,7 +141,7 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const env = getServerEnv();
+  const env = getCobrancaEnv();
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers: {
@@ -231,7 +231,7 @@ export async function listarProdutos(params?: {
 }
 
 export function produtoIdDoPlano(planoId: PlanoId): string {
-  const env = getServerEnv();
+  const env = getCobrancaEnv();
   switch (planoId) {
     case "obra_1":
       return env.ABACATEPAY_PROD_OBRA_1;
@@ -247,7 +247,7 @@ export function produtoIdDoPlano(planoId: PlanoId): string {
 }
 
 export function planoPorProdutoId(produtoId: string): PlanoId | null {
-  const env = getServerEnv();
+  const env = getCobrancaEnv();
   if (produtoId === env.ABACATEPAY_PROD_OBRA_1) return "obra_1";
   if (produtoId === env.ABACATEPAY_PROD_OBRA_3) return "obra_3";
   if (produtoId === env.ABACATEPAY_PROD_OBRA_5) return "obra_5";
@@ -259,5 +259,5 @@ export function limiteDoPlano(planoId: PlanoId): number {
 }
 
 export function produtoEmailExtraId(): string {
-  return getServerEnv().ABACATEPAY_PROD_EMAIL_EXTRA;
+  return getCobrancaEnv().ABACATEPAY_PROD_EMAIL_EXTRA;
 }

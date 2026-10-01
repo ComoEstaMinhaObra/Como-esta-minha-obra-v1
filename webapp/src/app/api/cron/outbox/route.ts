@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerEnv } from "@/config/env";
+import { getCronEnv } from "@/config/env";
 import { enviarEmailConvite } from "@/lib/email/enviar";
 import { logSeguro } from "@/lib/log";
 import { processarOutbox } from "@/lib/outbox";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
-  const env = getServerEnv();
+  const env = getCronEnv();
   if (request.headers.get("authorization") !== `Bearer ${env.CRON_SECRET}`) {
     return NextResponse.json({ erro: "nao autorizado" }, { status: 401 });
   }

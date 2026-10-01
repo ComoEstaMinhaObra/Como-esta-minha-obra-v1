@@ -1,7 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { createElement } from "react";
-import { getServerEnv, publicEnv } from "@/config/env";
+import { getEmailEnv, publicEnv } from "@/config/env";
 import { createClient } from "@/lib/supabase/server";
 import type { RelatorioSnapshot } from "@/lib/relatorios/tipos";
 import { ConviteAcessoEmail } from "@/emails/convite-acesso";
@@ -10,7 +10,7 @@ import { logSeguro } from "@/lib/log";
 
 function resendOuNull() {
   try {
-    const env = getServerEnv();
+    const env = getEmailEnv();
     if (
       !env.RESEND_API_KEY ||
       env.RESEND_API_KEY.startsWith("preencher") ||
@@ -35,7 +35,7 @@ export async function enviarEmailConvite(params: {
   const resend = resendOuNull();
   if (!resend) return;
 
-  const env = getServerEnv();
+  const env = getEmailEnv();
   await resend.emails.send({
     from: env.EMAIL_FROM,
     to: params.para,
@@ -68,7 +68,7 @@ export async function enviarEmailNovoRelatorio(params: {
   const resend = resendOuNull();
   let from = publicEnv.NEXT_PUBLIC_APP_URL;
   try {
-    from = getServerEnv().EMAIL_FROM;
+    from = getEmailEnv().EMAIL_FROM;
   } catch {
     /* ignore */
   }
