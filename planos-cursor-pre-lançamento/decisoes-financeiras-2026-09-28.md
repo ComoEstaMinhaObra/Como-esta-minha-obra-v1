@@ -4,6 +4,8 @@
 
 **Status:** decisões comerciais e operacionais fechadas em 28/09/2026 (P1 a P7 e rodada complementar resolvidas)
 
+**Atualização de 01/10/2026:** a cobrança deixa de ser unificada em um ciclo único por conta. **Cada obra ativa tem a sua própria assinatura e a sua própria fatura**, e o usuário pode cancelar obras específicas na tela de **Cobrança**. As seções 2.1, 2.2, 2.3, 2.6, 2.7, 2.8 e 2.9 foram reescritas por isso. Itens marcados como **(derivado, a confirmar)** são consequências diretas dessa decisão ainda não confirmadas. As perguntas Q1 a Q4 que ela gerou foram resolvidas no mesmo dia (seção 4).
+
 **Documento-base:** [`BRIEFING.md`](../BRIEFING.md)
 
 **Substitui nos pontos conflitantes:** [`adendo-briefing-precos-2026-09-07.md`](adendo-briefing-precos-2026-09-07.md)
@@ -80,15 +82,15 @@ A cobrança passa a ser formada por quantidades contratadas:
 | Obra ativa | R$ 129,90 | por mês, por obra ativa |
 | E-mail adicional | R$ 29,90 | por acesso adicional, renovado a cada 30 dias enquanto permanecer cadastrado |
 
-Fórmula comercial base:
+Fórmula comercial base (soma das faturas das obras, cada uma cobrada de forma independente):
 
 ```text
-mensalidade das obras = R$ 129,90 x quantidade de obras ativas
+total mensal das obras = R$ 129,90 x quantidade de obras ativas
 ```
 
-Exemplos decorrentes da nova regra:
+Exemplos decorrentes da nova regra (total mensal somando as faturas separadas):
 
-| Obras ativas | Valor mensal das obras |
+| Obras ativas | Total mensal das obras |
 |---:|---:|
 | 1 | R$ 129,90 |
 | 2 | R$ 259,80 |
@@ -101,20 +103,24 @@ Consequências confirmadas:
 - Não existirá mais escolha de plano por faixa de quantidade.
 - **Não existe limite de obras.** Criar uma obra é uma compra confirmada pelo usuário.
 - O sistema deve registrar a quantidade atual de obras contratadas e a quantidade atual de e-mails adicionais contratados pelo usuário.
-- Todas as cobranças do usuário são unificadas em um único ciclo e uma única cobrança da conta.
-- Uma nova obra ou um novo acesso adicional entra no ciclo unificado existente; não cria uma assinatura separada.
+- **Cada obra ativa tem a sua própria assinatura e a sua própria fatura mensal (decisão de 01/10/2026, substitui o ciclo único por conta).** Motivos registrados: o cliente escolhe quais obras manter; e, se o limite do cartão não comportar todas as obras de uma vez, uma ou outra é faturada sem derrubar as demais.
+- Cada obra tem o seu próprio ciclo, que começa na data em que ela foi contratada. Obras diferentes podem ter datas de cobrança diferentes.
+- Um acesso adicional (e-mail) é cobrado na fatura da assinatura **da obra a que pertence**.
 - A comunicação, o checkout, o banco, os webhooks, a AbacatePay, os limites de uso e os testes devem abandonar a dependência dos identificadores de plano antigos.
 - Não há assinantes reais nos planos antigos; não é necessária migração de clientes.
 
-### 2.2. Nova obra e arquivamento
+### 2.2. Nova obra, cancelamento e arquivamento (reescrita em 01/10/2026)
 
-- Uma obra criada no meio do ciclo fica ativa imediatamente e passa a ser cobrada a partir da próxima fatura do ciclo unificado, pelo mês integral, sem pró-rata. Os dias restantes do ciclo em que ela foi criada não geram cobrança adicional.
-  - Exemplo: ciclo de 01 a 30, obra criada no dia 20. A fatura do dia 01 cobra 2 obras (R$ 259,80); não há cobrança pelos dias 20 a 30.
-- Ao arquivar uma obra durante um período já pago, não existe devolução proporcional.
-- A obra arquivada deixa de compor a quantidade cobrada somente na próxima cobrança do ciclo unificado.
-- **A vaga paga continua disponível até o fim do período:** se o usuário arquivar uma obra e criar outra dentro do mesmo período já pago, a nova obra aproveita a vaga paga da arquivada e não gera cobrança adicional nesse período.
-- O arquivamento de uma obra também encerra, no próximo ciclo, a renovação dos e-mails adicionais daquela obra.
-- O arquivamento e seu impacto financeiro devem aparecer no toast e no histórico financeiro do perfil.
+Esta seção substitui a regra de 28/09 (obra criada no meio do ciclo cobrada só na próxima fatura do ciclo unificado, e vaga paga reaproveitável entre obras).
+
+- Criar uma obra é uma compra confirmada pelo usuário: abre a assinatura própria da obra (R$ 129,90 por mês) e a **primeira cobrança acontece na contratação**. O ciclo da obra começa nessa data.
+- Não há pró-rata nem cobrança de "dias restantes" de outro ciclo, porque cada obra tem o seu próprio ciclo.
+- A obra do trial é a primeira obra; ela só passa a ter assinatura quando o usuário converte o trial (seção 2.8).
+- **O usuário pode cancelar a cobrança de uma ou mais obras específicas** na tela de Cobrança (seção 2.9), sem afetar as demais.
+- Cancelar a cobrança de uma obra: a obra mantém todos os recursos até o fim do período já pago; depois disso fica somente leitura para consulta. Não existe devolução proporcional.
+- Arquivar uma obra encerra a renovação da assinatura dela e dos e-mails adicionais dela, com as mesmas regras do cancelamento (recursos até o fim do período já pago).
+- O cancelamento e seu impacto financeiro devem aparecer no toast e no histórico financeiro do perfil.
+- **Obra nova durante o período já pago de uma obra arquivada (Q1, 01/10/2026):** a obra nova abre uma assinatura nova, com a primeira cobrança no próximo ciclo, isto é, quando o período já pago da arquivada termina. A regra de 28/09 de "vaga paga reaproveitável sem assinatura nova" não existe mais.
 
 ### 2.3. Compra de acesso adicional
 
@@ -126,7 +132,7 @@ Consequências confirmadas:
 - **Confirmação do convite:** o destinatário abre o link, faz login e clica em "aceitar acesso". Apenas abrir o e-mail não gera cobrança. A regra vale também para destinatários que já possuem conta.
 - Quando a confirmação exigir a compra de outro acesso, o proprietário deve ter confirmado previamente a compra em um popup que informa o item, o valor e o período.
 - Convites pendentes não expiram. O proprietário pode substituir um convite pendente por outro e-mail, o que cancela o pendente sem cobrança.
-- O acesso adicional comprado vale por 30 dias; o valor entra na próxima fatura do ciclo unificado. Os 30 dias controlam o direito ao acesso, não geram uma cobrança separada.
+- O acesso adicional comprado vale por 30 dias; o valor entra na próxima fatura da assinatura da obra a que o acesso pertence. Os 30 dias controlam o direito ao acesso, não geram uma cobrança separada.
 - Depois dos primeiros 30 dias, o acesso adicional é renovado automaticamente enquanto permanecer cadastrado na obra.
 - Não existe pró-rata nem devolução por uso parcial: se o acesso for comprado e utilizado por apenas 29 dias, os R$ 29,90 continuam devidos integralmente.
 - "Não ser mais utilizado" significa que o acesso foi removido, e não que o destinatário deixou de fazer login ou de abrir relatórios.
@@ -156,25 +162,39 @@ Consequências confirmadas:
   - estado da operação;
   - referência da operação no provedor.
 
-### 2.6. Inadimplência
+### 2.6. Inadimplência (reescrita em 01/10/2026: por obra)
 
-- Quando uma fatura não for paga, inicia-se um período de 14 dias para recuperação do pagamento.
-- Se a fatura continuar sem pagamento ao final dos 14 dias, a assinatura é cancelada.
-- Durante os 14 dias de recuperação, a conta permanece somente leitura.
-- Depois do cancelamento, a conta continua somente leitura para consulta do histórico, sem criar obras, editar rascunhos ou enviar relatórios.
-- O cancelamento encerra cobranças futuras; não apaga as obras e os relatórios existentes.
+- Quando a fatura de uma obra não for paga, **somente aquela obra** entra em um período de 14 dias para recuperação do pagamento. As demais obras continuam normais.
+- Durante os 14 dias, a obra inadimplente fica somente leitura. A conta como um todo e a criação de obras novas **não** ficam bloqueadas por causa de uma obra (Q3, 01/10/2026).
+- Se a fatura continuar sem pagamento ao final dos 14 dias, a assinatura daquela obra é cancelada e a obra segue somente leitura para consulta do histórico, sem editar rascunhos nem enviar relatórios.
+- O cancelamento encerra as cobranças futuras daquela obra; não apaga a obra nem seus relatórios.
+- O aviso de pagamento pendente informa qual obra está afetada, o valor e a data limite.
 
-### 2.7. Cancelamento pelo usuário
+### 2.7. Cancelamento pelo usuário (reescrita em 01/10/2026: por obra)
 
-- O usuário pode cancelar a assinatura a qualquer momento.
-- A conta permanece com todos os recursos até o fim do período já pago; depois disso passa a somente leitura.
+- O usuário pode cancelar a cobrança de uma obra específica, de várias ou de todas, a qualquer momento, pela tela de Cobrança. Cancelar todas equivale a cancelar a assinatura de cada obra.
+- Cada obra cancelada permanece com todos os recursos até o fim do **seu** período já pago; depois disso passa a somente leitura.
 - Não existe devolução proporcional.
+- **Reativação (decidida em 01/10/2026):** quem cancelou uma obra só pode assinar de novo essa obra **depois do fim do período já pago dela**. Até lá a tela de Cobrança informa a data e que a obra segue com todos os recursos. Motivo: o provedor cancela a assinatura imediatamente e um novo checkout cobraria na hora, o que deixaria dois períodos pagos sobrepostos.
 
 ### 2.8. Trial
 
 - O trial de 14 dias e um relatório permanece: sem cartão, uma obra.
-- Na conversão, a assinatura nasce com quantidade de uma obra, que é a quantidade permitida no trial.
+- Na conversão, a obra do trial recebe a sua assinatura própria (R$ 129,90 por mês).
 - O trial não deve ser confundido com os 14 dias de recuperação de uma fatura inadimplente.
+
+### 2.9. Tela de Cobrança (decidida em 01/10/2026)
+
+A tela hoje chamada "Planos" passa a se chamar **Cobrança**. Ela deve:
+
+- listar as **obras ativas**, cada uma com valor, estado da cobrança (ativa, pagamento pendente, cancelamento agendado, cancelada), data da próxima cobrança e, quando houver, data limite;
+- permitir **cancelar a cobrança de uma obra específica**, com o texto "Você mantém tudo até dd/mm";
+- permitir **contratar a cobrança de uma obra** que ainda não tem assinatura (por exemplo, a obra do trial) e **reativar** uma obra depois do fim do período já pago;
+- mostrar, por obra, os e-mails adicionais cobrados na fatura dela;
+- ser o lugar onde o usuário **regulariza um pagamento pendente** de uma obra;
+- mostrar o total mensal (soma das obras) e o histórico financeiro (seção 2.5).
+
+Toda ação que altera o valor cobrado segue a seção 2.4 (popup antes, toast depois).
 
 ---
 
@@ -187,6 +207,9 @@ Deixam de ser vigentes:
 - enumeração do cliente exclusivamente como `obra_1`, `obra_3` ou `obra_5`;
 - fluxo de upgrade ou downgrade entre faixas de plano e limite de obras por plano;
 - liberação imediata de vaga ao arquivar uma obra, com efeito imediato na cobrança;
+- **(01/10/2026)** ciclo único e fatura única por conta, com obra nova entrando no ciclo existente e cobrada só na próxima fatura (P5/D1 de 28 e 29/09);
+- **(01/10/2026)** vaga paga reaproveitável entre obras sem assinatura nova (P6 de 28/09); ver Q1 para a regra atual;
+- **(01/10/2026)** inadimplência e cancelamento no nível da conta inteira; passam a valer por obra;
 - cobrança de e-mail adicional lançada no envio do convite e na próxima fatura, sem a nova confirmação de compra e sem o período próprio de 30 dias;
 - promoção de um e-mail pago a gratuito com estorno da cobrança já feita;
 - retificação de relatório enviado com nova versão e novo PDF;
@@ -196,7 +219,18 @@ Deixam de ser vigentes:
 
 ## 4. Estado das perguntas de negócio
 
-Todas resolvidas em 28/09/2026.
+Resolvidas em 28/09/2026, com os ajustes de 01/10/2026 marcados abaixo.
+
+### Perguntas da assinatura por obra, resolvidas em 01/10/2026
+
+| # | Decisão |
+|---|---|
+| Q1 | Arquivar uma obra e criar outra dentro do período já pago da arquivada: a obra nova abre uma **assinatura nova, com a primeira cobrança no próximo ciclo**, isto é, no fim do período já pago da arquivada. Fora desse caso, a primeira cobrança é na contratação. A forma técnica é validada no spike (o AbacatePay só adia a primeira cobrança por produto com `trialDays`, que cobra R$ 0,00 e guarda o cartão; ver o plano da tela de Cobrança). |
+| Q2 | A documentação do AbacatePay não descreve reutilização de cartão salvo nem criação de assinatura sem checkout. Regra adotada: **cada obra passa pelo seu próprio checkout**; a tela de Cobrança mostra as obras ainda sem pagamento e permite contratar uma de cada vez. Se o spike no dev mode mostrar reutilização do cartão, a experiência melhora, sem mudar a regra. |
+| Q3 | Obra inadimplente fica somente leitura **só ela mesma**; as demais obras e a criação de obras novas não são bloqueadas por isso. |
+| Q4 | Datas de cobrança diferentes por obra são aceitas, por enquanto. |
+
+### Decisões
 
 | Pergunta | Decisão |
 |---|---|
@@ -204,15 +238,18 @@ Todas resolvidas em 28/09/2026.
 | P2. Evento de confirmação do convite | Abrir o link, fazer login e aceitar o acesso. Abrir o e-mail não cobra. |
 | P3. Renovação do acesso adicional | Automática a cada 30 dias enquanto cadastrado. |
 | P4. Definição de "não utilizado" | Somente a remoção do acesso. |
-| P5. Início da cobrança de nova obra | Ativa imediatamente; cobrada a partir da próxima fatura, sem cobrança pelos dias restantes do ciclo de criação (D1, 29/09/2026). |
-| P6. Arquivamento durante período pago | Sem devolução; a vaga paga pode ser reaproveitada até o fim do período. |
-| P7. Acesso durante e depois da inadimplência | Somente leitura durante os 14 dias e depois do cancelamento. |
+| P5. Início da cobrança de nova obra | **Substituída em 01/10/2026:** a obra tem assinatura própria; a primeira cobrança é na contratação e o ciclo começa nessa data. (Antes: cobrada na próxima fatura do ciclo único, D1 de 29/09/2026.) |
+| P6. Arquivamento durante período pago | Sem devolução; a obra mantém recursos até o fim do seu período pago. **A vaga paga reaproveitável foi substituída em 01/10/2026** (ver Q1: assinatura nova com a primeira cobrança no próximo ciclo). |
+| P7. Acesso durante e depois da inadimplência | Somente leitura durante os 14 dias e depois do cancelamento, **agora por obra** (01/10/2026). |
+| Assinatura por obra (01/10/2026) | Cada obra ativa tem assinatura e fatura próprias; o usuário cancela obras específicas na tela de Cobrança. |
 | Supressão | Lançamento próprio; reduz o escopo; contratado vigente sempre > 0. |
 | Estornos | Todos vinculados à origem, parciais ou totais, limitados ao valor de origem. |
 | Retificação | Removida; correções no relatório seguinte. |
 | Limite de obras | Não existe. |
 | Convite pendente | Não expira; pode ser substituído sem cobrança. |
 | Cancelamento voluntário | Recursos até o fim do período pago; depois somente leitura. |
+| Reativação após cancelamento voluntário (01/10/2026) | Só depois do fim do período já pago; antes disso a tela informa a data. |
+| Nome e função da tela de assinatura (01/10/2026) | A tela hoje chamada "Planos" passa a se chamar **Cobrança**; nela ficam o resumo da cobrança, o estado da assinatura e a regularização de pagamento pendente. |
 
 ---
 
@@ -220,7 +257,8 @@ Todas resolvidas em 28/09/2026.
 
 - O código e o banco atuais ainda classificam assinaturas como `trial`, `obra_1`, `obra_3` e `obra_5` e limitam obras por plano.
 - A landing, a página de preços, o FAQ e os termos ainda apresentam o modelo de uma, três e mais de quatro obras, upgrade/downgrade e cobrança do e-mail "na próxima parcela".
-- Os produtos e o mapeamento atual da AbacatePay ainda refletem planos por faixa.
+- Os produtos e o mapeamento atual da AbacatePay ainda refletem planos por faixa. Com a assinatura por obra, o produto passa a ser único (obra ativa, R$ 129,90, quantidade 1), cada assinatura aponta para uma obra (`externalId` = id da obra) e o webhook localiza a obra pela assinatura.
+- O banco guarda um único estado de assinatura por usuário (`assinaturas`); passa a precisar de um estado de cobrança por obra.
 - O fluxo existente de e-mail adicional cobra no envio do convite, e não na confirmação; quem já tem conta recebe acesso sem aceitar.
 - A remoção do e-mail gratuito promove um pago e estorna a cobrança dele.
 - O modelo atual não possui o histórico financeiro de ações exigido para a página de perfil.

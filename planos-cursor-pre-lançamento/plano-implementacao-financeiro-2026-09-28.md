@@ -6,6 +6,8 @@
 
 **Status:** pronto para execução
 
+> **Atualização de 01/10/2026:** a cobrança passou a ser **uma assinatura e uma fatura por obra** (ver [`decisoes-financeiras-2026-09-28.md`](decisoes-financeiras-2026-09-28.md), seções 2.1, 2.2, 2.6, 2.7, 2.9 e 4). As partes de **cobrança** deste plano (fases 2.1, 2.2 vagas de obra, 3 e 4.1 a 4.4) foram desenhadas para ciclo único por conta e estão **superadas por [`plano-tela-assinatura-2026-10-01.md`](plano-tela-assinatura-2026-10-01.md)** nos pontos em que conflitam. A fase 1 (financeiro da obra) não muda e já foi entregue.
+
 ---
 
 ## 0. Visão geral
