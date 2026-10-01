@@ -29,8 +29,8 @@ export async function enviarRelatorioAction(relatorioId: string) {
     snapshot: RelatorioSnapshot;
   };
 
-  const admin = createAdminClient();
   try {
+    const admin = createAdminClient();
     const pdf = await gerarPdfCreateOnly({
       obraId: p.obraId,
       relatorioId: p.relatorioId,
@@ -50,10 +50,16 @@ export async function enviarRelatorioAction(relatorioId: string) {
       return { ok: false as const, erro: codigoRpc(finErr) };
     }
   } catch (e) {
-    await admin.rpc("fn_marcar_versao_falhou", {
-      p_versao: p.versaoId,
-      p_erro: sanitizarErro(e),
-    });
+    // Qualquer exceção (config, PDF, storage) precisa liberar a versão pendente;
+    // senão o relatório fica preso em "processando" e não pode ser reenviado.
+    try {
+      await createAdminClient().rpc("fn_marcar_versao_falhou", {
+        p_versao: p.versaoId,
+        p_erro: sanitizarErro(e),
+      });
+    } catch {
+      logSeguro("error", { evento: "marcar_falhou", ids: { versaoId: p.versaoId } });
+    }
     logSeguro("error", { evento: "pdf_envio", ids: { versaoId: p.versaoId } });
     return { ok: false as const, erro: "FALHA_PDF" };
   }

@@ -5,11 +5,11 @@
  */
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
-import { getServerEnv } from "@/config/env";
+import { getAdminEnv } from "@/config/env";
 import type { Database } from "@/lib/database.types";
 
 export function createAdminClient() {
-  const env = getServerEnv();
+  const env = getAdminEnv();
   return createClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SECRET_KEY,

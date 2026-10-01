@@ -89,6 +89,32 @@ function readServerEnv(): ServerEnv {
   return parsed.data;
 }
 
+const adminSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  SUPABASE_SECRET_KEY: z.string().min(1),
+});
+
+export type AdminEnv = z.infer<typeof adminSchema>;
+
+/**
+ * Só o que o client admin do Supabase precisa. Evita que variáveis de cobrança
+ * ou e-mail ausentes derrubem fluxos que não as usam (ex.: envio de relatório).
+ */
+export function getAdminEnv(): AdminEnv {
+  const parsed = adminSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
+  });
+
+  if (!parsed.success) {
+    throw new Error(
+      `Variáveis de ambiente do Supabase admin inválidas ou ausentes:\n${formatZodError(parsed.error)}`,
+    );
+  }
+
+  return parsed.data;
+}
+
 /** Variáveis públicas (ok no client). Validação eager — falha no import se ausentes. */
 export const publicEnv: PublicEnv = readPublicEnv();
 
