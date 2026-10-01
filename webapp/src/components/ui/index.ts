@@ -5,6 +5,7 @@ export { BarraProgresso } from "./BarraProgresso";
 export { AnelProgresso } from "./AnelProgresso";
 export { RotuloSecao } from "./RotuloSecao";
 export { CampoTexto } from "./CampoTexto";
+export { CampoSenha } from "./CampoSenha";
 export { CampoMoeda } from "./CampoMoeda";
 export { CampoData } from "./CampoData";
 export { Slider } from "./Slider";

@@ -1,8 +1,11 @@
 # Adendo ao briefing — preços e plano variável
 
 **Data da decisão:** 07/09/2026  
-**Status:** decisão comercial confirmada  
+**Status:** substituído em 28/09/2026 nos pontos de preço e classificação de planos
+
 **Documento-base:** [`BRIEFING.md`](../BRIEFING.md)
+
+> **Decisão mais recente:** a precificação deste adendo foi substituída por [Decisões financeiras para a próxima implementação](decisoes-financeiras-2026-09-28.md). Este arquivo permanece como histórico.
 
 ## Finalidade
 

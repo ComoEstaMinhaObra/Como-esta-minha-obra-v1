@@ -31,7 +31,7 @@ Prazo contratual de 40 dias: tratamento do cronograma **adiado por decisão** (1
 
 ## 3. Planos e monetização (decidido em 10/08/2026)
 
-> **Atualização de 07/09/2026:** o modelo comercial desta seção foi substituído pelo [Adendo ao briefing — preços e plano variável](planos-cursor-pre-lançamento/adendo-briefing-precos-2026-09-07.md). A tabela abaixo permanece apenas como histórico da decisão anterior.
+> **Atualização de 28/09/2026:** o modelo comercial desta seção e o adendo de 07/09 foram substituídos por [Decisões financeiras para a próxima implementação](planos-cursor-pre-lançamento/decisoes-financeiras-2026-09-28.md). A tabela abaixo permanece apenas como histórico das decisões anteriores.
 
 | Plano | Preço | Por obra |
 |---|---|---|

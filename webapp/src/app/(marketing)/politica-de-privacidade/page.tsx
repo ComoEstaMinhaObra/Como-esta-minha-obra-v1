@@ -100,6 +100,10 @@ export default function PoliticaPrivacidadePage() {
         <h2 className="font-serif text-2xl font-light">5. Suboperadores</h2>
         <ul className="list-disc space-y-2 pl-5 text-cinza-2">
           <li>Supabase — autenticação, banco e storage</li>
+          <li>
+            Google e Microsoft — login opcional (recebemos apenas nome e e-mail
+            da conta escolhida)
+          </li>
           <li>Vercel — hospedagem do aplicativo</li>
           <li>Resend — envio de e-mails</li>
           <li>AbacatePay — pagamentos e assinaturas</li>

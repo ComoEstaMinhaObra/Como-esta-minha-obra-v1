@@ -2,25 +2,22 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Botao, CampoTexto, useToast } from "@/components/ui";
+import { Botao, CampoSenha, CampoTexto, useToast } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { publicEnv } from "@/config/env";
 import {
   TurnstileCampo,
   resetarTurnstile,
 } from "@/components/auth/TurnstileCampo";
+import { BotoesSociais } from "@/components/auth/BotoesSociais";
+import { IndicadorForcaSenha } from "@/components/auth/IndicadorForcaSenha";
+import {
+  MENSAGEM_REGRA_SENHA,
+  TAMANHO_MINIMO_SENHA,
+  senhaAceita,
+} from "@/lib/auth/forca-senha";
 
 type Modo = "entrar" | "criar" | "recuperar";
-
-function senhaForte(senha: string): boolean {
-  return (
-    senha.length >= 10 &&
-    /[a-z]/.test(senha) &&
-    /[A-Z]/.test(senha) &&
-    /\d/.test(senha) &&
-    /[^A-Za-z0-9]/.test(senha)
-  );
-}
 
 function mensagemDeErro(mensagem: string): string {
   if (mensagem.includes("Invalid login credentials")) {
@@ -29,8 +26,11 @@ function mensagemDeErro(mensagem: string): string {
   if (mensagem.includes("Email not confirmed")) {
     return "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.";
   }
-  if (mensagem.includes("Password should be at least") || mensagem.includes("weak")) {
-    return "A senha precisa ter pelo menos 10 caracteres, com maiúscula, minúscula, número e símbolo.";
+  if (
+    mensagem.includes("Password should") ||
+    mensagem.toLowerCase().includes("weak")
+  ) {
+    return MENSAGEM_REGRA_SENHA;
   }
   return "Não foi possível concluir. Tente novamente.";
 }
@@ -74,10 +74,8 @@ export function FormEntrar() {
       }
 
       if (modo === "criar") {
-        if (!senhaForte(senha)) {
-          toast(
-            "A senha precisa ter pelo menos 10 caracteres, com maiúscula, minúscula, número e símbolo.",
-          );
+        if (!senhaAceita(senha)) {
+          toast(MENSAGEM_REGRA_SENHA);
           return;
         }
         const { error } = await supabase.auth.signUp({
@@ -164,6 +162,10 @@ export function FormEntrar() {
         <p className="text-sm text-cinza-2">{subtitulo}</p>
       </div>
 
+      {modo !== "recuperar" ? (
+        <BotoesSociais redirectTo={urlCallback} desabilitado={carregando} />
+      ) : null}
+
       {modo === "criar" ? (
         <CampoTexto
           rotulo="Nome"
@@ -187,27 +189,33 @@ export function FormEntrar() {
       />
 
       {modo !== "recuperar" ? (
-        <CampoTexto
+        <CampoSenha
+          key={modo}
           rotulo="Senha"
-          type="password"
           required
-          minLength={10}
+          minLength={modo === "criar" ? TAMANHO_MINIMO_SENHA : undefined}
           autoComplete={modo === "criar" ? "new-password" : "current-password"}
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
           placeholder={
             modo === "criar"
-              ? "Mínimo 10 caracteres, maiúscula, número e símbolo"
+              ? "Mínimo 8 caracteres, maiúscula, minúscula e número"
               : "Sua senha"
           }
-        />
+        >
+          {modo === "criar" ? <IndicadorForcaSenha senha={senha} /> : null}
+        </CampoSenha>
       ) : null}
 
       {modo === "criar" || modo === "recuperar" ? (
         <TurnstileCampo onToken={setCaptcha} />
       ) : null}
 
-      <Botao type="submit" className="w-full" disabled={carregando}>
+      <Botao
+        type="submit"
+        className="w-full"
+        disabled={carregando || (modo === "criar" && !senhaAceita(senha))}
+      >
         {carregando
           ? "Aguarde…"
           : modo === "entrar"

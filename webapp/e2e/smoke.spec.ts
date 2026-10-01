@@ -48,6 +48,23 @@ test.describe("smoke marketing + guards (sem auth)", () => {
     await expect(page).toHaveURL(/\/entrar/);
   });
 
+  test("/entrar oferece login social e alterna a visibilidade da senha", async ({
+    page,
+  }) => {
+    await page.goto("/entrar");
+    await expect(
+      page.getByRole("button", { name: "Continuar com Google" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Continuar com Microsoft" }),
+    ).toBeVisible();
+
+    const senha = page.getByLabel("Senha");
+    await expect(senha).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Mostrar senha" }).click();
+    await expect(senha).toHaveAttribute("type", "text");
+  });
+
   test("/admin redireciona anônimo para /entrar", async ({ page }) => {
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/entrar/);

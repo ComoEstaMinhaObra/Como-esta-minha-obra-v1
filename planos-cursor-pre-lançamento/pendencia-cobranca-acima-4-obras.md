@@ -1,8 +1,11 @@
 # Pendência — cobrança “Acima de 4 obras”
 
-**Status:** copy pública publicada; fluxo de cobrança **não** alinhado  
+**Status:** substituída por nova decisão comercial em 28/09/2026
+
 **Data da landing:** set/2026  
 **Referência:** `plano-landing-pre-lancamento.md` (ponto de decisão comercial)
+
+> A regra de "acima de 4 obras" deixou de ser vigente. A decisão atual é R$ 129,90 por mês por obra ativa, documentada em [`decisoes-financeiras-2026-09-28.md`](decisoes-financeiras-2026-09-28.md). O restante deste arquivo permanece apenas como registro da pendência anterior.
 
 ---
 

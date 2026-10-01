@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Botao, CampoTexto, useToast } from "@/components/ui";
+import { Botao, CampoSenha, useToast } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
+import { IndicadorForcaSenha } from "@/components/auth/IndicadorForcaSenha";
+import {
+  MENSAGEM_REGRA_SENHA,
+  TAMANHO_MINIMO_SENHA,
+  senhaAceita,
+} from "@/lib/auth/forca-senha";
 
 export function FormNovaSenha() {
   const { toast } = useToast();
@@ -24,6 +30,10 @@ export function FormNovaSenha() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!senhaAceita(senha)) {
+      toast(MENSAGEM_REGRA_SENHA);
+      return;
+    }
     if (senha !== confirmacao) {
       toast("As senhas não coincidem.");
       return;
@@ -58,27 +68,31 @@ export function FormNovaSenha() {
           Escolha uma nova senha para a sua conta.
         </p>
       </div>
-      <CampoTexto
+      <CampoSenha
         rotulo="Nova senha"
-        type="password"
         required
-        minLength={10}
+        minLength={TAMANHO_MINIMO_SENHA}
         autoComplete="new-password"
         value={senha}
         onChange={(e) => setSenha(e.target.value)}
-        placeholder="Mínimo 10 caracteres, maiúscula, número e símbolo"
-      />
-      <CampoTexto
+        placeholder="Mínimo 8 caracteres, maiúscula, minúscula e número"
+      >
+        <IndicadorForcaSenha senha={senha} />
+      </CampoSenha>
+      <CampoSenha
         rotulo="Confirmar senha"
-        type="password"
         required
-        minLength={10}
+        minLength={TAMANHO_MINIMO_SENHA}
         autoComplete="new-password"
         value={confirmacao}
         onChange={(e) => setConfirmacao(e.target.value)}
         placeholder="Repita a nova senha"
       />
-      <Botao type="submit" className="w-full" disabled={carregando}>
+      <Botao
+        type="submit"
+        className="w-full"
+        disabled={carregando || !senhaAceita(senha)}
+      >
         {carregando ? "Salvando…" : "Salvar nova senha"}
       </Botao>
     </form>
