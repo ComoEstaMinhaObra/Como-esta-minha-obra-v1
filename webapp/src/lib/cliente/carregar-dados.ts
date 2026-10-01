@@ -58,7 +58,6 @@ export type ClienteObraContexto = {
     numero: number;
     enviadoEm: string;
     versaoNumero: number;
-    motivo: string | null;
   }[];
   etapas: {
     id: string;
@@ -73,6 +72,9 @@ export type ClienteObraContexto = {
     rotulo: string;
     valorCentavos: number;
     numero: number | null;
+    id?: string;
+    relatorioId?: string | null;
+    origemId?: string | null;
   }[];
   diasAditivados: {
     motivo: string;
@@ -94,14 +96,6 @@ export type ClienteObraContexto = {
     ordem: number;
     urlAssinada: string | null;
   }[];
-  historicoVersoes: {
-    relatorioId: string;
-    numero: number;
-    versaoNumero: number;
-    motivo: string | null;
-    publicadoEm: string | null;
-    pdfPath: string | null;
-  }[];
   agregados: {
     avancoGeral: number;
     pctPago: number;
@@ -109,6 +103,7 @@ export type ClienteObraContexto = {
     pagoAcumuladoCentavos: number;
     saldoCentavos: number;
     aditivosAcumuladoCentavos: number;
+    supressoesAcumuladoCentavos: number;
     entregaPrevista: string;
     diasDeObra: number;
     diasRestantes: number;
@@ -192,17 +187,10 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
     idsVersao.length > 0
       ? await supabase
           .from("relatorio_versoes")
-          .select("id, relatorio_id, numero, status, snapshot, motivo, publicado_em, pdf_path, criado_por")
+          .select("id, relatorio_id, numero, status, snapshot, publicado_em, pdf_path, criado_por")
           .in("id", idsVersao)
           .eq("status", "publicada")
       : { data: [] };
-
-  const { data: historico } = await supabase
-    .from("relatorio_versoes")
-    .select("id, relatorio_id, numero, motivo, publicado_em, pdf_path, status")
-    .eq("obra_id", obraId)
-    .eq("status", "publicada")
-    .order("numero", { ascending: true });
 
   const versaoPorRelatorio = new Map(
     (versoes ?? []).map((v) => [v.relatorio_id, v]),
@@ -234,13 +222,20 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
       versaoNumero: versao.numero,
     };
     listaEtapas = snapEtapas(snapshotVigente);
-    listaLanc = snapshotVigente.financeiro.lancamentosNovos.map((l) => ({
-      tipo: l.tipo,
-      grupo: l.grupo,
-      rotulo: l.rotulo,
-      valorCentavos: l.valorCentavos,
-      numero: null,
-    }));
+    // Histórico acumulado: o sinal aparece no primeiro relatório e os demais
+    // lançamentos em cada relatório em que entraram.
+    listaLanc = [...enviados].reverse().flatMap((r) => {
+      const snap = versaoPorRelatorio.get(r.id)?.snapshot as unknown as
+        | RelatorioSnapshot
+        | undefined;
+      return (snap?.financeiro.lancamentosNovos ?? []).map((l) => ({
+        tipo: l.tipo,
+        grupo: l.grupo,
+        rotulo: l.rotulo,
+        valorCentavos: l.valorCentavos,
+        numero: null,
+      }));
+    });
     listaDias = snapshotVigente.prazo.novosDias.map((d) => ({
       motivo: d.motivo,
       descricao: d.descricao ?? null,
@@ -270,7 +265,7 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
           .order("ordem"),
         supabase
           .from("lancamentos")
-          .select("tipo, grupo, rotulo, valor_centavos, numero")
+          .select("id, relatorio_id, lancamento_origem_id, tipo, grupo, rotulo, valor_centavos, numero")
           .eq("obra_id", obraId),
         supabase.from("dias_aditivados").select("motivo, descricao, dias").eq("obra_id", obraId),
         supabase
@@ -291,6 +286,9 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         pctAtual: etapa.pct_atual,
       }));
       listaLanc = (lancVivos ?? []).map((l) => ({
+        id: l.id,
+        relatorioId: l.relatorio_id,
+        origemId: l.lancamento_origem_id,
         tipo: l.tipo,
         grupo: l.grupo,
         rotulo: l.rotulo,
@@ -334,7 +332,13 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         ...etapa,
         ordem: listaEtapas.find((item) => item.id === etapa.id)?.ordem ?? 0,
       }));
-      listaLanc = [...listaLanc, ...projecao.lancamentosNovos];
+      // O sinal ainda sem relatório passa a constar em `lancamentosNovos`.
+      listaLanc = [
+        ...listaLanc.filter(
+          (l) => !(l.tipo === "sinal" && (l.relatorioId ?? null) === null),
+        ),
+        ...projecao.lancamentosNovos,
+      ];
       listaDias = [...listaDias, ...projecao.diasNovos];
       ultimoRelatorio = {
         id: relatorioPreview.id,
@@ -365,6 +369,8 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         pagoAcumuladoCentavos: snapshotVigente.financeiro.pagoAcumuladoCentavos,
         saldoCentavos: snapshotVigente.financeiro.saldoCentavos,
         aditivosAcumuladoCentavos: snapshotVigente.financeiro.aditivosAcumuladoCentavos,
+        supressoesAcumuladoCentavos:
+          snapshotVigente.financeiro.supressoesAcumuladoCentavos ?? 0,
       }
     : calcularFinanceiro({
         valorContratadoCentavos: valorPublico,
@@ -469,21 +475,12 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         numero: r.numero,
         enviadoEm: r.enviado_em!,
         versaoNumero: versaoPorRelatorio.get(r.id)?.numero ?? 1,
-        motivo: versaoPorRelatorio.get(r.id)?.motivo ?? null,
       })),
       etapas: listaEtapas,
       lancamentos: listaLanc,
       diasAditivados: listaDias,
       climaDias,
       fotos: fotosComUrl,
-      historicoVersoes: (historico ?? []).map((h) => ({
-        relatorioId: h.relatorio_id,
-        numero: 0,
-        versaoNumero: h.numero,
-        motivo: h.motivo,
-        publicadoEm: h.publicado_em,
-        pdfPath: h.pdf_path,
-      })),
       agregados: {
         avancoGeral,
         pctPago: fin.pctPago,
@@ -491,6 +488,7 @@ export const carregarDadosCliente = cache(async function carregarDadosCliente(
         pagoAcumuladoCentavos: fin.pagoAcumuladoCentavos,
         saldoCentavos: fin.saldoCentavos,
         aditivosAcumuladoCentavos: fin.aditivosAcumuladoCentavos,
+        supressoesAcumuladoCentavos: fin.supressoesAcumuladoCentavos,
         entregaPrevista: String(entregaPrevista).slice(0, 10),
         diasDeObra: diasDeObra(inicioPublico, hoje),
         diasRestantes: diasRestantes(String(entregaPrevista).slice(0, 10), hoje),

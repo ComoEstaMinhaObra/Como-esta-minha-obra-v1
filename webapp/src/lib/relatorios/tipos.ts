@@ -14,8 +14,10 @@ export interface RelatorioRascunho {
     medicoes: { valorCentavos: number }[];
     materiais: { rotulo: string; valorCentavos: number }[];
     aditivos: { descricao: string; valorCentavos: number }[];
+    supressoes: { descricao: string; valorCentavos: number }[];
+    /** Estorno sempre vinculado a um lançamento já persistido da obra. */
     estornos: {
-      grupo: "medicoes" | "materiais" | "aditivos";
+      origemId: string;
       descricao: string;
       valorCentavos: number;
     }[];
@@ -54,6 +56,7 @@ export interface RelatorioSnapshot {
   financeiro: {
     valorContratadoCentavos: number;
     aditivosAcumuladoCentavos: number;
+    supressoesAcumuladoCentavos?: number;
     contratadoTotalCentavos: number;
     pagoAcumuladoCentavos: number;
     pctPago: number;
@@ -78,4 +81,16 @@ export interface RelatorioSnapshot {
       probChuva: number | null;
     }[];
   };
+}
+
+/** Lançamento financeiro já persistido da obra (base de estornos e totais). */
+export interface LancamentoPersistido {
+  id: string;
+  tipo: "sinal" | "medicao" | "material" | "aditivo" | "supressao" | "estorno";
+  grupo: "medicoes" | "materiais" | "aditivos" | "supressoes";
+  rotulo: string;
+  valorCentavos: number;
+  numero: number | null;
+  relatorioId: string | null;
+  origemId: string | null;
 }

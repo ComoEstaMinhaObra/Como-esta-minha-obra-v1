@@ -11,7 +11,10 @@ import {
   expectativasFinanceirasFrancisco,
 } from "../src/lib/demo/francisco";
 import { ETAPAS_PADRAO } from "../src/lib/obras/etapas";
-import { calcularAvancoGeral } from "../src/lib/relatorios/calculos";
+import {
+  calcularAvancoGeral,
+  calcularFinanceiro,
+} from "../src/lib/relatorios/calculos";
 import type { Database } from "../src/lib/database.types";
 
 function carregarEnv(arquivo: string) {
@@ -169,12 +172,69 @@ async function main() {
     })),
   );
 
+  // Lançamentos por relatório (índice 0 = relatório 1). O sinal entra no
+  // primeiro relatório, antes das medições, com o rótulo "Sinal".
+  type LancamentoDemo = {
+    tipo: "sinal" | "medicao" | "material" | "aditivo";
+    grupo: "medicoes" | "materiais" | "aditivos";
+    numero: number | null;
+    rotulo: string;
+    valorCentavos: number;
+  };
+  const lancamentosPorRelatorio: LancamentoDemo[][] = [[], [], []];
+  lancamentosPorRelatorio[0]!.push({
+    tipo: "sinal",
+    grupo: "medicoes",
+    numero: null,
+    rotulo: "Sinal",
+    valorCentavos: DEMO_FRANCISCO.sinalCentavos,
+  });
+  DEMO_FRANCISCO.medicoesCentavos.forEach((valorCentavos, i) => {
+    lancamentosPorRelatorio[i]!.push({
+      tipo: "medicao",
+      grupo: "medicoes",
+      numero: i + 1,
+      rotulo: `Medição ${String(i + 1).padStart(2, "0")}`,
+      valorCentavos,
+    });
+  });
+  DEMO_FRANCISCO.materiais.forEach((m, i) => {
+    lancamentosPorRelatorio[i < 2 ? 1 : 2]!.push({
+      tipo: "material",
+      grupo: "materiais",
+      numero: i + 1,
+      rotulo: m.rotulo,
+      valorCentavos: m.valorCentavos,
+    });
+  });
+  DEMO_FRANCISCO.aditivosCentavos.forEach((valorCentavos, i) => {
+    lancamentosPorRelatorio[2]!.push({
+      tipo: "aditivo",
+      grupo: "aditivos",
+      numero: i + 1,
+      rotulo: `Aditivo ${String(i + 1).padStart(2, "0")}`,
+      valorCentavos,
+    });
+  });
+
   // 3 relatórios enviados com lançamentos acumulados
   const relatorioIds: string[] = [];
 
   for (let n = 1; n <= 3; n++) {
     const geralAntes = n === 1 ? 0 : Math.round(avanco * ((n - 1) / 3));
     const geralDepois = n === 3 ? avanco : Math.round(avanco * (n / 3));
+
+    const novos = lancamentosPorRelatorio[n - 1]!;
+    const acumulados = lancamentosPorRelatorio.slice(0, n).flat();
+    const finN = calcularFinanceiro({
+      valorContratadoCentavos: DEMO_FRANCISCO.valorContratadoCentavos,
+      aditivosCentavos: acumulados
+        .filter((l) => l.tipo === "aditivo")
+        .map((l) => l.valorCentavos),
+      pagoCentavos: acumulados
+        .filter((l) => l.tipo !== "aditivo")
+        .map((l) => l.valorCentavos),
+    });
 
     const snapshot = {
       versao: 1 as const,
@@ -203,12 +263,18 @@ async function main() {
       },
       financeiro: {
         valorContratadoCentavos: DEMO_FRANCISCO.valorContratadoCentavos,
-        aditivosAcumuladoCentavos: exp.aditivosAcumuladoCentavos,
-        contratadoTotalCentavos: exp.contratadoTotalCentavos,
-        pagoAcumuladoCentavos: exp.pagoAcumuladoCentavos,
-        pctPago: exp.pctPago,
-        saldoCentavos: exp.saldoCentavos,
-        lancamentosNovos: [],
+        aditivosAcumuladoCentavos: finN.aditivosAcumuladoCentavos,
+        supressoesAcumuladoCentavos: finN.supressoesAcumuladoCentavos,
+        contratadoTotalCentavos: finN.contratadoTotalCentavos,
+        pagoAcumuladoCentavos: finN.pagoAcumuladoCentavos,
+        pctPago: finN.pctPago,
+        saldoCentavos: finN.saldoCentavos,
+        lancamentosNovos: novos.map((l) => ({
+          tipo: l.tipo,
+          grupo: l.grupo,
+          rotulo: l.rotulo,
+          valorCentavos: l.valorCentavos,
+        })),
       },
       prazo: {
         novosDias:
@@ -279,64 +345,26 @@ async function main() {
         versao_id: versao.id,
       })),
     );
+
+    for (const l of novos) {
+      const { error: lancErr } = await admin.from("lancamentos").insert({
+        obra_id: obra.id,
+        relatorio_id: rel.id,
+        versao_id: versao.id,
+        tipo: l.tipo,
+        grupo: l.grupo,
+        numero: l.numero,
+        rotulo: l.rotulo,
+        valor_centavos: l.valorCentavos,
+      });
+      if (lancErr) {
+        console.error(`Falha lançamento "${l.rotulo}":`, lancErr.message);
+        process.exit(1);
+      }
+    }
   }
 
-  const r1 = relatorioIds[0]!;
-  const r2 = relatorioIds[1]!;
   const r3 = relatorioIds[2]!;
-
-  // Sinal no 1º
-  await admin.from("lancamentos").insert({
-    obra_id: obra.id,
-    relatorio_id: r1,
-    tipo: "sinal",
-    grupo: "medicoes",
-    numero: null,
-    rotulo: "Sinal",
-    valor_centavos: DEMO_FRANCISCO.sinalCentavos,
-  });
-
-  // Medições 01–03
-  for (let i = 0; i < DEMO_FRANCISCO.medicoesCentavos.length; i++) {
-    const relId = relatorioIds[i]!;
-    await admin.from("lancamentos").insert({
-      obra_id: obra.id,
-      relatorio_id: relId,
-      tipo: "medicao",
-      grupo: "medicoes",
-      numero: i + 1,
-      rotulo: `Medição ${String(i + 1).padStart(2, "0")}`,
-      valor_centavos: DEMO_FRANCISCO.medicoesCentavos[i]!,
-    });
-  }
-
-  // Materiais no 2º e 3º
-  const mats = DEMO_FRANCISCO.materiais;
-  for (let i = 0; i < mats.length; i++) {
-    const m = mats[i]!;
-    await admin.from("lancamentos").insert({
-      obra_id: obra.id,
-      relatorio_id: i < 2 ? r2 : r3,
-      tipo: "material",
-      grupo: "materiais",
-      numero: i + 1,
-      rotulo: m.rotulo,
-      valor_centavos: m.valorCentavos,
-    });
-  }
-
-  // Aditivos no 3º
-  for (let i = 0; i < DEMO_FRANCISCO.aditivosCentavos.length; i++) {
-    await admin.from("lancamentos").insert({
-      obra_id: obra.id,
-      relatorio_id: r3,
-      tipo: "aditivo",
-      grupo: "aditivos",
-      numero: i + 1,
-      rotulo: `Aditivo ${String(i + 1).padStart(2, "0")}`,
-      valor_centavos: DEMO_FRANCISCO.aditivosCentavos[i]!,
-    });
-  }
 
   // Dias aditivados no 3º
   for (const d of DEMO_FRANCISCO.diasAditivados) {

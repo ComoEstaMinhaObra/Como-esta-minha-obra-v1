@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Botao } from "@/components/ui";
-import type { RelatorioRascunho } from "@/lib/relatorios/tipos";
+import type { SaldoEstornavel } from "@/lib/relatorios/calculos";
+import type {
+  LancamentoPersistido,
+  RelatorioRascunho,
+} from "@/lib/relatorios/tipos";
 import { ModalCompartilhar } from "./ModalCompartilhar";
 import { ModalRelatorio, type EtapaObra } from "./ModalRelatorio";
 
@@ -15,14 +19,6 @@ type RelatorioLista = {
   dados_rascunho: RelatorioRascunho | null;
 };
 
-type LancamentoAnterior = {
-  tipo: "medicao" | "material" | "aditivo";
-  rotulo: string;
-  valorCentavos: number;
-  numero: number | null;
-  relatorioId: string | null;
-};
-
 export function DetalheAcoes({
   obraId,
   obraNome,
@@ -30,17 +26,13 @@ export function DetalheAcoes({
   arquivada,
   etapas,
   proximoNumero,
-  maxMedicao,
-  maxAditivo,
   diasAditivadosPersistidos,
   terminoContratual,
   valorContratadoCentavos,
-  pagoPersistidoCentavos,
-  aditivosPersistidosCentavos,
-  lancamentosAnteriores,
+  lancamentos,
+  saldoEstornavel,
   climaDias,
   rascunhos,
-  ultimoEnviado,
 }: {
   obraId: string;
   obraNome: string;
@@ -48,72 +40,20 @@ export function DetalheAcoes({
   arquivada: boolean;
   etapas: EtapaObra[];
   proximoNumero: number;
-  maxMedicao: number;
-  maxAditivo: number;
   diasAditivadosPersistidos: number;
   terminoContratual: string;
   valorContratadoCentavos: number;
-  pagoPersistidoCentavos: number;
-  aditivosPersistidosCentavos: number;
-  lancamentosAnteriores: LancamentoAnterior[];
+  lancamentos: LancamentoPersistido[];
+  saldoEstornavel: SaldoEstornavel[];
   climaDias: {
     data: string;
     condicao: "aberto" | "nublado" | "chuvoso";
     prob_chuva: number | null;
   }[];
   rascunhos: RelatorioLista[];
-  ultimoEnviado?: {
-    id: string;
-    numero: number;
-    dados: RelatorioRascunho | null;
-  } | null;
 }) {
   const router = useRouter();
   const search = useSearchParams();
-  const retificarId = search.get("retificar");
-  const retificando = Boolean(
-    retificarId && ultimoEnviado?.id === retificarId && ultimoEnviado.dados,
-  );
-  const dadosRetificacao = retificando ? ultimoEnviado?.dados ?? null : null;
-  const pagoRetificacao = dadosRetificacao
-    ? dadosRetificacao.financeiro.medicoes.reduce(
-        (total, item) => total + item.valorCentavos,
-        0,
-      ) +
-      dadosRetificacao.financeiro.materiais.reduce(
-        (total, item) => total + item.valorCentavos,
-        0,
-      ) -
-      dadosRetificacao.financeiro.estornos
-        .filter((item) => item.grupo !== "aditivos")
-        .reduce((total, item) => total + Math.abs(item.valorCentavos), 0)
-    : 0;
-  const aditivoRetificacao = dadosRetificacao
-    ? dadosRetificacao.financeiro.aditivos.reduce(
-        (total, item) => total + item.valorCentavos,
-        0,
-      ) -
-      dadosRetificacao.financeiro.estornos
-        .filter((item) => item.grupo === "aditivos")
-        .reduce((total, item) => total + Math.abs(item.valorCentavos), 0)
-    : 0;
-  const diasRetificacao = dadosRetificacao
-    ? dadosRetificacao.prazo.reduce((total, item) => total + item.dias, 0)
-    : 0;
-  const anteriores = lancamentosAnteriores.filter(
-    (l) => l.relatorioId !== retificarId,
-  );
-  const historicoFinanceiro = {
-    medicoes: anteriores
-      .filter((l) => l.tipo === "medicao")
-      .map((l) => ({ rotulo: l.rotulo, valorCentavos: l.valorCentavos })),
-    materiais: anteriores
-      .filter((l) => l.tipo === "material")
-      .map((l) => ({ rotulo: l.rotulo, valorCentavos: l.valorCentavos })),
-    aditivos: anteriores
-      .filter((l) => l.tipo === "aditivo")
-      .map((l) => ({ rotulo: l.rotulo, valorCentavos: l.valorCentavos })),
-  };
   const [compartilharAberto, setCompartilharAberto] = useState(
     () => search.get("compartilhar") === "1",
   );
@@ -133,11 +73,7 @@ export function DetalheAcoes({
         setRelatorioAberto(true);
       }
     }
-    if (retificando && !arquivada) {
-      setEditando(null);
-      setRelatorioAberto(true);
-    }
-  }, [search, arquivada, rascunhos, retificando]);
+  }, [search, arquivada, rascunhos]);
 
   function fecharRelatorio() {
     setRelatorioAberto(false);
@@ -188,39 +124,15 @@ export function DetalheAcoes({
         obraId={obraId}
         obraNome={obraNome}
         endereco={endereco}
-        numero={
-          retificando && ultimoEnviado
-            ? ultimoEnviado.numero
-            : (editando?.numero ?? proximoNumero)
-        }
-        relatorioId={
-          editando?.id ?? (retificando ? (retificarId ?? undefined) : undefined)
-        }
-        retificando={retificando}
+        numero={editando?.numero ?? proximoNumero}
+        relatorioId={editando?.id}
         etapas={etapas}
-        rascunhoInicial={
-          editando?.dados_rascunho ?? dadosRetificacao ?? undefined
-        }
-        maxMedicao={
-          retificando
-            ? Math.max(0, maxMedicao - (dadosRetificacao?.financeiro.medicoes.length ?? 0))
-            : maxMedicao
-        }
-        maxAditivo={
-          retificando
-            ? Math.max(0, maxAditivo - (dadosRetificacao?.financeiro.aditivos.length ?? 0))
-            : maxAditivo
-        }
-        diasAditivadosPersistidos={
-          diasAditivadosPersistidos - diasRetificacao
-        }
+        rascunhoInicial={editando?.dados_rascunho ?? undefined}
+        diasAditivadosPersistidos={diasAditivadosPersistidos}
         terminoContratual={terminoContratual}
         valorContratadoCentavos={valorContratadoCentavos}
-        pagoPersistidoCentavos={pagoPersistidoCentavos - pagoRetificacao}
-        aditivosPersistidosCentavos={
-          aditivosPersistidosCentavos - aditivoRetificacao
-        }
-        historicoFinanceiro={historicoFinanceiro}
+        lancamentos={lancamentos}
+        saldoEstornavel={saldoEstornavel}
         climaDias={climaDias}
       />
     </>

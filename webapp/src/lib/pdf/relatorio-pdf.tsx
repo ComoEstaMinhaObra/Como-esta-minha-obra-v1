@@ -113,6 +113,12 @@ export function RelatorioPdfDocument({
           Aditivos:{" "}
           {formatarBRL(snapshot.financeiro.aditivosAcumuladoCentavos)}
         </Text>
+        {(snapshot.financeiro.supressoesAcumuladoCentavos ?? 0) > 0 ? (
+          <Text>
+            Supressões: −{" "}
+            {formatarBRL(snapshot.financeiro.supressoesAcumuladoCentavos ?? 0)}
+          </Text>
+        ) : null}
         <Text>
           Contratado total:{" "}
           {formatarBRL(snapshot.financeiro.contratadoTotalCentavos)}
@@ -124,7 +130,9 @@ export function RelatorioPdfDocument({
         <Text>
           Saldo: {formatarBRL(snapshot.financeiro.saldoCentavos)}
         </Text>
-        {snapshot.financeiro.lancamentosNovos.map((l, i) => (
+        {[...snapshot.financeiro.lancamentosNovos]
+          .sort((a, b) => Number(b.tipo === "sinal") - Number(a.tipo === "sinal"))
+          .map((l, i) => (
           <View key={`${l.rotulo}-${i}`} style={styles.linha}>
             <Text>{l.rotulo}</Text>
             <Text>{formatarBRL(l.valorCentavos)}</Text>

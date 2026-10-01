@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { Botao, Cartao, ModalBase, Selo, useToast } from "@/components/ui";
 import { ModalUpsellLimite } from "@/components/ui/ModalUpsellLimite";
 import { formatarBRLCompacto } from "@/lib/formatacao";
+import { codigoRpc, mensagemRpc } from "@/lib/rpc-erros";
 import { enviarRelatorioAction } from "./enviar-relatorio-action";
 
 type RelatorioCard = {
@@ -30,11 +31,9 @@ type RelatorioCard = {
 export function FeedRelatorios({
   obraId,
   relatorios,
-  ultimoEnviadoId,
 }: {
   obraId: string;
   relatorios: RelatorioCard[];
-  ultimoEnviadoId?: string | null;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -63,7 +62,11 @@ export function FeedRelatorios({
           setUpsell(true);
           return;
         }
-        toast(r.erro === "ERRO_GENERICO" ? "Não foi possível enviar" : r.erro);
+        toast(
+          r.erro === "FALHA_PDF"
+            ? "Não foi possível gerar o PDF. Tente novamente."
+            : mensagemRpc(codigoRpc({ message: r.erro })),
+        );
         return;
       }
       toast(`Relatório nº ${r.numero} enviado · cliente notificado por e-mail`);
@@ -137,14 +140,6 @@ export function FeedRelatorios({
                     >
                       Baixar PDF
                     </a>
-                    {ultimoEnviadoId === r.id ? (
-                      <Link
-                        href={`/obras/${obraId}?retificar=${r.id}`}
-                        className="text-xs underline text-cinza-2"
-                      >
-                        Retificar relatório
-                      </Link>
-                    ) : null}
                   </div>
                 </>
               ) : (

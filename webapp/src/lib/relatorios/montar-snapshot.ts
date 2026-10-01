@@ -2,6 +2,8 @@ import {
   calcularAvancoGeral,
   calcularFinanceiro,
   calcularNovaDataTermino,
+  grupoDoEstorno,
+  type TipoLancamentoOrigem,
 } from "@/lib/relatorios/calculos";
 import type {
   RelatorioRascunho,
@@ -36,7 +38,14 @@ type LancamentoSnapshot = {
   rotulo: string;
   valorCentavos: number;
   numero: number | null;
+  /** Presente nos lançamentos já persistidos; base do vínculo dos estornos. */
+  id?: string;
+  /** Nulo no sinal que ainda não entrou em nenhum relatório. */
+  relatorioId?: string | null;
+  origemId?: string | null;
 };
+
+const TIPOS_ESTORNAVEIS = ["sinal", "medicao", "material", "aditivo"];
 
 type DiaAditivadoSnapshot = {
   motivo: string;
@@ -110,7 +119,60 @@ export function montarSnapshotRelatorioEmMemoria(params: {
       .map((lancamento) => lancamento.numero ?? 0),
   );
 
+  const maxSupressao = Math.max(
+    0,
+    ...params.lancamentos
+      .filter((lancamento) => lancamento.tipo === "supressao")
+      .map((lancamento) => lancamento.numero ?? 0),
+  );
+
+  // O sinal da criação da obra entra no primeiro relatório, antes das medições.
+  // Já está em `params.lancamentos`, então não é somado de novo nos totais.
+  const sinaisPendentes: LancamentoSnapshot[] = params.lancamentos.filter(
+    (lancamento) =>
+      lancamento.tipo === "sinal" && (lancamento.relatorioId ?? null) === null,
+  );
+
+  const estornosNovos: LancamentoSnapshot[] =
+    params.rascunho.financeiro.estornos.map((estorno) => {
+      const origem = params.lancamentos.find(
+        (lancamento) => lancamento.id === estorno.origemId,
+      );
+      if (!origem || !TIPOS_ESTORNAVEIS.includes(origem.tipo)) {
+        throw new Error("ESTORNO_ORIGEM_INVALIDA");
+      }
+      return {
+        tipo: "estorno",
+        grupo: grupoDoEstorno(origem.tipo as TipoLancamentoOrigem),
+        rotulo: `Estorno — ${estorno.descricao}`,
+        valorCentavos: -Math.abs(estorno.valorCentavos),
+        numero: null,
+        origemId: origem.id,
+      };
+    });
+
+  for (const origem of params.lancamentos.filter((l) =>
+    TIPOS_ESTORNAVEIS.includes(l.tipo),
+  )) {
+    const estornadoJa = params.lancamentos
+      .filter((l) => l.tipo === "estorno" && l.origemId === origem.id)
+      .reduce((total, l) => total - l.valorCentavos, 0);
+    const estornadoNovo = estornosNovos
+      .filter((l) => l.origemId === origem.id)
+      .reduce((total, l) => total - l.valorCentavos, 0);
+    if (estornadoJa + estornadoNovo > origem.valorCentavos) {
+      throw new Error("ESTORNO_ACIMA_ORIGEM");
+    }
+  }
+
   const lancamentosNovos: LancamentoSnapshot[] = [
+    ...sinaisPendentes.map((sinal) => ({
+      tipo: "sinal",
+      grupo: "medicoes",
+      rotulo: "Sinal",
+      valorCentavos: sinal.valorCentavos,
+      numero: null,
+    })),
     ...params.rascunho.financeiro.medicoes.map((medicao, index) => {
       const numero = maxMedicao + index + 1;
       return {
@@ -138,16 +200,24 @@ export function montarSnapshotRelatorioEmMemoria(params: {
         numero,
       };
     }),
-    ...params.rascunho.financeiro.estornos.map((estorno) => ({
-      tipo: "estorno",
-      grupo: estorno.grupo,
-      rotulo: `Estorno — ${estorno.descricao}`,
-      valorCentavos: -Math.abs(estorno.valorCentavos),
-      numero: null,
-    })),
+    ...params.rascunho.financeiro.supressoes.map((supressao, index) => {
+      const numero = maxSupressao + index + 1;
+      return {
+        tipo: "supressao",
+        grupo: "supressoes",
+        rotulo: `${rotuloNumerado("Supressão", numero)} — ${supressao.descricao}`,
+        valorCentavos: supressao.valorCentavos,
+        numero,
+      };
+    }),
+    ...estornosNovos,
   ];
 
-  const lancamentosProjetados = [...params.lancamentos, ...lancamentosNovos];
+  // O sinal pendente já consta em `params.lancamentos`.
+  const lancamentosProjetados = [
+    ...params.lancamentos,
+    ...lancamentosNovos.filter((lancamento) => lancamento.tipo !== "sinal"),
+  ];
   const aditivosCentavos = lancamentosProjetados
     .filter((lancamento) => lancamento.tipo === "aditivo")
     .map((lancamento) => lancamento.valorCentavos);
@@ -156,6 +226,9 @@ export function montarSnapshotRelatorioEmMemoria(params: {
       (lancamento) =>
         lancamento.tipo === "estorno" && lancamento.grupo === "aditivos",
     )
+    .map((lancamento) => lancamento.valorCentavos);
+  const supressoesCentavos = lancamentosProjetados
+    .filter((lancamento) => lancamento.tipo === "supressao")
     .map((lancamento) => lancamento.valorCentavos);
   const pagoCentavos = lancamentosProjetados
     .filter((lancamento) =>
@@ -169,6 +242,7 @@ export function montarSnapshotRelatorioEmMemoria(params: {
   const financeiro = calcularFinanceiro({
     valorContratadoCentavos: params.obra.valorContratadoCentavos,
     aditivosCentavos,
+    supressoesCentavos,
     pagoCentavos,
     estornosAditivosCentavos,
   });
@@ -228,6 +302,7 @@ export function montarSnapshotRelatorioEmMemoria(params: {
       financeiro: {
         valorContratadoCentavos: params.obra.valorContratadoCentavos,
         aditivosAcumuladoCentavos: financeiro.aditivosAcumuladoCentavos,
+        supressoesAcumuladoCentavos: financeiro.supressoesAcumuladoCentavos,
         contratadoTotalCentavos: financeiro.contratadoTotalCentavos,
         pagoAcumuladoCentavos: financeiro.pagoAcumuladoCentavos,
         pctPago: financeiro.pctPago,

@@ -8,7 +8,8 @@ import { describe, expect, it } from "vitest";
 import type { RelatorioRascunho } from "@/lib/relatorios/tipos";
 
 const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anon = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const anon =
+  process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const service =
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY;
 
@@ -19,6 +20,7 @@ if (!url || !anon || !service) {
 }
 
 const senha = "Segura#Teste12";
+const ETAPAS_TESTE = [{ nome: "Estrutura", peso: 100 }];
 const prefix = `sec-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
 function adminClient() {
@@ -48,18 +50,52 @@ async function login(email: string): Promise<SupabaseClient> {
   return c;
 }
 
-async function criarObra(ca: SupabaseClient, nome = "Obra") {
+async function criarObra(
+  ca: SupabaseClient,
+  nome = "Obra",
+  valorCentavos = 100000,
+  sinalCentavos = 0,
+) {
   const { data, error } = await ca.rpc("fn_criar_obra", {
     p_nome: nome,
     p_endereco: "Rua A, 1, Salvador",
     p_cliente_nome: "Cliente A",
     p_inicio: "2026-01-01",
     p_termino: "2026-12-01",
-    p_valor_centavos: 100000,
-    p_sinal_centavos: 0,
+    p_valor_centavos: valorCentavos,
+    p_sinal_centavos: sinalCentavos,
+    p_etapas: ETAPAS_TESTE,
   });
   if (error) throw error;
   return data as string;
+}
+
+async function idLancamento(obraId: string, tipo: string) {
+  const { data, error } = await adminClient()
+    .from("lancamentos")
+    .select("id")
+    .eq("obra_id", obraId)
+    .eq("tipo", tipo)
+    .order("criado_em")
+    .limit(1)
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+async function salvarEPreparar(
+  ca: SupabaseClient,
+  obraId: string,
+  dados: RelatorioRascunho,
+) {
+  const { data: saved, error: saveErr } = await ca.rpc("fn_salvar_rascunho", {
+    p_obra: obraId,
+    p_relatorio: null,
+    p_dados: dados,
+  });
+  if (saveErr) return { error: saveErr };
+  const relatorioId = (saved as { relatorioId: string }).relatorioId;
+  return ca.rpc("fn_preparar_envio_relatorio", { p_relatorio: relatorioId });
 }
 
 async function rascunhoMinimo(
@@ -74,7 +110,13 @@ async function rascunhoMinimo(
   return {
     versao: 1,
     etapas: etapas.map((e: { id: string }) => ({ etapaId: e.id, pct: 0 })),
-    financeiro: { medicoes: [], materiais: [], aditivos: [], estornos: [] },
+    financeiro: {
+      medicoes: [],
+      materiais: [],
+      aditivos: [],
+      supressoes: [],
+      estornos: [],
+    },
     atividades: [],
     prazo: [],
   };
@@ -93,9 +135,12 @@ async function publicarPrimeiroRelatorio(
   });
   if (saveErr) throw saveErr;
   const relatorioId = (saved as { relatorioId: string }).relatorioId;
-  const { data: prep, error: prepErr } = await ca.rpc("fn_preparar_envio_relatorio", {
-    p_relatorio: relatorioId,
-  });
+  const { data: prep, error: prepErr } = await ca.rpc(
+    "fn_preparar_envio_relatorio",
+    {
+      p_relatorio: relatorioId,
+    },
+  );
   if (prepErr) throw prepErr;
   const p = prep as {
     versaoId: string;
@@ -113,11 +158,14 @@ async function publicarPrimeiroRelatorio(
       upsert: false,
     });
   if (up.error) throw up.error;
-  const { data: fin, error: finErr } = await admin.rpc("fn_finalizar_envio_relatorio", {
-    p_versao: p.versaoId,
-    p_pdf_path: path,
-    p_pdf_sha256: sha256,
-  });
+  const { data: fin, error: finErr } = await admin.rpc(
+    "fn_finalizar_envio_relatorio",
+    {
+      p_versao: p.versaoId,
+      p_pdf_path: path,
+      p_pdf_sha256: sha256,
+    },
+  );
   if (finErr) throw finErr;
   return { relatorioId, versaoId: p.versaoId, path, sha256, fin };
 }
@@ -131,7 +179,11 @@ describe("segurança direta JWT/PostgREST", () => {
 
     const obraA = await criarObra(ca, "Obra A");
 
-    const { data: lida } = await cb.from("obras").select("id").eq("id", obraA).maybeSingle();
+    const { data: lida } = await cb
+      .from("obras")
+      .select("id")
+      .eq("id", obraA)
+      .maybeSingle();
     expect(lida).toBeNull();
 
     const { data: upd, error: updErr } = await cb
@@ -140,7 +192,11 @@ describe("segurança direta JWT/PostgREST", () => {
       .eq("id", obraA)
       .select();
     expect(updErr || (upd ?? []).length === 0).toBeTruthy();
-    const { data: depois } = await ca.from("obras").select("nome").eq("id", obraA).maybeSingle();
+    const { data: depois } = await ca
+      .from("obras")
+      .select("nome")
+      .eq("id", obraA)
+      .maybeSingle();
     expect(depois?.nome).toBe("Obra A");
 
     const { error: avancoErr } = await cb.rpc("fn_avanco_geral", {
@@ -173,6 +229,7 @@ describe("segurança direta JWT/PostgREST", () => {
       p_inicio: "2026-01-01",
       p_termino: "2026-02-01",
       p_valor_centavos: 1,
+      p_etapas: ETAPAS_TESTE,
     });
     expect(rpcErr).toBeTruthy();
     const { error: adminErr } = await anonC.rpc("fn_admin_kpis");
@@ -194,10 +251,13 @@ describe("segurança direta JWT/PostgREST", () => {
     });
     expect(ins).toBeTruthy();
 
-    const { data: livre, error: conviteErr } = await ca.rpc("fn_solicitar_acesso_obra", {
-      p_obra: obraId,
-      p_email: `${prefix}-p@test.local`,
-    });
+    const { data: livre, error: conviteErr } = await ca.rpc(
+      "fn_solicitar_acesso_obra",
+      {
+        p_obra: obraId,
+        p_email: `${prefix}-p@test.local`,
+      },
+    );
     expect(conviteErr).toBeNull();
     expect(livre).toBeTruthy();
 
@@ -244,7 +304,9 @@ describe("segurança direta JWT/PostgREST", () => {
     const oks = [r1, r2].filter((r) => !r.error);
     const erros = [r1, r2].filter((r) => r.error);
     expect(oks.length).toBe(1);
-    expect(erros.some((e) => e.error?.message.includes("PRECISA_ASSINAR"))).toBe(true);
+    expect(
+      erros.some((e) => e.error?.message.includes("PRECISA_ASSINAR")),
+    ).toBe(true);
   });
 
   it("duas criações concorrentes na última vaga resultam em uma obra", async () => {
@@ -258,6 +320,7 @@ describe("segurança direta JWT/PostgREST", () => {
         p_inicio: "2026-01-01",
         p_termino: "2026-12-01",
         p_valor_centavos: 1000,
+        p_etapas: ETAPAS_TESTE,
       }),
       ca.rpc("fn_criar_obra", {
         p_nome: "Slot 2",
@@ -266,11 +329,14 @@ describe("segurança direta JWT/PostgREST", () => {
         p_inicio: "2026-01-01",
         p_termino: "2026-12-01",
         p_valor_centavos: 1000,
+        p_etapas: ETAPAS_TESTE,
       }),
     ]);
     const oks = [c1, c2].filter((r) => !r.error);
     expect(oks.length).toBe(1);
-    expect([c1, c2].some((r) => r.error?.message.includes("LIMITE_OBRAS"))).toBe(true);
+    expect(
+      [c1, c2].some((r) => r.error?.message.includes("LIMITE_OBRAS")),
+    ).toBe(true);
     const { data: obras } = await ca.from("obras").select("id");
     expect((obras ?? []).length).toBe(1);
   });
@@ -299,25 +365,25 @@ describe("segurança direta JWT/PostgREST", () => {
       .maybeSingle();
     expect(rascunhoP).toBeNull();
 
-    const { error: retB } = await cp.rpc("fn_preparar_retificacao", {
+    const { error: envioB } = await cp.rpc("fn_preparar_envio_relatorio", {
       p_relatorio: relatorioId,
-      p_motivo: "hack",
-      p_dados: dados,
     });
-    expect(retB).toBeTruthy();
+    expect(envioB).toBeTruthy();
   });
 
   it("PDF publicado não pode ser sobrescrito pelo usuário autenticado", async () => {
     await criarUsuario(`${prefix}-pdf@test.local`);
     const ca = await login(`${prefix}-pdf@test.local`);
-    const { error } = await ca.storage.from("pdfs").upload("x/y.pdf", new Uint8Array([1]), {
-      contentType: "application/pdf",
-      upsert: true,
-    });
+    const { error } = await ca.storage
+      .from("pdfs")
+      .upload("x/y.pdf", new Uint8Array([1]), {
+        contentType: "application/pdf",
+        upsert: true,
+      });
     expect(error).toBeTruthy();
   });
 
-  it("relatório publicado é imutável; retificação de não-último falha; duas finalizações são idempotentes", async () => {
+  it("relatório publicado é imutável; duas finalizações são idempotentes", async () => {
     const a = await criarUsuario(`${prefix}-pub@test.local`);
     const ca = await login(`${prefix}-pub@test.local`);
     const obraId = await criarObra(ca, "Obra pub");
@@ -343,11 +409,14 @@ describe("segurança direta JWT/PostgREST", () => {
     expect(logicalMutationErr?.message).toContain("IMUTAVEL");
 
     const admin = adminClient();
-    const { data: fin2, error: fin2Err } = await admin.rpc("fn_finalizar_envio_relatorio", {
-      p_versao: pub.versaoId,
-      p_pdf_path: pub.path,
-      p_pdf_sha256: pub.sha256,
-    });
+    const { data: fin2, error: fin2Err } = await admin.rpc(
+      "fn_finalizar_envio_relatorio",
+      {
+        p_versao: pub.versaoId,
+        p_pdf_path: pub.path,
+        p_pdf_sha256: pub.sha256,
+      },
+    );
     expect(fin2Err).toBeNull();
     expect((fin2 as { idempotente?: boolean }).idempotente).toBe(true);
 
@@ -358,30 +427,38 @@ describe("segurança direta JWT/PostgREST", () => {
       p_dados: dados,
     });
     const rel2 = (segundo as { relatorioId: string }).relatorioId;
-    const { data: prep2, error: prep2Err } = await ca.rpc("fn_preparar_envio_relatorio", {
-      p_relatorio: rel2,
-    });
+    const { data: prep2, error: prep2Err } = await ca.rpc(
+      "fn_preparar_envio_relatorio",
+      {
+        p_relatorio: rel2,
+      },
+    );
     expect(prep2Err).toBeNull();
-    const p2 = prep2 as { versaoId: string; relatorioId: string; obraId: string; versaoNumero: number };
-    const sha2 = createHash("sha256").update(`pdf-${p2.versaoId}`).digest("hex");
+    const p2 = prep2 as {
+      versaoId: string;
+      relatorioId: string;
+      obraId: string;
+      versaoNumero: number;
+    };
+    const sha2 = createHash("sha256")
+      .update(`pdf-${p2.versaoId}`)
+      .digest("hex");
     const path2 = `${p2.obraId}/${p2.relatorioId}/v${p2.versaoNumero}-${sha2}.pdf`;
-    await admin.storage.from("pdfs").upload(path2, new Uint8Array([37, 80, 68, 70]), {
-      contentType: "application/pdf",
-      upsert: false,
-    });
-    const { error: finRel2Err } = await admin.rpc("fn_finalizar_envio_relatorio", {
-      p_versao: p2.versaoId,
-      p_pdf_path: path2,
-      p_pdf_sha256: sha2,
-    });
+    await admin.storage
+      .from("pdfs")
+      .upload(path2, new Uint8Array([37, 80, 68, 70]), {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    const { error: finRel2Err } = await admin.rpc(
+      "fn_finalizar_envio_relatorio",
+      {
+        p_versao: p2.versaoId,
+        p_pdf_path: path2,
+        p_pdf_sha256: sha2,
+      },
+    );
     expect(finRel2Err).toBeNull();
-
-    const { error: retAntigo } = await ca.rpc("fn_preparar_retificacao", {
-      p_relatorio: pub.relatorioId,
-      p_motivo: "atraso de material",
-      p_dados: dados,
-    });
-    expect(retAntigo?.message).toMatch(/ULTIMO|NAO_ULTIMO|RELATORIO_INVALIDO|SEM_PERMISSAO/);
   });
 
   it("rate limit de checkout devolve RATE_LIMITED", async () => {
@@ -389,7 +466,9 @@ describe("segurança direta JWT/PostgREST", () => {
     const ca = await login(`${prefix}-rl@test.local`);
     let lastError: string | undefined;
     for (let i = 0; i < 6; i += 1) {
-      const { error } = await ca.rpc("fn_consumir_rate_limit", { p_acao: "checkout" });
+      const { error } = await ca.rpc("fn_consumir_rate_limit", {
+        p_acao: "checkout",
+      });
       if (error) lastError = error.message;
     }
     expect(lastError).toContain("RATE_LIMITED");
@@ -414,11 +493,14 @@ describe("segurança direta JWT/PostgREST", () => {
     const ca = await login(`${prefix}-trial-exp@test.local`);
     const obraId = await criarObra(ca, "Obra trial expirado");
     const dados = await rascunhoMinimo(ca, obraId);
-    const { data: salvo, error: salvarErr } = await ca.rpc("fn_salvar_rascunho", {
-      p_obra: obraId,
-      p_relatorio: null,
-      p_dados: dados,
-    });
+    const { data: salvo, error: salvarErr } = await ca.rpc(
+      "fn_salvar_rascunho",
+      {
+        p_obra: obraId,
+        p_relatorio: null,
+        p_dados: dados,
+      },
+    );
     expect(salvarErr).toBeNull();
     const relatorioId = (salvo as { relatorioId: string }).relatorioId;
     const etapaId = dados.etapas[0].etapaId;
@@ -485,70 +567,205 @@ describe("segurança direta JWT/PostgREST", () => {
     expect((retry as { versaoId: string }).versaoId).toBe(primeira.versaoId);
   });
 
-  it("retificação preserva totais quando os dados não mudam", async () => {
-    const usuario = await criarUsuario(`${prefix}-ret@test.local`);
-    const ca = await login(`${prefix}-ret@test.local`);
-    const obraId = await criarObra(ca, "Obra retificação");
+  it("retificação deixou de existir no banco", async () => {
+    await criarUsuario(`${prefix}-sem-ret@test.local`);
+    const ca = await login(`${prefix}-sem-ret@test.local`);
+    const { error } = await ca.rpc("fn_preparar_retificacao", {
+      p_relatorio: randomUUID(),
+      p_motivo: "x",
+      p_dados: {},
+    });
+    expect(error?.code).toBe("PGRST202");
+    const { error: finErr } = await adminClient().rpc(
+      "fn_finalizar_retificacao",
+      {
+        p_versao: randomUUID(),
+        p_pdf_path: "x",
+        p_pdf_sha256: "x",
+      },
+    );
+    expect(finErr?.code).toBe("PGRST202");
+  });
+
+  it("contrato precisa ser maior que zero", async () => {
+    await criarUsuario(`${prefix}-zero@test.local`);
+    const ca = await login(`${prefix}-zero@test.local`);
+    const { error } = await ca.rpc("fn_criar_obra", {
+      p_nome: "Obra zero",
+      p_endereco: "Rua Z, 1",
+      p_cliente_nome: "Cli",
+      p_inicio: "2026-01-01",
+      p_termino: "2026-12-01",
+      p_valor_centavos: 0,
+      p_etapas: ETAPAS_TESTE,
+    });
+    expect(error?.message).toContain("DADOS_INVALIDOS");
+  });
+
+  it("sinal entra no primeiro relatório, antes das medições, com o rótulo Sinal", async () => {
+    await criarUsuario(`${prefix}-sinal@test.local`);
+    const ca = await login(`${prefix}-sinal@test.local`);
+    const obraId = await criarObra(ca, "Obra sinal", 100000, 20000);
     const dados = await rascunhoMinimo(ca, obraId);
-    dados.financeiro.medicoes = [{ valorCentavos: 15000 }];
-    dados.financeiro.materiais = [{ rotulo: "Cimento", valorCentavos: 5000 }];
-    dados.prazo = [{ motivo: "chuvas", dias: 3 }];
-    dados.atividades = [
-      { etapaId: dados.etapas[0].etapaId, nota: "Fundação", fotosPaths: [] },
-    ];
+    dados.financeiro.medicoes = [{ valorCentavos: 10000 }];
     const publicada = await publicarPrimeiroRelatorio(ca, obraId, dados);
-    const admin = adminClient();
-    await admin
-      .from("assinaturas")
-      .update({ status: "ativa", plano: "obra_5", limite_obras: 5 })
-      .eq("user_id", usuario.id);
 
-    const { data: prep, error: prepErr } = await ca.rpc("fn_preparar_retificacao", {
-      p_relatorio: publicada.relatorioId,
-      p_motivo: "Correção textual",
-      p_dados: dados,
-    });
-    expect(prepErr).toBeNull();
-    const ret = prep as {
-      versaoId: string;
-      versaoNumero: number;
-      snapshot: {
-        financeiro: { pagoAcumuladoCentavos: number };
-        prazo: { totalDiasAditivados: number };
-        atividades: unknown[];
-      };
-    };
-    expect(ret.snapshot.financeiro.pagoAcumuladoCentavos).toBe(20000);
-    expect(ret.snapshot.prazo.totalDiasAditivados).toBe(3);
-    expect(ret.snapshot.atividades).toHaveLength(1);
-
-    const sha = createHash("sha256").update(`ret-${ret.versaoId}`).digest("hex");
-    const path = `${obraId}/${publicada.relatorioId}/v${ret.versaoNumero}-${sha}.pdf`;
-    const upload = await admin.storage
-      .from("pdfs")
-      .upload(path, new Uint8Array([37, 80, 68, 70]), {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-    expect(upload.error).toBeNull();
-    const { error: finalizarErr } = await admin.rpc("fn_finalizar_retificacao", {
-      p_versao: ret.versaoId,
-      p_pdf_path: path,
-      p_pdf_sha256: sha,
-    });
-    expect(finalizarErr).toBeNull();
-
-    const { data: totais } = await admin
+    const { data: rel } = await adminClient()
       .from("relatorios")
       .select("snapshot")
       .eq("id", publicada.relatorioId)
       .single();
-    const snapshot = totais?.snapshot as {
-      financeiro: { pagoAcumuladoCentavos: number };
-      prazo: { totalDiasAditivados: number };
+    const snap = rel?.snapshot as {
+      financeiro: {
+        pagoAcumuladoCentavos: number;
+        lancamentosNovos: { rotulo: string }[];
+      };
     };
-    expect(snapshot.financeiro.pagoAcumuladoCentavos).toBe(20000);
-    expect(snapshot.prazo.totalDiasAditivados).toBe(3);
+    expect(snap.financeiro.lancamentosNovos.map((l) => l.rotulo)).toEqual([
+      "Sinal",
+      "Medição 01",
+    ]);
+    expect(snap.financeiro.pagoAcumuladoCentavos).toBe(30000);
+
+    const { data: sinal } = await adminClient()
+      .from("lancamentos")
+      .select("rotulo, relatorio_id, versao_id")
+      .eq("obra_id", obraId)
+      .eq("tipo", "sinal")
+      .single();
+    expect(sinal).toMatchObject({
+      rotulo: "Sinal",
+      relatorio_id: publicada.relatorioId,
+      versao_id: publicada.versaoId,
+    });
+  });
+
+  it("supressão abaixo do pago exige devolução no mesmo relatório", async () => {
+    await criarUsuario(`${prefix}-supr@test.local`);
+    const ca = await login(`${prefix}-supr@test.local`);
+    const obraId = await criarObra(ca, "Obra supressão", 100000, 60000);
+    const sinalId = await idLancamento(obraId, "sinal");
+
+    const semDevolucao = await rascunhoMinimo(ca, obraId);
+    semDevolucao.financeiro.supressoes = [
+      { descricao: "Garagem", valorCentavos: 50000 },
+    ];
+    const { error: bloqueado } = await salvarEPreparar(
+      ca,
+      obraId,
+      semDevolucao,
+    );
+    expect(bloqueado?.message).toContain("PAGO_ACIMA_CONTRATADO");
+
+    const comDevolucao = await rascunhoMinimo(ca, obraId);
+    comDevolucao.financeiro.supressoes = [
+      { descricao: "Garagem", valorCentavos: 50000 },
+    ];
+    comDevolucao.financeiro.estornos = [
+      {
+        origemId: sinalId,
+        descricao: "Devolução do sinal",
+        valorCentavos: 10000,
+      },
+    ];
+    const publicada = await publicarPrimeiroRelatorio(ca, obraId, comDevolucao);
+
+    const { data: lancs } = await adminClient()
+      .from("lancamentos")
+      .select("tipo, grupo, rotulo, valor_centavos, lancamento_origem_id")
+      .eq("obra_id", obraId)
+      .in("tipo", ["supressao", "estorno"])
+      .order("tipo");
+    expect(lancs).toEqual([
+      {
+        tipo: "estorno",
+        grupo: "medicoes",
+        rotulo: "Estorno — Devolução do sinal",
+        valor_centavos: -10000,
+        lancamento_origem_id: sinalId,
+      },
+      {
+        tipo: "supressao",
+        grupo: "supressoes",
+        rotulo: "Supressão 01 — Garagem",
+        valor_centavos: 50000,
+        lancamento_origem_id: null,
+      },
+    ]);
+    const { data: rel } = await adminClient()
+      .from("relatorios")
+      .select("snapshot")
+      .eq("id", publicada.relatorioId)
+      .single();
+    expect(
+      (rel?.snapshot as { financeiro: { contratadoTotalCentavos: number } })
+        .financeiro.contratadoTotalCentavos,
+    ).toBe(50000);
+  });
+
+  it("estorno valida origem e teto acumulado", async () => {
+    await criarUsuario(`${prefix}-est@test.local`);
+    await criarUsuario(`${prefix}-est-b@test.local`);
+    const ca = await login(`${prefix}-est@test.local`);
+    const cb = await login(`${prefix}-est-b@test.local`);
+    const obraId = await criarObra(ca, "Obra estorno", 100000, 30000);
+    const sinalId = await idLancamento(obraId, "sinal");
+    const obraB = await criarObra(cb, "Obra estorno B", 100000, 30000);
+    const sinalB = await idLancamento(obraB, "sinal");
+
+    const acima = await rascunhoMinimo(ca, obraId);
+    acima.financeiro.estornos = [
+      { origemId: sinalId, descricao: "x", valorCentavos: 30001 },
+    ];
+    const { error: acimaErr } = await ca.rpc("fn_salvar_rascunho", {
+      p_obra: obraId,
+      p_relatorio: null,
+      p_dados: acima,
+    });
+    expect(acimaErr?.message).toContain("ESTORNO_ACIMA_ORIGEM");
+
+    const outraObra = await rascunhoMinimo(ca, obraId);
+    outraObra.financeiro.estornos = [
+      { origemId: sinalB, descricao: "x", valorCentavos: 100 },
+    ];
+    const { error: outraErr } = await ca.rpc("fn_salvar_rascunho", {
+      p_obra: obraId,
+      p_relatorio: null,
+      p_dados: outraObra,
+    });
+    expect(outraErr?.message).toContain("ESTORNO_ORIGEM_INVALIDA");
+
+    const parcial = await rascunhoMinimo(ca, obraId);
+    parcial.financeiro.estornos = [
+      { origemId: sinalId, descricao: "parte", valorCentavos: 10000 },
+    ];
+    await publicarPrimeiroRelatorio(ca, obraId, parcial);
+
+    const { data: saldo, error: saldoErr } = await ca.rpc(
+      "fn_saldo_estornavel",
+      {
+        p_obra: obraId,
+      },
+    );
+    expect(saldoErr).toBeNull();
+    expect(saldo).toEqual([
+      expect.objectContaining({
+        lancamento_id: sinalId,
+        estornado_centavos: 10000,
+        saldo_centavos: 20000,
+      }),
+    ]);
+
+    const excede = await rascunhoMinimo(ca, obraId);
+    excede.financeiro.estornos = [
+      { origemId: sinalId, descricao: "resto", valorCentavos: 20001 },
+    ];
+    const { error: excedeErr } = await ca.rpc("fn_salvar_rascunho", {
+      p_obra: obraId,
+      p_relatorio: null,
+      p_dados: excede,
+    });
+    expect(excedeErr?.message).toContain("ESTORNO_ACIMA_ORIGEM");
   });
 
   it("revogar convite pendente cancela a cobrança antes do claim", async () => {
@@ -611,7 +828,10 @@ describe("segurança direta JWT/PostgREST", () => {
       .eq("id", logId);
     const { data: retry } = await admin.rpc("fn_claim_webhook_evento", args);
     expect((retry as { duplicado: boolean }).duplicado).toBe(false);
-    const { data: concorrente } = await admin.rpc("fn_claim_webhook_evento", args);
+    const { data: concorrente } = await admin.rpc(
+      "fn_claim_webhook_evento",
+      args,
+    );
     expect((concorrente as { emProcessamento: boolean }).emProcessamento).toBe(
       true,
     );

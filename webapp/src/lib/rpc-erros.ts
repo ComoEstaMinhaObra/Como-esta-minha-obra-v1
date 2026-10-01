@@ -1,3 +1,5 @@
+import { MENSAGENS_PROBLEMA_FINANCEIRO } from "@/lib/relatorios/calculos";
+
 export function codigoRpc(
   erro: { message?: string } | null | undefined,
 ): string {
@@ -34,8 +36,12 @@ export function codigoRpc(
     "VERSAO_PENDENTE",
     "VERSAO_AUSENTE",
     "VERSAO_INVALIDA",
-    "NAO_E_ULTIMO",
-    "MOTIVO_OBRIGATORIO",
+    "VALOR_INVALIDO",
+    "CONTRATADO_INVALIDO",
+    "PAGO_NEGATIVO",
+    "PAGO_ACIMA_CONTRATADO",
+    "ESTORNO_ACIMA_ORIGEM",
+    "ESTORNO_ORIGEM_INVALIDA",
     "PDF_HASH_INVALIDO",
     "PDF_PATH_INVALIDO",
     "PATH_INVALIDO",
@@ -64,8 +70,16 @@ export function mensagemRpc(codigo: string): string {
       return "Você atingiu o limite de obras do plano.";
     case "SEM_PERMISSAO":
       return "Você não tem permissão para esta ação.";
-    case "NAO_E_ULTIMO":
-      return "Só é possível retificar o último relatório enviado.";
+    case "VALOR_INVALIDO":
+      return "Todos os valores lançados precisam ser maiores que zero.";
+    case "CONTRATADO_INVALIDO":
+    case "PAGO_NEGATIVO":
+    case "PAGO_ACIMA_CONTRATADO":
+    case "ESTORNO_ACIMA_ORIGEM":
+    case "ESTORNO_ORIGEM_INVALIDA":
+      return MENSAGENS_PROBLEMA_FINANCEIRO[
+        codigo === "ESTORNO_ORIGEM_INVALIDA" ? "ESTORNO_SEM_ORIGEM" : codigo
+      ];
     default:
       return "Não foi possível concluir a ação.";
   }

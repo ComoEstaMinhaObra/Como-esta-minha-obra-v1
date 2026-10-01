@@ -229,8 +229,20 @@ export function FormNovaObra() {
     });
   }
 
+  const valorInvalido = valor <= 0;
+  const sinalAcimaDoContrato = sinal > valor;
+  const financeiroValido = !valorInvalido && !sinalAcimaDoContrato;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!financeiroValido) {
+      toast(
+        valorInvalido
+          ? "Informe um valor contratado maior que zero."
+          : "O sinal não pode superar o valor contratado.",
+      );
+      return;
+    }
     if (!etapasValidas) {
       toast(
         temEtapaSelecionadaSemPeso
@@ -401,11 +413,26 @@ export function FormNovaObra() {
           valorCentavos={valor}
           onChangeCentavos={setValor}
         />
+        {valorInvalido ? (
+          <p role="alert" className="text-xs text-marca">
+            O valor contratado precisa ser maior que R$ 0,00.
+          </p>
+        ) : null}
         <CampoMoeda
           rotulo="Sinal (R$)"
           valorCentavos={sinal}
           onChangeCentavos={setSinal}
         />
+        {sinalAcimaDoContrato ? (
+          <p role="alert" className="text-xs text-marca">
+            O sinal não pode superar o valor contratado.
+          </p>
+        ) : (
+          <p className="text-xs text-cinza-3">
+            O sinal e o valor contratado só são definidos aqui. Valores pagos
+            depois entram como medição nos relatórios.
+          </p>
+        )}
       </Cartao>
 
       <Cartao className="space-y-4 p-5">
@@ -496,7 +523,7 @@ export function FormNovaObra() {
 
       <Botao
         type="submit"
-        disabled={carregando || !etapasValidas}
+        disabled={carregando || !etapasValidas || !financeiroValido}
         className="w-full"
       >
         {carregando ? "Criando…" : "Criar página de acompanhamento"}

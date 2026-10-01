@@ -504,6 +504,7 @@ export type Database = {
           criado_em: string
           grupo: Database["public"]["Enums"]["lancamento_grupo"]
           id: string
+          lancamento_origem_id: string | null
           numero: number | null
           obra_id: string
           relatorio_id: string | null
@@ -516,6 +517,7 @@ export type Database = {
           criado_em?: string
           grupo: Database["public"]["Enums"]["lancamento_grupo"]
           id?: string
+          lancamento_origem_id?: string | null
           numero?: number | null
           obra_id: string
           relatorio_id?: string | null
@@ -528,6 +530,7 @@ export type Database = {
           criado_em?: string
           grupo?: Database["public"]["Enums"]["lancamento_grupo"]
           id?: string
+          lancamento_origem_id?: string | null
           numero?: number | null
           obra_id?: string
           relatorio_id?: string | null
@@ -563,6 +566,13 @@ export type Database = {
             columns: ["versao_id", "obra_id"]
             isOneToOne: false
             referencedRelation: "relatorio_versoes"
+            referencedColumns: ["id", "obra_id"]
+          },
+          {
+            foreignKeyName: "lancamentos_origem_fk"
+            columns: ["lancamento_origem_id", "obra_id"]
+            isOneToOne: false
+            referencedRelation: "lancamentos"
             referencedColumns: ["id", "obra_id"]
           },
         ]
@@ -1052,10 +1062,6 @@ export type Database = {
         Args: { p_pdf_path: string; p_pdf_sha256: string; p_versao: string }
         Returns: Json
       }
-      fn_finalizar_retificacao: {
-        Args: { p_pdf_path: string; p_pdf_sha256: string; p_versao: string }
-        Returns: Json
-      }
       fn_listar_obras_empreiteiro: { Args: never; Returns: Json }
       fn_listar_outbox_pendente: { Args: never; Returns: Json }
       fn_marcar_versao_falhou: {
@@ -1066,13 +1072,20 @@ export type Database = {
         Args: { p_relatorio: string }
         Returns: Json
       }
-      fn_preparar_retificacao: {
-        Args: { p_dados: Json; p_motivo: string; p_relatorio: string }
-        Returns: Json
-      }
       fn_proximos_rotulos: { Args: { p_obra: string }; Returns: Json }
       fn_purgar_rate_limits: { Args: never; Returns: number }
       fn_purgar_webhooks: { Args: never; Returns: number }
+      fn_saldo_estornavel: {
+        Args: { p_obra: string }
+        Returns: {
+          estornado_centavos: number
+          lancamento_id: string
+          rotulo: string
+          saldo_centavos: number
+          tipo: Database["public"]["Enums"]["lancamento_tipo"]
+          valor_centavos: number
+        }[]
+      }
       fn_remover_foto_rascunho: {
         Args: { p_storage_path: string }
         Returns: undefined
@@ -1110,8 +1123,14 @@ export type Database = {
       assinatura_status: "trial" | "ativa" | "inadimplente" | "cancelada"
       clima_condicao: "aberto" | "nublado" | "chuvoso"
       foto_estado: "reservada" | "publicada"
-      lancamento_grupo: "medicoes" | "materiais" | "aditivos"
-      lancamento_tipo: "sinal" | "medicao" | "material" | "aditivo" | "estorno"
+      lancamento_grupo: "medicoes" | "materiais" | "aditivos" | "supressoes"
+      lancamento_tipo:
+        | "sinal"
+        | "medicao"
+        | "material"
+        | "aditivo"
+        | "supressao"
+        | "estorno"
       motivo_aditivo:
         | "chuvas"
         | "aditivo_escopo"
@@ -1266,8 +1285,15 @@ export const Constants = {
       assinatura_status: ["trial", "ativa", "inadimplente", "cancelada"],
       clima_condicao: ["aberto", "nublado", "chuvoso"],
       foto_estado: ["reservada", "publicada"],
-      lancamento_grupo: ["medicoes", "materiais", "aditivos"],
-      lancamento_tipo: ["sinal", "medicao", "material", "aditivo", "estorno"],
+      lancamento_grupo: ["medicoes", "materiais", "aditivos", "supressoes"],
+      lancamento_tipo: [
+        "sinal",
+        "medicao",
+        "material",
+        "aditivo",
+        "supressao",
+        "estorno",
+      ],
       motivo_aditivo: [
         "chuvas",
         "aditivo_escopo",

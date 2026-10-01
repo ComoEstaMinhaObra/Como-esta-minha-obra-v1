@@ -19,6 +19,7 @@ const IDS = [
   "avanco-fisico",
   "avanco-financeiro",
   "aditivos",
+  "supressoes",
   "medicoes",
   "materiais",
 ];
@@ -72,6 +73,7 @@ export function InformacoesAcordeao({
     pagoAcumuladoCentavos: number;
     saldoCentavos: number;
     aditivosAcumuladoCentavos: number;
+    supressoesAcumuladoCentavos: number;
     entregaPrevista: string;
     diasDeObra: number;
     diasRestantes: number;
@@ -79,12 +81,16 @@ export function InformacoesAcordeao({
   };
 }) {
   const aditivos = lancamentos.filter((l) => l.tipo === "aditivo");
-  const medicoes = lancamentos.filter(
-    (l) =>
-      l.grupo === "medicoes" ||
-      l.tipo === "sinal" ||
-      (l.tipo === "estorno" && l.grupo === "medicoes"),
-  );
+  const supressoes = lancamentos.filter((l) => l.tipo === "supressao");
+  // O sinal vem primeiro na lista de medições, com o rótulo "Sinal".
+  const medicoes = lancamentos
+    .filter(
+      (l) =>
+        l.grupo === "medicoes" ||
+        l.tipo === "sinal" ||
+        (l.tipo === "estorno" && l.grupo === "medicoes"),
+    )
+    .sort((a, b) => Number(b.tipo === "sinal") - Number(a.tipo === "sinal"));
   const materiais = lancamentos.filter(
     (l) =>
       l.grupo === "materiais" ||
@@ -231,6 +237,28 @@ export function InformacoesAcordeao({
                 key={`${l.rotulo}-${i}`}
                 label={l.rotulo}
                 valor={formatarBRL(l.valorCentavos)}
+              />
+            ))
+          )}
+        </AcordeaoItem>
+        <AcordeaoItem
+          id="supressoes"
+          titulo="Supressões"
+          nivel={2}
+          resumo={
+            agregados.supressoesAcumuladoCentavos > 0
+              ? `− ${formatarBRL(agregados.supressoesAcumuladoCentavos)}`
+              : undefined
+          }
+        >
+          {supressoes.length === 0 ? (
+            <p className="text-cinza-2">Nenhuma supressão</p>
+          ) : (
+            supressoes.map((l, i) => (
+              <Linha
+                key={`${l.rotulo}-${i}`}
+                label={l.rotulo}
+                valor={`− ${formatarBRL(l.valorCentavos)}`}
               />
             ))
           )}

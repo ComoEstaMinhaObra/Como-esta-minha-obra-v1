@@ -2,10 +2,17 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Botao, RotuloSecao, Slider, useToast } from "@/components/ui";
-import { calcularAvancoGeral } from "@/lib/relatorios/calculos";
-import type { RelatorioRascunho } from "@/lib/relatorios/tipos";
+import {
+  calcularAvancoGeral,
+  problemasFinanceiros,
+  type SaldoEstornavel,
+} from "@/lib/relatorios/calculos";
+import type {
+  LancamentoPersistido,
+  RelatorioRascunho,
+} from "@/lib/relatorios/tipos";
+import { codigoRpc, mensagemRpc } from "@/lib/rpc-erros";
 import { salvarRascunhoRelatorio } from "./relatorio-actions";
-import { retificarRelatorioAction } from "./enviar-relatorio-action";
 import { SecaoFinanceiro } from "./relatorio/SecaoFinanceiro";
 import { SecaoPrazo } from "./relatorio/SecaoPrazo";
 import { SecaoAtividades } from "./relatorio/SecaoAtividades";
@@ -28,33 +35,43 @@ type Props = {
   relatorioId?: string;
   etapas: EtapaObra[];
   rascunhoInicial?: RelatorioRascunho;
-  maxMedicao: number;
-  maxAditivo: number;
   diasAditivadosPersistidos: number;
   terminoContratual: string;
   valorContratadoCentavos: number;
-  pagoPersistidoCentavos: number;
-  aditivosPersistidosCentavos: number;
-  historicoFinanceiro: {
-    medicoes: { rotulo: string; valorCentavos: number }[];
-    materiais: { rotulo: string; valorCentavos: number }[];
-    aditivos: { rotulo: string; valorCentavos: number }[];
-  };
+  lancamentos: LancamentoPersistido[];
+  saldoEstornavel: SaldoEstornavel[];
   climaDias: {
     data: string;
     condicao: "aberto" | "nublado" | "chuvoso";
     prob_chuva: number | null;
   }[];
-  retificando?: boolean;
 };
 
 function rascunhoVazio(etapas: EtapaObra[]): RelatorioRascunho {
   return {
     versao: 1,
     etapas: etapas.map((e) => ({ etapaId: e.id, pct: e.pct_atual })),
-    financeiro: { medicoes: [], materiais: [], aditivos: [], estornos: [] },
+    financeiro: {
+      medicoes: [],
+      materiais: [],
+      aditivos: [],
+      supressoes: [],
+      estornos: [],
+    },
     atividades: [],
     prazo: [],
+  };
+}
+
+/** Rascunhos salvos antes das supressões/estornos vinculados não têm esses campos. */
+function normalizarRascunho(r: RelatorioRascunho): RelatorioRascunho {
+  return {
+    ...r,
+    financeiro: {
+      ...r.financeiro,
+      supressoes: r.financeiro.supressoes ?? [],
+      estornos: (r.financeiro.estornos ?? []).filter((e) => e.origemId),
+    },
   };
 }
 
@@ -68,30 +85,24 @@ export function ModalRelatorio({
   relatorioId: relatorioIdProp,
   etapas,
   rascunhoInicial,
-  maxMedicao,
-  maxAditivo,
   diasAditivadosPersistidos,
   terminoContratual,
   valorContratadoCentavos,
-  pagoPersistidoCentavos,
-  aditivosPersistidosCentavos,
-  historicoFinanceiro,
+  lancamentos,
+  saldoEstornavel,
   climaDias,
-  retificando = false,
 }: Props) {
   const { toast } = useToast();
   const [relatorioId, setRelatorioId] = useState(relatorioIdProp);
-  const [motivo, setMotivo] = useState("");
   const [dados, setDados] = useState<RelatorioRascunho>(
-    () => rascunhoInicial ?? rascunhoVazio(etapas),
+    () => normalizarRascunho(rascunhoInicial ?? rascunhoVazio(etapas)),
   );
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!aberto) return;
     setRelatorioId(relatorioIdProp);
-    setDados(rascunhoInicial ?? rascunhoVazio(etapas));
-    setMotivo("");
+    setDados(normalizarRascunho(rascunhoInicial ?? rascunhoVazio(etapas)));
   }, [aberto, etapas, rascunhoInicial, relatorioIdProp]);
 
   const geralAntes = useMemo(
@@ -112,6 +123,16 @@ export function ModalRelatorio({
     );
   }, [dados.etapas, etapas]);
 
+  const problemas = useMemo(
+    () =>
+      problemasFinanceiros({
+        valorContratadoCentavos,
+        lancamentos,
+        financeiro: dados.financeiro,
+      }),
+    [valorContratadoCentavos, lancamentos, dados.financeiro],
+  );
+
   if (!aberto) return null;
 
   const hoje = new Date().toLocaleDateString("pt-BR", {
@@ -120,24 +141,6 @@ export function ModalRelatorio({
 
   function salvar() {
     startTransition(async () => {
-      if (retificando && relatorioId) {
-        if (!motivo.trim()) {
-          toast("Informe o motivo da retificação");
-          return;
-        }
-        const r = await retificarRelatorioAction({
-          relatorioId,
-          motivo: motivo.trim(),
-          dados,
-        });
-        if (!r.ok) {
-          toast(r.erro);
-          return;
-        }
-        toast(`Relatório nº ${r.numero} retificado`);
-        onFechar();
-        return;
-      }
       const r = await salvarRascunhoRelatorio({
         obraId,
         relatorioId,
@@ -145,7 +148,7 @@ export function ModalRelatorio({
         dados,
       });
       if (!r.ok) {
-        toast(r.erro === "ASSINATURA_INATIVA" ? "Assinatura inativa" : r.erro);
+        toast(mensagemRpc(codigoRpc({ message: r.erro })));
         return;
       }
       setRelatorioId(r.relatorioId);
@@ -210,12 +213,7 @@ export function ModalRelatorio({
                           ...prev,
                           etapas: prev.etapas.map((e) =>
                             e.etapaId === etapa.id
-                              ? {
-                                  ...e,
-                                  pct: retificando
-                                    ? pct
-                                    : Math.max(pct, etapa.pct_atual),
-                                }
+                              ? { ...e, pct: Math.max(pct, etapa.pct_atual) }
                               : e,
                           ),
                         }))
@@ -230,12 +228,9 @@ export function ModalRelatorio({
           <SecaoFinanceiro
             dados={dados}
             onChange={setDados}
-            maxMedicao={maxMedicao}
-            maxAditivo={maxAditivo}
             valorContratadoCentavos={valorContratadoCentavos}
-            pagoPersistidoCentavos={pagoPersistidoCentavos}
-            aditivosPersistidosCentavos={aditivosPersistidosCentavos}
-            historico={historicoFinanceiro}
+            lancamentos={lancamentos}
+            saldoEstornavel={saldoEstornavel}
           />
 
           <SecaoAtividades
@@ -257,29 +252,17 @@ export function ModalRelatorio({
         </div>
 
         <footer className="space-y-2 border-t border-divisor px-5 py-4">
-          {retificando ? (
-            <textarea
-              className="w-full rounded-[12px] border border-borda p-3 text-sm"
-              placeholder="Motivo da retificação (obrigatório)"
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-            />
-          ) : null}
           <Botao
             variante="terciario"
             className="w-full"
-            disabled={pending}
+            disabled={pending || problemas.length > 0}
             onClick={salvar}
           >
-            {pending
-              ? "Salvando…"
-              : retificando
-                ? `Confirmar retificação do relatório nº ${numero}`
-                : `Salvar rascunho do relatório nº ${numero}`}
+            {pending ? "Salvando…" : `Salvar rascunho do relatório nº ${numero}`}
           </Botao>
           <p className="text-center text-xs text-cinza-3">
-            {retificando
-              ? "Ao confirmar, a nova versão será publicada e o cliente será avisado."
+            {problemas.length > 0
+              ? "Corrija os avisos do financeiro para salvar."
               : "Nada é enviado ainda. O cliente só vê após você publicar."}
           </p>
         </footer>

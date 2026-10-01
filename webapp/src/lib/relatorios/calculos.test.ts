@@ -11,10 +11,19 @@ import {
 import {
   calcularAvancoGeral,
   calcularFinanceiro,
+  calcularFinanceiroProjetado,
   calcularNovaDataTermino,
+  calcularSaldoEstornavel,
   pctMonotonicoValido,
+  problemasFinanceiros,
   proximoRotuloMedicao,
+  proximoRotuloSupressao,
+  validarInvariantesFinanceiras,
 } from "@/lib/relatorios/calculos";
+import type {
+  LancamentoPersistido,
+  RelatorioRascunho,
+} from "@/lib/relatorios/tipos";
 
 const etapasPlanilha = [
   ...Array.from({ length: 5 }, () => ({ peso: 1, pct: 100 })),
@@ -97,6 +106,161 @@ describe("F — financeiro", () => {
       estornosAditivosCentavos: [-500_000],
     });
     expect(r2.contratadoTotalCentavos).toBe(102_800_000);
+  });
+});
+
+describe("F — supressão, estornos vinculados e invariantes", () => {
+  const lanc = (
+    over: Partial<LancamentoPersistido> & Pick<LancamentoPersistido, "id" | "tipo">,
+  ): LancamentoPersistido => ({
+    grupo: "medicoes",
+    rotulo: over.id,
+    valorCentavos: 0,
+    numero: null,
+    relatorioId: "rel-1",
+    origemId: null,
+    ...over,
+  });
+  const vazio: RelatorioRascunho["financeiro"] = {
+    medicoes: [],
+    materiais: [],
+    aditivos: [],
+    supressoes: [],
+    estornos: [],
+  };
+  const base = [
+    lanc({ id: "sinal", tipo: "sinal", valorCentavos: 10_000_000, relatorioId: null }),
+    lanc({ id: "m1", tipo: "medicao", valorCentavos: 20_000_000, numero: 1 }),
+  ];
+
+  it("supressão reduz o contratado abaixo do original", () => {
+    const r = calcularFinanceiro({
+      valorContratadoCentavos: 100_000_000,
+      aditivosCentavos: [],
+      supressoesCentavos: [40_000_000],
+      pagoCentavos: [30_000_000],
+    });
+    expect(r.contratadoTotalCentavos).toBe(60_000_000);
+    expect(r.supressoesAcumuladoCentavos).toBe(40_000_000);
+    expect(r.pctPago).toBe(50);
+  });
+
+  it("invariantes: contratado > 0, pago >= 0 e pago <= contratado", () => {
+    expect(
+      validarInvariantesFinanceiras({ contratadoTotalCentavos: 0, pagoAcumuladoCentavos: 0 }),
+    ).toBe("CONTRATADO_INVALIDO");
+    expect(
+      validarInvariantesFinanceiras({ contratadoTotalCentavos: 100, pagoAcumuladoCentavos: -1 }),
+    ).toBe("PAGO_NEGATIVO");
+    expect(
+      validarInvariantesFinanceiras({ contratadoTotalCentavos: 100, pagoAcumuladoCentavos: 101 }),
+    ).toBe("PAGO_ACIMA_CONTRATADO");
+    expect(
+      validarInvariantesFinanceiras({ contratadoTotalCentavos: 100, pagoAcumuladoCentavos: 100 }),
+    ).toBeNull();
+  });
+
+  it("supressão sem devolução deixa o pago acima do contratado; com devolução passa", () => {
+    const params = { valorContratadoCentavos: 50_000_000, lancamentos: base };
+    expect(
+      problemasFinanceiros({
+        ...params,
+        financeiro: {
+          ...vazio,
+          supressoes: [{ descricao: "Garagem", valorCentavos: 25_000_000 }],
+        },
+      }),
+    ).toContain("PAGO_ACIMA_CONTRATADO");
+    expect(
+      problemasFinanceiros({
+        ...params,
+        financeiro: {
+          ...vazio,
+          supressoes: [{ descricao: "Garagem", valorCentavos: 25_000_000 }],
+          estornos: [{ origemId: "m1", descricao: "Devolução", valorCentavos: 5_000_000 }],
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it("supressão que zera o contratado é bloqueada", () => {
+    expect(
+      problemasFinanceiros({
+        valorContratadoCentavos: 30_000_000,
+        lancamentos: base,
+        financeiro: {
+          ...vazio,
+          supressoes: [{ descricao: "Tudo", valorCentavos: 30_000_000 }],
+        },
+      }),
+    ).toContain("CONTRATADO_INVALIDO");
+  });
+
+  it("estorno acima do saldo da origem e valores zerados são reportados", () => {
+    const params = { valorContratadoCentavos: 100_000_000, lancamentos: base };
+    const acima = problemasFinanceiros({
+      ...params,
+      financeiro: {
+        ...vazio,
+        estornos: [
+          { origemId: "m1", descricao: "a", valorCentavos: 15_000_000 },
+          { origemId: "m1", descricao: "b", valorCentavos: 5_000_001 },
+        ],
+      },
+    });
+    expect(acima).toContain("ESTORNO_ACIMA_ORIGEM");
+    expect(
+      problemasFinanceiros({
+        ...params,
+        financeiro: { ...vazio, medicoes: [{ valorCentavos: 0 }] },
+      }),
+    ).toContain("VALOR_INVALIDO");
+    expect(
+      problemasFinanceiros({
+        ...params,
+        financeiro: {
+          ...vazio,
+          estornos: [{ origemId: "nao-existe", descricao: "a", valorCentavos: 1 }],
+        },
+      }),
+    ).toContain("ESTORNO_SEM_ORIGEM");
+  });
+
+  it("saldo estornável desconta estornos parciais já persistidos", () => {
+    const saldos = calcularSaldoEstornavel([
+      ...base,
+      lanc({
+        id: "e1",
+        tipo: "estorno",
+        valorCentavos: -5_000_000,
+        origemId: "m1",
+      }),
+    ]);
+    expect(saldos.find((s) => s.id === "m1")).toMatchObject({
+      estornadoCentavos: 5_000_000,
+      saldoCentavos: 15_000_000,
+    });
+    expect(saldos.map((s) => s.id)).toEqual(["sinal", "m1"]);
+  });
+
+  it("estorno de aditivo reduz o contratado e não o pago", () => {
+    const r = calcularFinanceiroProjetado({
+      valorContratadoCentavos: 100_000_000,
+      lancamentos: [
+        ...base,
+        lanc({ id: "a1", tipo: "aditivo", grupo: "aditivos", valorCentavos: 8_000_000, numero: 1 }),
+      ],
+      financeiro: {
+        ...vazio,
+        estornos: [{ origemId: "a1", descricao: "cancelado", valorCentavos: 3_000_000 }],
+      },
+    });
+    expect(r.contratadoTotalCentavos).toBe(105_000_000);
+    expect(r.pagoAcumuladoCentavos).toBe(30_000_000);
+  });
+
+  it("rótulo da próxima supressão", () => {
+    expect(proximoRotuloSupressao(1, 1)).toBe("Supressão 03");
   });
 });
 

@@ -13,10 +13,15 @@ import {
 import { formatarBRLCompacto } from "@/lib/formatacao";
 import {
   calcularAvancoGeral,
-  calcularFinanceiro,
+  calcularFinanceiroProjetado,
   calcularNovaDataTermino,
+  type SaldoEstornavel,
 } from "@/lib/relatorios/calculos";
-import type { RelatorioRascunho, RelatorioSnapshot } from "@/lib/relatorios/tipos";
+import type {
+  LancamentoPersistido,
+  RelatorioRascunho,
+  RelatorioSnapshot,
+} from "@/lib/relatorios/tipos";
 import { createClient } from "@/lib/supabase/server";
 import { DetalheAcoes } from "./DetalheAcoes";
 import { FeedRelatorios } from "./FeedRelatorios";
@@ -55,6 +60,7 @@ export default async function DetalheObraPage({
     { data: diasAditivos },
     { data: relatorios },
     { data: clima },
+    { data: saldoRows },
   ] = await Promise.all([
     supabase
       .from("etapas")
@@ -63,8 +69,11 @@ export default async function DetalheObraPage({
       .order("ordem"),
     supabase
       .from("lancamentos")
-      .select("tipo, grupo, valor_centavos, numero, rotulo, relatorio_id")
-      .eq("obra_id", obraId),
+      .select(
+        "id, tipo, grupo, valor_centavos, numero, rotulo, relatorio_id, lancamento_origem_id, criado_em",
+      )
+      .eq("obra_id", obraId)
+      .order("criado_em", { ascending: true }),
     supabase.from("dias_aditivados").select("dias").eq("obra_id", obraId),
     supabase
       .from("relatorios")
@@ -78,6 +87,7 @@ export default async function DetalheObraPage({
       .select("data, condicao, prob_chuva")
       .eq("obra_id", obraId)
       .order("data", { ascending: true }),
+    supabase.rpc("fn_saldo_estornavel", { p_obra: obraId }),
   ]);
 
   const listaEtapas = etapas ?? [];
@@ -86,52 +96,42 @@ export default async function DetalheObraPage({
   );
   const etapasConcluidas = listaEtapas.filter((e) => e.pct_atual === 100).length;
 
-  const aditivos = (lancamentos ?? [])
-    .filter((l) => l.tipo === "aditivo")
-    .map((l) => l.valor_centavos);
-  const estornosAditivos = (lancamentos ?? [])
-    .filter((l) => l.tipo === "estorno" && l.grupo === "aditivos")
-    .map((l) => l.valor_centavos);
-  const pago = (lancamentos ?? [])
-    .filter((l) =>
-      ["sinal", "medicao", "material", "estorno"].includes(l.tipo),
-    )
-    .filter((l) => !(l.tipo === "estorno" && l.grupo === "aditivos"))
-    .map((l) => l.valor_centavos);
+  const lancamentosPersistidos: LancamentoPersistido[] = (lancamentos ?? []).map(
+    (l) => ({
+      id: l.id,
+      tipo: l.tipo,
+      grupo: l.grupo,
+      rotulo: l.rotulo,
+      valorCentavos: l.valor_centavos,
+      numero: l.numero,
+      relatorioId: l.relatorio_id,
+      origemId: l.lancamento_origem_id,
+    }),
+  );
+  const saldoEstornavel: SaldoEstornavel[] = (saldoRows ?? []).map((r) => ({
+    id: r.lancamento_id,
+    tipo: r.tipo as SaldoEstornavel["tipo"],
+    rotulo: r.rotulo,
+    valorCentavos: r.valor_centavos,
+    estornadoCentavos: r.estornado_centavos,
+    saldoCentavos: r.saldo_centavos,
+  }));
 
-  const fin = calcularFinanceiro({
+  const fin = calcularFinanceiroProjetado({
     valorContratadoCentavos: obra.valor_contratado_centavos,
-    aditivosCentavos: aditivos,
-    pagoCentavos: pago,
-    estornosAditivosCentavos: estornosAditivos,
+    lancamentos: lancamentosPersistidos,
+    financeiro: {
+      medicoes: [],
+      materiais: [],
+      aditivos: [],
+      supressoes: [],
+      estornos: [],
+    },
   });
 
   const dias = (diasAditivos ?? []).map((d) => d.dias);
   const entregaPrevista = calcularNovaDataTermino(obra.termino_contratual, dias);
 
-  const maxMedicao = Math.max(
-    0,
-    ...(lancamentos ?? [])
-      .filter((l) => l.tipo === "medicao")
-      .map((l) => l.numero ?? 0),
-  );
-  const maxAditivo = Math.max(
-    0,
-    ...(lancamentos ?? [])
-      .filter((l) => l.tipo === "aditivo")
-      .map((l) => l.numero ?? 0),
-  );
-
-  const lancamentosAnteriores = (lancamentos ?? [])
-    .filter((l) => l.tipo === "medicao" || l.tipo === "material" || l.tipo === "aditivo")
-    .map((l) => ({
-      tipo: l.tipo as "medicao" | "material" | "aditivo",
-      rotulo: l.rotulo,
-      valorCentavos: l.valor_centavos,
-      numero: l.numero,
-      relatorioId: l.relatorio_id,
-    }))
-    .sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
   const proximoNumero =
     Math.max(0, ...(relatorios ?? []).map((r) => r.numero)) + 1;
 
@@ -143,17 +143,6 @@ export default async function DetalheObraPage({
       status: r.status as "rascunho" | "enviado",
       dados_rascunho: r.dados_rascunho as RelatorioRascunho | null,
     }));
-
-  const ultimoEnviadoRow = (relatorios ?? []).find(
-    (r) => r.status === "enviado",
-  );
-  const { data: versaoAtual } = ultimoEnviadoRow
-    ? await supabase.rpc("fn_dados_versao_atual", {
-        p_relatorio: ultimoEnviadoRow.id,
-      })
-    : { data: null };
-  const dadosUltimoEnviado =
-    (versaoAtual as unknown as RelatorioRascunho | null) ?? null;
 
   return (
     <div className="space-y-8">
@@ -182,25 +171,13 @@ export default async function DetalheObraPage({
                 pct_atual: e.pct_atual,
               }))}
               proximoNumero={proximoNumero}
-              maxMedicao={maxMedicao}
-              maxAditivo={maxAditivo}
               diasAditivadosPersistidos={dias.reduce((a, b) => a + b, 0)}
               terminoContratual={obra.termino_contratual}
               valorContratadoCentavos={obra.valor_contratado_centavos}
-              pagoPersistidoCentavos={fin.pagoAcumuladoCentavos}
-              aditivosPersistidosCentavos={aditivos.reduce((a, b) => a + b, 0)}
-              lancamentosAnteriores={lancamentosAnteriores}
+              lancamentos={lancamentosPersistidos}
+              saldoEstornavel={saldoEstornavel}
               climaDias={clima ?? []}
               rascunhos={rascunhos}
-              ultimoEnviado={
-                ultimoEnviadoRow
-                  ? {
-                      id: ultimoEnviadoRow.id,
-                      numero: ultimoEnviadoRow.numero,
-                      dados: dadosUltimoEnviado,
-                    }
-                  : null
-              }
             />
           </Suspense>
         </div>
@@ -222,7 +199,12 @@ export default async function DetalheObraPage({
               <p className="mt-1 font-serif text-xl font-light">
                 {formatarBRLCompacto(fin.pagoAcumuladoCentavos)}
               </p>
-              <p className="text-xs text-white/60">{fin.pctPago}% do contrato</p>
+              <p className="text-xs text-white/60">
+                {fin.pctPago}% de {formatarBRLCompacto(fin.contratadoTotalCentavos)}
+                {fin.supressoesAcumuladoCentavos > 0
+                  ? ` (após supressões de ${formatarBRLCompacto(fin.supressoesAcumuladoCentavos)})`
+                  : ""}
+              </p>
             </div>
             <div>
               <RotuloSecao className="text-marca-clara">Entrega</RotuloSecao>
@@ -287,9 +269,6 @@ export default async function DetalheObraPage({
           </div>
           <FeedRelatorios
             obraId={obra.id}
-            ultimoEnviadoId={
-              (relatorios ?? []).find((r) => r.status === "enviado")?.id ?? null
-            }
             relatorios={(relatorios ?? []).map((r) => ({
               id: r.id,
               numero: r.numero,

@@ -35,6 +35,15 @@ export async function criarObraAction(input: NovaObraInput) {
     return { ok: false as const, erro: "NAO_AUTENTICADO" };
   }
 
+  if (
+    !Number.isInteger(input.valorContratadoCentavos) ||
+    input.valorContratadoCentavos <= 0 ||
+    input.sinalCentavos < 0 ||
+    input.sinalCentavos > input.valorContratadoCentavos
+  ) {
+    return { ok: false as const, erro: "DADOS_INVALIDOS" };
+  }
+
   const etapas = input.etapas.map((etapa) => ({
     nome: etapa.nome.trim(),
     peso: etapa.peso,

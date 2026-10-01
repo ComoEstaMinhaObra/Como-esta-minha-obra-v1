@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import type { RelatorioSnapshot } from "@/lib/relatorios/tipos";
 import { ConviteAcessoEmail } from "@/emails/convite-acesso";
 import { NovoRelatorioEmail } from "@/emails/novo-relatorio";
-import { RetificacaoRelatorioEmail } from "@/emails/retificacao-relatorio";
 import { logSeguro } from "@/lib/log";
 
 function resendOuNull() {
@@ -88,45 +87,6 @@ export async function enviarEmailNovoRelatorio(params: {
       react: createElement(NovoRelatorioEmail, {
         obraNome: params.snapshot.obra.nome,
         numero: params.numero,
-        avancoAntes: params.snapshot.avancoFisico.geralAntes,
-        avancoDepois: params.snapshot.avancoFisico.geralDepois,
-        link,
-      }),
-    });
-  }
-}
-
-export async function enviarEmailRetificacao(params: {
-  obraId: string;
-  numero: number;
-  versaoNumero: number;
-  snapshot: RelatorioSnapshot;
-}) {
-  const emails = await destinatariosAtivos(params.obraId);
-  const link = `${publicEnv.NEXT_PUBLIC_APP_URL}/c/${params.obraId}`;
-  const resend = resendOuNull();
-  let from = publicEnv.NEXT_PUBLIC_APP_URL;
-  try {
-    from = getServerEnv().EMAIL_FROM;
-  } catch {
-    /* ignore */
-  }
-
-  logSeguro("info", {
-    evento: "email_retificacao",
-    ids: { obraId: params.obraId, numero: params.numero, versao: params.versaoNumero },
-  });
-
-  if (!resend) return;
-  for (const para of emails) {
-    await resend.emails.send({
-      from,
-      to: para,
-      subject: `Relatório nº ${params.numero} da obra ${params.snapshot.obra.nome} foi retificado`,
-      react: createElement(RetificacaoRelatorioEmail, {
-        obraNome: params.snapshot.obra.nome,
-        numero: params.numero,
-        versaoNumero: params.versaoNumero,
         avancoAntes: params.snapshot.avancoFisico.geralAntes,
         avancoDepois: params.snapshot.avancoFisico.geralDepois,
         link,
