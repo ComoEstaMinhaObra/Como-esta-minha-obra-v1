@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:security": "vitest run --config vitest.security.config.mts",
-    "abacatepay:bootstrap": "tsx scripts/abacatepay-bootstrap.ts",
+    "abacatepay:bootstrap": "NODE_OPTIONS=--conditions=react-server tsx scripts/abacatepay-bootstrap.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "backfill:pdf-hash": "tsx scripts/backfill-pdf-hash.ts"
   },

@@ -55,7 +55,8 @@ async function main() {
     precoCentavos: number,
     cycle?: "MONTHLY",
   ) {
-    const existentes = await listarProdutos({ externalId, limit: 10 });
+    // O filtro externalId da listagem não funciona no AbacatePay (devolve vazio); lista e filtra aqui.
+    const existentes = await listarProdutos({ limit: 100 });
     const achado = (existentes ?? []).find((p) => p.externalId === externalId);
     const produto =
       achado ??
