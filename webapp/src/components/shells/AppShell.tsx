@@ -45,7 +45,7 @@ function IconPlanos() {
 const nav = [
   { href: "/obras", label: "Minhas obras", Icon: IconObras, match: (p: string) => p === "/obras" || (p.startsWith("/obras/") && !p.startsWith("/obras/nova")) },
   { href: "/obras/nova", label: "Nova obra", Icon: IconNova, match: (p: string) => p.startsWith("/obras/nova") },
-  { href: "/planos", label: "Planos", Icon: IconPlanos, match: (p: string) => p.startsWith("/planos") },
+  { href: "/cobranca", label: "Cobrança", Icon: IconPlanos, match: (p: string) => p.startsWith("/cobranca") },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {

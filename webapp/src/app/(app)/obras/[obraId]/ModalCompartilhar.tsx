@@ -9,7 +9,7 @@ import {
   Selo,
   useToast,
 } from "@/components/ui";
-import { ModalUpsellLimite } from "@/components/ui/ModalUpsellLimite";
+import { ModalCobrancaNecessaria } from "@/components/ui/ModalCobrancaNecessaria";
 import { publicEnv } from "@/config/env";
 import {
   liberarAcessoObra,
@@ -166,11 +166,11 @@ export function ModalCompartilhar({
         </div>
       </ModalBase>
 
-      <ModalUpsellLimite
+      <ModalCobrancaNecessaria
         aberto={upsell}
         onFechar={() => setUpsell(false)}
-        titulo="E-mail extra"
-        mensagem="No trial só o 1º e-mail é gratuito. Assine um plano para liberar e-mails adicionais."
+        titulo="E-mail adicional"
+        mensagem="Só o 1º e-mail da obra é gratuito. Para liberar e-mails adicionais, contrate a cobrança da obra."
       />
     </>
   );

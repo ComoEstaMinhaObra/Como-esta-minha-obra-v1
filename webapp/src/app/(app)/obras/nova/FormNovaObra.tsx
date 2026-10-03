@@ -29,7 +29,7 @@ import {
   RotuloSecao,
   useToast,
 } from "@/components/ui";
-import { ModalUpsellLimite } from "@/components/ui/ModalUpsellLimite";
+import { ModalCobrancaNecessaria } from "@/components/ui/ModalCobrancaNecessaria";
 import {
   pesoDigitadoParaNumero,
   pesoParaCentesimos,
@@ -529,7 +529,7 @@ export function FormNovaObra() {
         {carregando ? "Criando…" : "Criar página de acompanhamento"}
       </Botao>
 
-      <ModalUpsellLimite
+      <ModalCobrancaNecessaria
         aberto={upsellLimite}
         onFechar={() => setUpsellLimite(false)}
       />

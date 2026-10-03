@@ -102,7 +102,7 @@ export async function enviarEmailPagamentoPendente(params: {
   obraNome: string;
   limite: string;
 }) {
-  const link = `${publicEnv.NEXT_PUBLIC_APP_URL}/planos`;
+  const link = `${publicEnv.NEXT_PUBLIC_APP_URL}/cobranca`;
   logSeguro("info", { evento: "email_pagamento_pendente" });
 
   const resend = resendOuNull();

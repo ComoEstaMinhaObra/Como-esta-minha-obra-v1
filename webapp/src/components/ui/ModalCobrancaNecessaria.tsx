@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Botao, ModalBase } from "@/components/ui";
 
-export function ModalUpsellLimite({
+/** Aviso de que a ação depende da cobrança da obra (substitui o antigo "limite do plano"). */
+export function ModalCobrancaNecessaria({
   aberto,
   onFechar,
-  titulo = "Limite do plano",
-  mensagem = "Você atingiu o limite de obras do seu plano. Arquive uma obra ou assine um plano maior para continuar.",
+  titulo = "Cobrança necessária",
+  mensagem = "Esta obra está somente leitura. Contrate a cobrança da obra para continuar.",
 }: {
   aberto: boolean;
   onFechar: () => void;
@@ -28,16 +29,16 @@ export function ModalUpsellLimite({
           <Botao
             onClick={() => {
               onFechar();
-              router.push("/planos");
+              router.push("/cobranca");
             }}
           >
-            Ver planos
+            Ver cobrança
           </Botao>
         </div>
         <p className="text-xs text-cinza-3">
           Ou vá direto para{" "}
-          <Link href="/planos" className="underline">
-            /planos
+          <Link href="/cobranca" className="underline">
+            Cobrança
           </Link>
           .
         </p>

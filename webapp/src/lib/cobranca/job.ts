@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { DIAS_RECUPERACAO } from "@/lib/cobranca/constantes";
 import { enviarEmailPagamentoPendente } from "@/lib/email/enviar";
 import { logSeguro, sanitizarErro } from "@/lib/log";
 
@@ -15,9 +16,6 @@ interface RetornoJob {
   canceladasPorFimDoPeriodo: number;
   canceladasPorInadimplencia: number;
 }
-
-/** Prazo de recuperação do pagamento (decisões, seção 2.6). */
-export const DIAS_RECUPERACAO = 14;
 
 function ddmm(d: Date): string {
   return d.toLocaleDateString("pt-BR", {

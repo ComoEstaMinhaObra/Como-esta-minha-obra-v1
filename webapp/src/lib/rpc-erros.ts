@@ -50,6 +50,9 @@ export function codigoRpc(
     "NAO_ENCONTRADO",
     "ESTADO_INSEGURO",
     "OBRA_ARQUIVADA",
+    "COBRANCA_AUSENTE",
+    "COBRANCA_NAO_CANCELAVEL",
+    "COBRANCA_NAO_DESFAZIVEL",
   ];
   for (const codigo of conhecido) {
     if (msg.includes(codigo)) return codigo;
@@ -65,9 +68,15 @@ export function mensagemRpc(codigo: string): string {
     case "TRIAL_EXPIRADO":
     case "TRIAL_LIMITE":
     case "PRECISA_ASSINAR":
-      return "Sua assinatura não permite esta ação.";
+      return "Esta obra está somente leitura. Contrate a cobrança da obra na tela de Cobrança para continuar.";
     case "LIMITE_OBRAS":
-      return "Você atingiu o limite de obras do plano.";
+      return "No trial você pode ter uma obra. Contrate a cobrança da obra para criar outras.";
+    case "COBRANCA_AUSENTE":
+      return "Esta obra não tem cobrança ativa.";
+    case "COBRANCA_NAO_CANCELAVEL":
+      return "Esta cobrança não pode ser cancelada agora.";
+    case "COBRANCA_NAO_DESFAZIVEL":
+      return "O cancelamento não pode mais ser desfeito.";
     case "SEM_PERMISSAO":
       return "Você não tem permissão para esta ação.";
     case "VALOR_INVALIDO":

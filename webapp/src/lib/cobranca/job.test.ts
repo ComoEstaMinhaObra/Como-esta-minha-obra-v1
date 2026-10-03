@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DIAS_RECUPERACAO, executarJobCobranca } from "@/lib/cobranca/job";
+import { DIAS_RECUPERACAO } from "@/lib/cobranca/constantes";
+import { executarJobCobranca } from "@/lib/cobranca/job";
 
 const enviarEmailPagamentoPendente = vi.fn();
 vi.mock("@/lib/email/enviar", () => ({

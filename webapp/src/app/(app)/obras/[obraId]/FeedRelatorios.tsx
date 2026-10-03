@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Botao, Cartao, ModalBase, Selo, useToast } from "@/components/ui";
-import { ModalUpsellLimite } from "@/components/ui/ModalUpsellLimite";
+import { ModalCobrancaNecessaria } from "@/components/ui/ModalCobrancaNecessaria";
 import { formatarBRLCompacto } from "@/lib/formatacao";
 import { codigoRpc, mensagemRpc } from "@/lib/rpc-erros";
 import { enviarRelatorioAction } from "./enviar-relatorio-action";
@@ -195,11 +195,11 @@ export function FeedRelatorios({
         </div>
       </ModalBase>
 
-      <ModalUpsellLimite
+      <ModalCobrancaNecessaria
         aberto={upsell}
         onFechar={() => setUpsell(false)}
-        titulo="Assinatura necessária"
-        mensagem="Seu trial não permite mais envios. Assine um plano para continuar publicando relatórios."
+        titulo="Cobrança necessária"
+        mensagem="Esta obra não aceita mais envios no trial. Contrate a cobrança da obra para continuar publicando relatórios."
       />
     </>
   );

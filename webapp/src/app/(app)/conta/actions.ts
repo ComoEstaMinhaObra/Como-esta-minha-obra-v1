@@ -40,6 +40,6 @@ export async function cancelarAssinaturaConta() {
   }
 
   revalidatePath("/conta");
-  revalidatePath("/planos");
+  revalidatePath("/cobranca");
   return { ok: true as const };
 }

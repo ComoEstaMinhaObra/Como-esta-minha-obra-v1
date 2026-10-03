@@ -10,7 +10,13 @@ import {
   RotuloSecao,
   Selo,
 } from "@/components/ui";
-import { formatarBRLCompacto } from "@/lib/formatacao";
+import { formatarBRL, formatarBRLCompacto } from "@/lib/formatacao";
+import { OBRA_ATIVA } from "@/config/pricing";
+import {
+  estadoCobrancaTela,
+  obraPermiteEscrita,
+  type CobrancaObra,
+} from "@/lib/gating";
 import {
   calcularAvancoGeral,
   calcularFinanceiroProjetado,
@@ -61,6 +67,8 @@ export default async function DetalheObraPage({
     { data: relatorios },
     { data: clima },
     { data: saldoRows },
+    { data: cobrancasUsuario },
+    { data: conta },
   ] = await Promise.all([
     supabase
       .from("etapas")
@@ -88,7 +96,41 @@ export default async function DetalheObraPage({
       .eq("obra_id", obraId)
       .order("data", { ascending: true }),
     supabase.rpc("fn_saldo_estornavel", { p_obra: obraId }),
+    supabase
+      .from("cobrancas_obra")
+      .select("obra_id, status, acesso_ate")
+      .eq("user_id", user.id),
+    supabase
+      .from("assinaturas")
+      .select("status, trial_fim, relatorios_enviados_trial")
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
+
+  // Estado de cobrança da obra (espelha private.obra_permite_escrita; o banco é a fonte da verdade).
+  const cobrancasDaObra: CobrancaObra[] = (cobrancasUsuario ?? [])
+    .filter((c) => c.obra_id === obraId)
+    .map((c) => ({
+      status: c.status,
+      acessoAte: c.acesso_ate ? new Date(c.acesso_ate) : null,
+    }));
+  const estadoCobranca = estadoCobrancaTela(cobrancasDaObra);
+  const somenteLeitura =
+    !obra.arquivada_em &&
+    !!conta &&
+    !obraPermiteEscrita({
+      cobrancas: cobrancasDaObra,
+      donoJaTeveCobranca: (cobrancasUsuario ?? []).length > 0,
+      conta: {
+        status: conta.status,
+        trialFim: conta.trial_fim ? new Date(conta.trial_fim) : null,
+        relatoriosEnviadosTrial: conta.relatorios_enviados_trial,
+      },
+    });
+  const acessoAteCancelamento =
+    estadoCobranca === "cancelamento_agendado"
+      ? cobrancasDaObra.find((c) => c.status === "cancelamento_agendado")?.acessoAte ?? null
+      : null;
 
   const listaEtapas = etapas ?? [];
   const avanco = calcularAvancoGeral(
@@ -182,6 +224,29 @@ export default async function DetalheObraPage({
           </Suspense>
         </div>
       </header>
+
+      {somenteLeitura ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-marca/40 bg-marca/10 px-4 py-3 text-sm">
+          <span>
+            {estadoCobranca === "inadimplente"
+              ? "Pagamento pendente: esta obra está somente leitura até o pagamento ser regularizado."
+              : estadoCobranca === "cancelada"
+                ? "A cobrança desta obra foi cancelada: ela está somente leitura."
+                : `Esta obra ainda não tem cobrança ativa e está somente leitura. Contrate a cobrança (${formatarBRL(OBRA_ATIVA.precoCentavos)}/mês) para editar rascunhos e enviar relatórios.`}
+          </span>
+          <Link
+            href={`/cobranca?obra=${obra.id}`}
+            className="rounded-full bg-marca px-4 py-1.5 text-white"
+          >
+            Ver cobrança
+          </Link>
+        </div>
+      ) : acessoAteCancelamento ? (
+        <div className="rounded-[16px] border border-borda bg-white/60 px-4 py-3 text-sm text-cinza-2">
+          A cobrança desta obra foi cancelada. Você mantém todos os recursos até{" "}
+          {acessoAteCancelamento.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}.
+        </div>
+      ) : null}
 
       <CartaoEscuro className="grid gap-6 p-6 min-[800px]:grid-cols-[auto_1fr]">
         <AnelProgresso pct={avanco} />

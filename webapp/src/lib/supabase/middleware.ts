@@ -5,7 +5,7 @@ import type { Database } from "@/lib/database.types";
 
 function ehRotaProtegida(pathname: string): boolean {
   if (pathname.startsWith("/obras")) return true;
-  if (pathname.startsWith("/planos")) return true;
+  if (pathname.startsWith("/cobranca")) return true;
   if (pathname.startsWith("/conta")) return true;
   if (pathname.startsWith("/c/")) return true;
   if (pathname.startsWith("/admin")) return true;
@@ -17,7 +17,7 @@ function ehRotaComNonce(pathname: string): boolean {
     pathname.startsWith("/entrar") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/obras") ||
-    pathname.startsWith("/planos") ||
+    pathname.startsWith("/cobranca") ||
     pathname.startsWith("/conta") ||
     pathname.startsWith("/c/") ||
     pathname.startsWith("/admin")

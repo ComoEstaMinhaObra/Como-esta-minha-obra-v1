@@ -70,6 +70,19 @@ test.describe("smoke marketing + guards (sem auth)", () => {
     await expect(page).toHaveURL(/\/entrar/);
   });
 
+  test("/cobranca exige login", async ({ page }) => {
+    await page.goto("/cobranca");
+    await expect(page).toHaveURL(/\/entrar/);
+  });
+
+  test("/planos e /cobrancas redirecionam para /cobranca", async ({ request }) => {
+    for (const origem of ["/planos", "/cobrancas"]) {
+      const r = await request.get(origem, { maxRedirects: 0 });
+      expect(r.status()).toBe(308);
+      expect(r.headers()["location"]).toContain("/cobranca");
+    }
+  });
+
   test("CSP Report-Only propaga o mesmo nonce aos scripts do Next", async ({
     page,
   }) => {

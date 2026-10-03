@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/obras/[obraId]": ["./src/assets/fonts/**/*"],
   },
+  // A tela de Planos virou Cobrança (cobrança por obra, 03/10/2026). Links e favoritos antigos
+  // continuam funcionando; /cobrancas (plural) também.
+  async redirects() {
+    return [
+      { source: "/planos", destination: "/cobranca", permanent: true },
+      { source: "/planos/:path*", destination: "/cobranca", permanent: true },
+      { source: "/cobrancas", destination: "/cobranca", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

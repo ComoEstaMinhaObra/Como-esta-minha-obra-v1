@@ -323,6 +323,7 @@ export type Database = {
           id: string
           inadimplente_desde: string | null
           obra_id: string
+          periodo_aproveitado_por_obra_id: string | null
           periodo_fim: string
           periodo_inicio: string
           primeira_cobranca_em: string | null
@@ -340,6 +341,7 @@ export type Database = {
           id?: string
           inadimplente_desde?: string | null
           obra_id: string
+          periodo_aproveitado_por_obra_id?: string | null
           periodo_fim: string
           periodo_inicio?: string
           primeira_cobranca_em?: string | null
@@ -357,6 +359,7 @@ export type Database = {
           id?: string
           inadimplente_desde?: string | null
           obra_id?: string
+          periodo_aproveitado_por_obra_id?: string | null
           periodo_fim?: string
           periodo_inicio?: string
           primeira_cobranca_em?: string | null
@@ -368,6 +371,13 @@ export type Database = {
           {
             foreignKeyName: "cobrancas_obra_obra_id_fkey"
             columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_obra_periodo_aproveitado_por_obra_id_fkey"
+            columns: ["periodo_aproveitado_por_obra_id"]
             isOneToOne: false
             referencedRelation: "obras"
             referencedColumns: ["id"]
@@ -1213,6 +1223,7 @@ export type Database = {
         Returns: undefined
       }
       fn_sou_admin: { Args: never; Returns: boolean }
+      fn_vaga_paga_disponivel: { Args: never; Returns: Json }
       is_admin: { Args: never; Returns: boolean }
       tem_acesso_obra: { Args: { p_obra: string }; Returns: boolean }
     }

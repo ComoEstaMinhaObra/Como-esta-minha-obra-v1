@@ -5,7 +5,7 @@
 import "server-only";
 import { getCobrancaEnv } from "@/config/env";
 import type { PlanoId } from "@/config/pricing";
-import { planoPorId } from "@/config/pricing";
+import { OBRA_ATIVA, planoPorId } from "@/config/pricing";
 
 export {
   ABACATEPAY_PUBLIC_KEY,
@@ -72,6 +72,8 @@ export interface CriarProdutoInput {
   currency: "BRL";
   cycle?: ProductCycle;
   description?: string;
+  /** Dias até a primeira cobrança; o checkout cobra R$ 0,00 e só guarda o cartão. */
+  trialDays?: number;
 }
 
 export interface CriarClienteInput {
@@ -91,6 +93,8 @@ export interface CriarAssinaturaInput {
   returnUrl?: string;
   completionUrl?: string;
   metadata?: Record<string, unknown>;
+  /** Tentativas após falha (maxRetry 1-10, retryEvery 1-30 dias). 7 x 2 = 14 dias de recuperação. */
+  retryPolicy?: { maxRetry: number; retryEvery: number };
 }
 
 export interface AssinaturaCheckout {
@@ -237,6 +241,33 @@ export async function consultarAssinatura(
     "/subscriptions/list?limit=100",
   );
   return (lista ?? []).find((s) => s.id === id) ?? null;
+}
+
+/** Política de novas tentativas da cobrança: 7 tentativas a cada 2 dias = 14 dias de recuperação. */
+export const RETRY_POLICY_OBRA = { maxRetry: 7, retryEvery: 2 } as const;
+
+/**
+ * Produto da obra com a primeira cobrança adiada em `dias` dias (regra Q1: obra nova durante o
+ * período já pago de uma obra arquivada). Criado sob demanda e reaproveitado pelo externalId.
+ * A API ignora o filtro externalId da listagem, então lista e filtra aqui.
+ */
+export async function garantirProdutoObraComTrial(dias: number): Promise<string> {
+  if (!Number.isInteger(dias) || dias < 1 || dias > 365) {
+    throw new Error("DIAS_TRIAL_INVALIDOS");
+  }
+  const externalId = `${OBRA_ATIVA.externalId}-td${dias}`;
+  const existentes = await listarProdutos({ limit: 100 });
+  const achado = (existentes ?? []).find((p) => p.externalId === externalId);
+  if (achado) return achado.id;
+  const criado = await criarProduto({
+    externalId,
+    name: `Como Esta Minha Obra — ${OBRA_ATIVA.nome} (primeira cobrança em ${dias} dias)`,
+    price: OBRA_ATIVA.precoCentavos,
+    currency: "BRL",
+    cycle: "MONTHLY",
+    trialDays: dias,
+  });
+  return criado.id;
 }
 
 /** POST /subscriptions/cancel */

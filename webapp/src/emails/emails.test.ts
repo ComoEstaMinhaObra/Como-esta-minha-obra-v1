@@ -31,7 +31,7 @@ describe("templates de e-mail", () => {
     const el = createElement(PagamentoPendenteEmail, {
       obraNome: "Residência de Francisco",
       limite: "17/10",
-      link: "http://localhost:3000/planos",
+      link: "http://localhost:3000/cobranca",
     });
     expect(el.type).toBe(PagamentoPendenteEmail);
     expect(el.props.limite).toBe("17/10");

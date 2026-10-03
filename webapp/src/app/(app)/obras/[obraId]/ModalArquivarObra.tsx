@@ -27,10 +27,18 @@ export function ModalArquivarObra({
           toast("Digite o nome da obra exatamente como aparece");
           return;
         }
+        if (result.erro === "COBRANCA_NAO_CANCELADA") {
+          toast("Não foi possível encerrar a cobrança agora. Tente novamente em alguns minutos");
+          return;
+        }
         toast(result.erro);
         return;
       }
-      toast("Página de acompanhamento arquivada");
+      toast(
+        result.acessoAte
+          ? `Obra arquivada. A cobrança foi encerrada e a alteração aparece na sua cobrança; você mantém os recursos até ${new Date(result.acessoAte).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+          : "Página de acompanhamento arquivada",
+      );
       setAberto(false);
       router.push("/obras");
       router.refresh();
@@ -57,7 +65,9 @@ export function ModalArquivarObra({
         <div className="space-y-4">
           <p className="text-sm text-cinza-2">
             Os dados serão mantidos por 30 dias e depois removidos
-            definitivamente. Para confirmar, digite o nome da obra:
+            definitivamente. Se a obra tem cobrança ativa, a renovação é encerrada
+            e o período já pago não é devolvido. Para confirmar, digite o nome da
+            obra:
           </p>
           <p className="font-serif text-base font-light">{nomeObra}</p>
           <CampoTexto
