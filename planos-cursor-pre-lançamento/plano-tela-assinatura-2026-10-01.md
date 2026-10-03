@@ -6,7 +6,7 @@
 
 **Relação com o plano de 28/09:** [`plano-implementacao-financeiro-2026-09-28.md`](plano-implementacao-financeiro-2026-09-28.md). As partes de cobrança desse plano (fases 2.1, 2.2, 3 e 4.1 a 4.4) foram pensadas para um ciclo único por conta e ficam **superadas por este documento** nos pontos em que conflitam. A fase 1 (financeiro da obra) já está entregue.
 
-**Status:** pronto para execução; decisões D1 a D5 e Q1 a Q4 resolvidas em 01/10/2026 (seção 9), spike E0 executado em 03/10/2026 (resultados na seção 9.4; pendem a renovação, a primeira cobrança do trial e a observação do cartão)
+**Status:** pronto para execução; decisões D1 a D5 e Q1 a Q4 resolvidas em 01/10/2026 (seção 9), spike E0 executado em 03/10/2026 (resultados na seção 9.4; pendem a renovação e a primeira cobrança do trial)
 
 ---
 
@@ -250,7 +250,7 @@ Cada etapa com `npm run typecheck`, `lint`, `test` e `build` passando.
 | # | Decisão | Consequência técnica |
 |---|---|---|
 | Q1 | Obra nova durante o período já pago de uma obra arquivada: **assinatura nova, com a primeira cobrança no próximo ciclo** (fim do período pago da arquivada). | Produto com `trialDays` criado sob demanda (5.2 e 5.4); validar no E0 |
-| Q2 | A documentação não descreve reutilização de cartão salvo: **cada obra passa pelo seu próprio checkout**. | A tela mostra as obras sem pagamento e contrata uma de cada vez (seção 4); o spike E0 verifica se o cartão é reaproveitado |
+| Q2 | A documentação não descreve reutilização de cartão salvo: **cada obra passa pelo seu próprio checkout**. | A tela mostra as obras sem pagamento e contrata uma de cada vez (seção 4). **Confirmado no spike E0 (03/10/2026):** o checkout seguinte do mesmo cliente não reaproveita o cartão |
 | Q3 | Obra inadimplente bloqueia **só ela mesma**. | Gating por obra (5.8); criar obra nova não depende de outras obras |
 | Q4 | Datas de cobrança diferentes por obra são aceitas, **por enquanto**. | A tela mostra a data de cada obra e o total do mês |
 
@@ -269,7 +269,7 @@ Testes feitos com os produtos `obra-ativa-v2` (R$ 129,90) e `obra-ativa-v2-td12`
 | O payload de `subscription.cancelled` traz o motivo (`cancelledDueTo`)? | **Não.** Só `subscription.{id,status:"CANCELLED"}` e o checkout. Distinguir cancelamento voluntário de tentativas esgotadas depende do estado do app (`cancelamento_solicitado_em`) e, no caso de dúvida, do painel do AbacatePay. |
 | O cancelamento é imediato? | **Sim.** `subscriptions/cancel` devolve `CANCELLED` na hora e o webhook chega em segundos. |
 | `externalId` na assinatura | A assinatura criada **não guarda** o `externalId` (`null` na API e no webhook); só o checkout o guarda. O app deve gravar `abacatepay_subscription_id` no primeiro webhook. |
-| O cartão é reaproveitado entre assinaturas do mesmo cliente (Q2)? | **Pendente da observação de quem pagou** (se o segundo checkout mostrou o cartão salvo ou pediu o número de novo). Registrar aqui. |
+| O cartão é reaproveitado entre assinaturas do mesmo cliente (Q2)? | **Não.** O segundo checkout, do mesmo cliente e já com o primeiro pago, **não mostrou o cartão salvo**: pediu os dados de novo. Cada obra passa pelo seu próprio checkout, como já era a regra adotada. No dev mode o checkout oferece o botão "Preencher com dados fictícios", que preenche cartão e dados do pagador; o responsável usa esse botão nos testes. |
 | O `customerId` da assinatura é o do checkout? | **Não necessariamente:** os dois checkouts foram criados para `cust_mCfSXH…`, mas as duas assinaturas ficaram em outro cliente (`cust_UnKCRm…`), igual nas duas. O AbacatePay parece unificar o pagador no pagamento. Consequência: o app **não pode** confiar no `customerId` da assinatura para achar o usuário; usa o `externalId` do checkout. |
 
 **Ainda pendente do spike (precisa de tempo ou de uma segunda rodada):**
@@ -287,7 +287,7 @@ Testes feitos com os produtos `obra-ativa-v2` (R$ 129,90) e `obra-ativa-v2-td12`
 |---|---|
 | `subscription.externalId` vem nulo e o payload não traz datas de período | Já mitigado no desenho (5.6): usar `checkout.externalId`, gravar `abacatepay_subscription_id` no primeiro evento e calcular o período no app |
 | `subscription.cancelled` sem motivo: não distinguir tentativas esgotadas de cancelamento direto no painel | Identificar o voluntário pelo estado do app; o resto vira `cancelada` com alerta ao admin conferir no painel |
-| Cada obra exigir um checkout com novo cartão (Q2) | Já é a regra adotada: a tela mostra as obras pendentes e contrata uma de cada vez; o spike E0 pode reduzir o atrito |
+| Cada obra exige um checkout com cartão digitado de novo (Q2, confirmado no spike) | É a regra adotada: a tela mostra as obras pendentes e contrata uma de cada vez; avisar o usuário, antes de contratar várias obras, que cada uma tem o seu pagamento |
 | O `trialDays` por produto não servir para adiar a primeira cobrança da Q1 (limites, arredondamento ou não coberta pelo dev mode) | Spike E0; alternativa: cobrar a obra nova na contratação e registrar um crédito de um período no histórico, ou reabrir a Q1 |
 | Datas de cobrança diferentes confundirem o usuário (Q4, aceita "por enquanto") | Mostrar a data de cada obra e o total do mês; texto explicativo; reavaliar após o lançamento |
 | Webhook em produção antes da migration | Ordem E2 → E3 → E4; o webhook lê o estado novo e mantém o fallback |
