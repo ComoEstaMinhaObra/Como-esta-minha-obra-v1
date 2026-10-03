@@ -13,7 +13,8 @@
     "test:security": "vitest run --config vitest.security.config.mts",
     "abacatepay:bootstrap": "NODE_OPTIONS=--conditions=react-server tsx scripts/abacatepay-bootstrap.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "backfill:pdf-hash": "tsx scripts/backfill-pdf-hash.ts"
+    "backfill:pdf-hash": "tsx scripts/backfill-pdf-hash.ts",
+    "spike:abacatepay": "tsx scripts/spike-abacatepay.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
