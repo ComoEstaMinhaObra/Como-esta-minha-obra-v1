@@ -211,10 +211,10 @@ Pré-requisitos: produto criado no dev mode; variáveis da Vercel sem placeholde
 | E1 | Ambiente por domínio (5.1) e produto no dev mode (5.2) | Sim, sem mudar comportamento |
 | E2 | Migration expandir (5.3): tabela `cobrancas_obra`, funções de permissão por obra e testes pgTAP, **sem trocar chamadores** | Sim. **Feita e aplicada em produção em 03/10/2026** |
 | E3 | Webhook, gating e jobs (5.6, 5.7, 5.8); troca dos chamadores de `assinatura_permite_escrita` para `obra_permite_escrita` (fallback legado já previsto na função) | Sim. **Feita em 03/10/2026; a migration está aplicada em produção; o código TypeScript entra com o push** (ver 7.1) |
-| E4 | Checkout, cancelamento e telas (5.4, 5.5, 5.9), com a rota `/cobranca` | Sim, depois do roteiro da seção 6 |
-| E5 | Migration contrair (`drop` de `plano` e `limite_obras`) e limpeza de código morto | Depois de E4 verificado em produção |
-| E6 | Textos públicos (landing, `/precos`, FAQ, termos) e e-mails com o novo modelo | Junto da liberação |
-| E7 | Produto em produção, variáveis finais na Vercel e desativação dos produtos antigos | Junto da liberação |
+| E4 | Checkout, cancelamento e telas (5.4, 5.5, 5.9), com a rota `/cobranca` | **Feita e em produção (03/10/2026).** Falta o pagamento de teste no dev mode (depende do responsável) |
+| E5 | Migration contrair (`drop` de `plano` e `limite_obras`) e limpeza de código morto | **Código limpo e em produção (03/10/2026); a migration de `drop` está PENDENTE** até o pagamento de teste da E4 ser verificado (ver 7.2) |
+| E6 | Textos públicos (landing, `/precos`, FAQ, termos) e e-mails com o novo modelo | **Feita e em produção (03/10/2026)** |
+| E7 | Produto em produção, variáveis finais na Vercel e desativação dos produtos antigos | **PENDENTE: depende de chave e conta de produção do AbacatePay** (ver 7.2) |
 
 Cada etapa com `npm run typecheck`, `lint`, `test` e `build` passando.
 
@@ -235,6 +235,24 @@ Cada etapa com `npm run typecheck`, `lint`, `test` e `build` passando.
 - Cliente `inadimplente` não consegue cancelar a própria cobrança (`COBRANCA_NAO_CANCELAVEL`): espera o cancelamento automático em até 14 dias.
 - O link do e-mail de pagamento pendente aponta para `/planos` até a rota virar `/cobranca` (E4).
 - O e-mail de renovação dos acessos adicionais (`fn_enfileirar_renovacao_emails`) segue só no fluxo legado.
+
+### 7.2. Estado de E4 a E7 e pendências com o responsável (03/10/2026)
+
+**Feito em produção**
+- Tela `/cobranca` (com redirect 308 de `/planos` e `/cobrancas`): lista de obras com estado, total mensal, contratar (popup com item, valor e período), cancelar uma ou mais obras, reativar só depois de `acesso_ate` (D4) e aviso de obra somente leitura na página da obra.
+- `contratarObra` (checkout por obra, `externalId` = obra, retryPolicy 7×2, produto com `trialDays` quando há período pago aproveitável) e `cancelarCobrancas` (grava a intenção antes de chamar o provedor e desfaz se falhar). Arquivar obra encerra a renovação e mantém os recursos até o fim do período pago.
+- Migrations `20261003240001` (período aproveitável, regra Q1) e `20261003250001` (painel de admin por obra), aplicadas.
+- Textos públicos no modelo novo; planos por faixa removidos do código, das variáveis e do CI; admin com MRR por obra, inadimplentes e alerta de cancelamento sem pedido.
+- Verificado no navegador de produção: `/cobranca` carrega, mostra a obra do trial ("Em trial até 15/10/2026"), o popup abre e o botão leva ao checkout do AbacatePay em modo simulação (R$ 129,90/mês, "Obra ativa").
+
+**Pendente, depende do responsável**
+1. **Pagamento de teste da E4:** no checkout aberto pela tela (botão "Preencher com dados fictícios" do dev mode), pagar a obra. Depois conferir: cobrança `ativa` na tela, `cobrancas_obra` preenchida, segundo relatório enviável.
+2. **Regularização de pagamento pendente (D3):** só dá para observar a reação do provedor a uma falha de pagamento numa renovação (o cartão rejeitado falha já no checkout). Hoje a tela mostra o estado e o prazo de 14 dias, sem botão de ação.
+3. **Observações de 15/10/2026:** primeira cobrança da assinatura de teste com `trialDays` (payload de `renewed`/`completed` e datas).
+4. **E5, migration de `drop` (não aplicada de propósito):** remover `assinaturas.plano` e `limite_obras`, o enum `plano_tipo`, `private.assinatura_permite_escrita`, o fallback legado de `private.obra_permite_escrita`/`fn_criar_obra`, e redefinir `handle_new_user`, `fn_admin_kpis` e `fn_admin_contas` sem essas colunas. Efeito conhecido: a conta `ativa` do modelo antigo (1 obra, plano `obra_5`) deixa de escrever até a obra ser contratada em `/cobranca`. Fazer só depois do item 1.
+5. **E7, produção:** chave de API e conta de produção do AbacatePay; rodar o bootstrap com a chave de produção (cria `obra-ativa-v2` e `email-adicional-v2` lá); trocar `ABACATEPAY_API_KEY`, `ABACATEPAY_WEBHOOK_SECRET`, `ABACATEPAY_PROD_OBRA_ATIVA` e `ABACATEPAY_PROD_EMAIL_EXTRA` na Vercel; registrar o webhook de produção; desativar os produtos antigos (`plano-1-obra-v1`, `plano-3-obras-v1`, `plano-5-obras-v1`, `email-extra-v1`); remover da Vercel as variáveis provisórias `ABACATEPAY_PROD_OBRA_1/3/5` e `NEXT_PUBLIC_PRECO_1/3/5_*`.
+
+**Fora deste plano, continua aberto:** compra de e-mail adicional por obra (hoje exige conta `ativa` do modelo antigo), aceite de convite, histórico financeiro completo no perfil e popup de compra ao criar obra (a obra nova nasce somente leitura até ser contratada, com banner e link para a cobrança).
 
 ---
 
