@@ -6,11 +6,8 @@ const publicSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  NEXT_PUBLIC_PRECO_1_OBRA_CENTAVOS: centavos,
-  NEXT_PUBLIC_PRECO_3_OBRAS_CENTAVOS: centavos,
-  NEXT_PUBLIC_PRECO_5_OBRAS_CENTAVOS: centavos,
-  // Preço da obra ativa (cobrança por obra). Enquanto ausente, vale o preço de 1 obra.
-  NEXT_PUBLIC_PRECO_OBRA_CENTAVOS: centavos.optional(),
+  // Preço da obra ativa (cobrança por obra): R$ 129,90 por mês, em centavos.
+  NEXT_PUBLIC_PRECO_OBRA_CENTAVOS: centavos.default(12990),
   NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS: centavos,
   NEXT_PUBLIC_TRIAL_DIAS: z.coerce.number().int().positive(),
   NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: z.coerce.number().int().nonnegative(),
@@ -34,10 +31,7 @@ const emailSchema = z.object({
 const cobrancaSchema = z.object({
   ABACATEPAY_API_KEY: z.string().min(1),
   ABACATEPAY_WEBHOOK_SECRET: z.string().min(1),
-  ABACATEPAY_PROD_OBRA_1: z.string().min(1),
-  ABACATEPAY_PROD_OBRA_3: z.string().min(1),
-  ABACATEPAY_PROD_OBRA_5: z.string().min(1),
-  // Produto único da cobrança por obra; passa a ser obrigatório quando o checkout novo entrar (E4).
+  // Produto único da cobrança por obra; o checkout confere a presença na hora de contratar.
   ABACATEPAY_PROD_OBRA_ATIVA: z.string().min(1).optional(),
   ABACATEPAY_PROD_EMAIL_EXTRA: z.string().min(1),
 });
@@ -79,12 +73,6 @@ function readPublicEnv(): PublicEnv {
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
       NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      NEXT_PUBLIC_PRECO_1_OBRA_CENTAVOS:
-        process.env.NEXT_PUBLIC_PRECO_1_OBRA_CENTAVOS,
-      NEXT_PUBLIC_PRECO_3_OBRAS_CENTAVOS:
-        process.env.NEXT_PUBLIC_PRECO_3_OBRAS_CENTAVOS,
-      NEXT_PUBLIC_PRECO_5_OBRAS_CENTAVOS:
-        process.env.NEXT_PUBLIC_PRECO_5_OBRAS_CENTAVOS,
       NEXT_PUBLIC_PRECO_OBRA_CENTAVOS:
         process.env.NEXT_PUBLIC_PRECO_OBRA_CENTAVOS,
       NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS:
@@ -146,9 +134,6 @@ export function getCobrancaEnv(): CobrancaEnv {
     {
       ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
       ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
-      ABACATEPAY_PROD_OBRA_1: process.env.ABACATEPAY_PROD_OBRA_1,
-      ABACATEPAY_PROD_OBRA_3: process.env.ABACATEPAY_PROD_OBRA_3,
-      ABACATEPAY_PROD_OBRA_5: process.env.ABACATEPAY_PROD_OBRA_5,
       ABACATEPAY_PROD_OBRA_ATIVA: process.env.ABACATEPAY_PROD_OBRA_ATIVA,
       ABACATEPAY_PROD_EMAIL_EXTRA: process.env.ABACATEPAY_PROD_EMAIL_EXTRA,
     },

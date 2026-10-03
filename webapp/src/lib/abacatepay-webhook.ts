@@ -1,16 +1,11 @@
 /**
  * Processamento de eventos de webhook AbacatePay.
- * Idempotência por (provedor, event_id). Payload persistido allowlisted.
+ * Idempotência por (provedor, event_id). Payload persistido allowlisted. Cobrança por obra.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  consultarAssinatura,
-  limiteDoPlano,
-  planoPorProdutoId,
-} from "@/lib/abacatepay";
+import { consultarAssinatura } from "@/lib/abacatepay";
 import type { Database, Json } from "@/lib/database.types";
-import { OBRA_ATIVA, type PlanoId } from "@/config/pricing";
-import { processarOutbox } from "@/lib/outbox";
+import { OBRA_ATIVA } from "@/config/pricing";
 import { logSeguro, sanitizarErro } from "@/lib/log";
 
 export type AdminClient = SupabaseClient<Database>;
@@ -69,38 +64,6 @@ export function extrairExternalIdAssinatura(
   for (const c of candidates) {
     if (typeof c === "string" && c.length > 0) return c;
   }
-  return null;
-}
-
-export function extrairProdutoId(payload: WebhookPayload): string | null {
-  const item = payload.data?.checkout?.items?.[0];
-  return item?.id ?? null;
-}
-
-async function localizarAssinatura(
-  admin: AdminClient,
-  payload: WebhookPayload,
-) {
-  const externalId = extrairExternalIdAssinatura(payload);
-  if (externalId) {
-    const { data } = await admin
-      .from("assinaturas")
-      .select("*")
-      .eq("id", externalId)
-      .maybeSingle();
-    if (data) return data;
-  }
-
-  const subId = payload.data?.subscription?.id;
-  if (subId) {
-    const { data } = await admin
-      .from("assinaturas")
-      .select("*")
-      .eq("abacatepay_subscription_id", subId)
-      .maybeSingle();
-    if (data) return data;
-  }
-
   return null;
 }
 
@@ -316,86 +279,10 @@ export async function processarEventoAssinatura(
       });
     }
 
-    // trial_started só existe no fluxo por obra; no legado segue ignorado.
-    if (evento === "subscription.trial_started") {
-      await marcarProcessado(admin, c.logId);
-      return { ok: true, mensagem: "evento ignorado: subscription.trial_started" };
-    }
-
-    const assinatura = await localizarAssinatura(admin, payload);
-    if (!assinatura) {
-      throw new Error("ASSINATURA_AUSENTE");
-    }
-
-    if (evento === "subscription.completed") {
-      const produtoId = extrairProdutoId(payload);
-      let plano: PlanoId | null = produtoId
-        ? planoPorProdutoId(produtoId)
-        : null;
-      if (!plano && assinatura.plano !== "trial") {
-        plano = assinatura.plano as PlanoId;
-      }
-      if (!plano) {
-        throw new Error("PRODUTO_NAO_MAPEADO");
-      }
-      const subId = payload.data?.subscription?.id ?? null;
-      const { error } = await admin
-        .from("assinaturas")
-        .update({
-          status: "ativa",
-          plano,
-          limite_obras: limiteDoPlano(plano),
-          abacatepay_subscription_id: subId,
-          atualizado_em: new Date().toISOString(),
-        })
-        .eq("id", assinatura.id);
-      if (error) throw new Error(sanitizarErro(error));
-      await admin
-        .from("webhooks_log")
-        .update({ processado: true, processado_em: new Date().toISOString(), erro: null })
-        .eq("id", c.logId);
-      return { ok: true, mensagem: `assinatura ${assinatura.id} ativada` };
-    }
-
-    if (evento === "subscription.renewed") {
-      const { error } = await admin
-        .from("assinaturas")
-        .update({
-          status: "ativa",
-          atualizado_em: new Date().toISOString(),
-        })
-        .eq("id", assinatura.id);
-      if (error) throw new Error(sanitizarErro(error));
-
-      const { data: outbox } = await admin.rpc("fn_enfileirar_renovacao_emails", {
-        p_assinatura: assinatura.id,
-        p_event_id: eventId,
-        p_parcela: 0,
-      });
-      const ids = ((outbox as { outboxIds?: string[] } | null)?.outboxIds) ?? [];
-      for (const id of ids) {
-        await processarOutbox(id);
-      }
-      await admin
-        .from("webhooks_log")
-        .update({ processado: true, processado_em: new Date().toISOString(), erro: null })
-        .eq("id", c.logId);
-      return { ok: true, mensagem: `assinatura ${assinatura.id} renovada` };
-    }
-
-    const { error } = await admin
-      .from("assinaturas")
-      .update({
-        status: "cancelada",
-        atualizado_em: new Date().toISOString(),
-      })
-      .eq("id", assinatura.id);
-    if (error) throw new Error(sanitizarErro(error));
-    await admin
-      .from("webhooks_log")
-      .update({ processado: true, processado_em: new Date().toISOString(), erro: null })
-      .eq("id", c.logId);
-    return { ok: true, mensagem: `assinatura ${assinatura.id} cancelada` };
+    // Nem uma cobrança registrada nem uma obra: assinatura desconhecida (por exemplo, de um checkout
+    // antigo por conta). Fica no log para conferência; não adianta o provedor tentar de novo.
+    await marcarProcessado(admin, c.logId, "ASSINATURA_AUSENTE", false);
+    return { ok: false, mensagem: "ASSINATURA_AUSENTE" };
   } catch (e) {
     await admin
       .from("webhooks_log")

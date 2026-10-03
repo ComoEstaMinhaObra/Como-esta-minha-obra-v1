@@ -4,8 +4,7 @@
  */
 import "server-only";
 import { getCobrancaEnv } from "@/config/env";
-import type { PlanoId } from "@/config/pricing";
-import { OBRA_ATIVA, planoPorId } from "@/config/pricing";
+import { OBRA_ATIVA } from "@/config/pricing";
 
 export {
   ABACATEPAY_PUBLIC_KEY,
@@ -106,22 +105,6 @@ export interface AssinaturaCheckout {
   customerId?: string | null;
 }
 
-export interface TrocarPlanoInput {
-  id: string;
-  productId: string;
-  quantity: number;
-}
-
-export interface TrocarPlanoResult {
-  id: string;
-  subscriptionId: string;
-  status: string;
-  productId: string;
-  quantity: number;
-  newAmount: number;
-  requestedAt: string;
-}
-
 export interface RegistrarUsoInput {
   id: string;
   productId: string;
@@ -197,13 +180,6 @@ export async function criarAssinatura(
   input: CriarAssinaturaInput,
 ): Promise<AssinaturaCheckout> {
   return request<AssinaturaCheckout>("POST", "/subscriptions/create", input);
-}
-
-/** POST /subscriptions/change-plan */
-export async function trocarPlano(
-  input: TrocarPlanoInput,
-): Promise<TrocarPlanoResult> {
-  return request<TrocarPlanoResult>("POST", "/subscriptions/change-plan", input);
 }
 
 /** POST /subscriptions/record-usage */
@@ -285,34 +261,6 @@ export async function listarProdutos(params?: {
   if (params?.limit) qs.set("limit", String(params.limit));
   const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
   return request<AbacateProduct[]>("GET", `/products/list${suffix}`);
-}
-
-export function produtoIdDoPlano(planoId: PlanoId): string {
-  const env = getCobrancaEnv();
-  switch (planoId) {
-    case "obra_1":
-      return env.ABACATEPAY_PROD_OBRA_1;
-    case "obra_3":
-      return env.ABACATEPAY_PROD_OBRA_3;
-    case "obra_5":
-      return env.ABACATEPAY_PROD_OBRA_5;
-    default: {
-      const _exhaustive: never = planoId;
-      throw new Error(`Plano sem produto: ${_exhaustive}`);
-    }
-  }
-}
-
-export function planoPorProdutoId(produtoId: string): PlanoId | null {
-  const env = getCobrancaEnv();
-  if (produtoId === env.ABACATEPAY_PROD_OBRA_1) return "obra_1";
-  if (produtoId === env.ABACATEPAY_PROD_OBRA_3) return "obra_3";
-  if (produtoId === env.ABACATEPAY_PROD_OBRA_5) return "obra_5";
-  return null;
-}
-
-export function limiteDoPlano(planoId: PlanoId): number {
-  return planoPorId(planoId).limiteObras;
 }
 
 export function produtoEmailExtraId(): string {

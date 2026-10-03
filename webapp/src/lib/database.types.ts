@@ -1073,6 +1073,7 @@ export type Database = {
           ordem: number
         }[]
       }
+      fn_admin_cobranca: { Args: never; Returns: Json }
       fn_admin_contas: { Args: never; Returns: Json }
       fn_admin_kpis: { Args: never; Returns: Json }
       fn_admin_obras: { Args: { p_owner?: string }; Returns: Json }

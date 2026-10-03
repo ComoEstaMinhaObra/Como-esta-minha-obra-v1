@@ -10,10 +10,7 @@ const consultarAssinatura = vi.fn();
 
 vi.mock("@/lib/abacatepay", () => ({
   consultarAssinatura: (...a: unknown[]) => consultarAssinatura(...a),
-  limiteDoPlano: () => 1,
-  planoPorProdutoId: () => null,
 }));
-vi.mock("@/lib/outbox", () => ({ processarOutbox: vi.fn() }));
 
 interface Cenario {
   cobranca?: { id: string; obra_id: string; status: string } | null;
@@ -183,16 +180,17 @@ describe("webhook da cobrança por obra", () => {
     ).rejects.toThrow();
   });
 
-  it("externalId que não é obra nem assinatura da conta falha como ASSINATURA_AUSENTE", async () => {
+  it("externalId que não é obra nem cobrança registrada fica no log como ASSINATURA_AUSENTE", async () => {
     const a = admin();
-    await expect(
-      processarEventoAssinatura(a as never, payload("subscription.completed")),
-    ).rejects.toThrow("ASSINATURA_AUSENTE");
+    const r = await processarEventoAssinatura(a as never, payload("subscription.completed"));
+    expect(r).toEqual({ ok: false, mensagem: "ASSINATURA_AUSENTE" });
+    expect(a.logUpdates.at(-1)).toMatchObject({ processado: false, erro: "ASSINATURA_AUSENTE" });
+    expect(chamada(a, "fn_cobranca_registrar")).toBeUndefined();
   });
 
-  it("trial_started sem obra identificada é ignorado (não é fluxo legado)", async () => {
+  it("evento de outro tipo é ignorado", async () => {
     const a = admin();
-    const r = await processarEventoAssinatura(a as never, payload("subscription.trial_started"));
+    const r = await processarEventoAssinatura(a as never, payload("checkout.completed"));
     expect(r.ok).toBe(true);
     expect(r.mensagem).toContain("ignorado");
     expect(chamada(a, "fn_cobranca_registrar")).toBeUndefined();

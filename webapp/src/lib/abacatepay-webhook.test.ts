@@ -7,8 +7,6 @@ import {
 } from "@/lib/abacatepay-signature";
 import {
   extrairExternalIdAssinatura,
-  extrairProdutoId,
-  processarEventoAssinatura,
   type WebhookPayload,
 } from "@/lib/abacatepay-webhook";
 
@@ -44,14 +42,6 @@ describe("extracao de payload", () => {
     expect(extrairExternalIdAssinatura(payload)).toBe("uuid-assinatura");
   });
 
-  it("extrai produto do checkout.items", () => {
-    const payload: WebhookPayload = {
-      data: {
-        checkout: { items: [{ id: "prod_obra3", quantity: 1 }] },
-      },
-    };
-    expect(extrairProdutoId(payload)).toBe("prod_obra3");
-  });
 });
 
 /** Builder encadeável estilo supabase query (thenable). */
@@ -113,91 +103,6 @@ function mockAdmin(assinaturaRow: Record<string, unknown> | null) {
   };
 }
 
-vi.mock("@/lib/outbox", () => ({
-  processarOutbox: vi.fn().mockResolvedValue({ ok: true }),
-}));
-
-vi.mock("@/lib/abacatepay", () => ({
-  limiteDoPlano: (id: string) =>
-    id === "obra_1" ? 1 : id === "obra_3" ? 3 : 5,
-  planoPorProdutoId: (id: string) =>
-    id === "prod_1" ? "obra_1" : id === "prod_3" ? "obra_3" : null,
-  produtoEmailExtraId: () => "prod_email",
-  registrarUso: vi.fn().mockResolvedValue({
-    id: "usgr_1",
-    installmentNumber: 2,
-  }),
-}));
-
-describe("processarEventoAssinatura", () => {
-  it("subscription.completed ativa plano", async () => {
-    const admin = mockAdmin({
-      id: "asid",
-      user_id: "uid",
-      plano: "trial",
-      status: "trial",
-      abacatepay_subscription_id: null,
-    });
-
-    const payload: WebhookPayload = {
-      id: "log_evt1",
-      event: "subscription.completed",
-      data: {
-        subscription: { id: "subs_1", status: "ACTIVE" },
-        checkout: {
-          externalId: "asid",
-          items: [{ id: "prod_3", quantity: 1 }],
-        },
-      },
-    };
-
-    const r = await processarEventoAssinatura(admin as never, payload);
-    expect(r.ok).toBe(true);
-    expect(admin._update).toHaveBeenCalled();
-    expect(admin._updateEq).toHaveBeenCalledWith("id", "asid");
-  });
-
-  it("subscription.cancelled marca cancelada", async () => {
-    const admin = mockAdmin({
-      id: "asid",
-      user_id: "uid",
-      plano: "obra_3",
-      status: "ativa",
-      abacatepay_subscription_id: "subs_1",
-    });
-
-    const r = await processarEventoAssinatura(admin as never, {
-      id: "log_evt2",
-      event: "subscription.cancelled",
-      data: {
-        subscription: { id: "subs_1", status: "CANCELLED" },
-      },
-    });
-    expect(r.ok).toBe(true);
-    expect(admin._update).toHaveBeenCalled();
-  });
-
-  it("subscription.renewed garante ativa", async () => {
-    const admin = mockAdmin({
-      id: "asid",
-      user_id: "uid",
-      plano: "obra_3",
-      status: "ativa",
-      abacatepay_subscription_id: "subs_1",
-    });
-
-    const r = await processarEventoAssinatura(admin as never, {
-      id: "log_evt3",
-      event: "subscription.renewed",
-      data: {
-        subscription: { id: "subs_1", status: "ACTIVE" },
-      },
-    });
-    expect(r.ok).toBe(true);
-    expect(admin._update).toHaveBeenCalled();
-  });
-});
-
 describe("POST /api/webhooks/abacatepay", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -258,35 +163,19 @@ describe("POST /api/webhooks/abacatepay", () => {
     expect(res.status).toBe(401);
   });
 
-  it("HMAC valido processa completed", async () => {
-    const admin = mockAdmin({
-      id: "asid",
-      user_id: "uid",
-      plano: "trial",
-      status: "trial",
-      abacatepay_subscription_id: null,
-    });
+  it("HMAC valido processa o evento (aqui, um evento ignorado)", async () => {
+    const admin = mockAdmin(null);
 
     vi.doMock("@/lib/supabase/admin", () => ({
       createAdminClient: () => admin,
-    }));
-    vi.doMock("@/lib/abacatepay", () => ({
-      limiteDoPlano: () => 3,
-      planoPorProdutoId: () => "obra_3",
-      produtoEmailExtraId: () => "prod_email",
-      registrarUso: vi.fn(),
     }));
 
     const { POST } = await import("@/app/api/webhooks/abacatepay/route");
     const body = JSON.stringify({
       id: "log_ok",
-      event: "subscription.completed",
+      event: "checkout.completed",
       data: {
-        subscription: { id: "subs_1" },
-        checkout: {
-          externalId: "asid",
-          items: [{ id: "prod_3", quantity: 1 }],
-        },
+        checkout: { externalId: "x" },
       },
     });
     const res = await POST(
