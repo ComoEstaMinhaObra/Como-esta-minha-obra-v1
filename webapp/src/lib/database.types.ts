@@ -312,6 +312,75 @@ export type Database = {
           },
         ]
       }
+      cobrancas_obra: {
+        Row: {
+          abacatepay_checkout_id: string | null
+          abacatepay_subscription_id: string
+          acesso_ate: string | null
+          atualizado_em: string
+          cancelamento_solicitado_em: string | null
+          criado_em: string
+          id: string
+          inadimplente_desde: string | null
+          obra_id: string
+          periodo_fim: string
+          periodo_inicio: string
+          primeira_cobranca_em: string | null
+          status: Database["public"]["Enums"]["cobranca_status"]
+          user_id: string
+          valor_centavos: number
+        }
+        Insert: {
+          abacatepay_checkout_id?: string | null
+          abacatepay_subscription_id: string
+          acesso_ate?: string | null
+          atualizado_em?: string
+          cancelamento_solicitado_em?: string | null
+          criado_em?: string
+          id?: string
+          inadimplente_desde?: string | null
+          obra_id: string
+          periodo_fim: string
+          periodo_inicio?: string
+          primeira_cobranca_em?: string | null
+          status?: Database["public"]["Enums"]["cobranca_status"]
+          user_id: string
+          valor_centavos: number
+        }
+        Update: {
+          abacatepay_checkout_id?: string | null
+          abacatepay_subscription_id?: string
+          acesso_ate?: string | null
+          atualizado_em?: string
+          cancelamento_solicitado_em?: string | null
+          criado_em?: string
+          id?: string
+          inadimplente_desde?: string | null
+          obra_id?: string
+          periodo_fim?: string
+          periodo_inicio?: string
+          primeira_cobranca_em?: string | null
+          status?: Database["public"]["Enums"]["cobranca_status"]
+          user_id?: string
+          valor_centavos?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cobrancas_obra_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_obra_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dias_aditivados: {
         Row: {
           descricao: string | null
@@ -1121,6 +1190,11 @@ export type Database = {
     Enums: {
       acesso_status: "convidado" | "ativo" | "pendente_cobranca" | "revogado"
       assinatura_status: "trial" | "ativa" | "inadimplente" | "cancelada"
+      cobranca_status:
+        | "ativa"
+        | "inadimplente"
+        | "cancelamento_agendado"
+        | "cancelada"
       clima_condicao: "aberto" | "nublado" | "chuvoso"
       foto_estado: "reservada" | "publicada"
       lancamento_grupo: "medicoes" | "materiais" | "aditivos" | "supressoes"
@@ -1283,6 +1357,12 @@ export const Constants = {
     Enums: {
       acesso_status: ["convidado", "ativo", "pendente_cobranca", "revogado"],
       assinatura_status: ["trial", "ativa", "inadimplente", "cancelada"],
+      cobranca_status: [
+        "ativa",
+        "inadimplente",
+        "cancelamento_agendado",
+        "cancelada",
+      ],
       clima_condicao: ["aberto", "nublado", "chuvoso"],
       foto_estado: ["reservada", "publicada"],
       lancamento_grupo: ["medicoes", "materiais", "aditivos", "supressoes"],

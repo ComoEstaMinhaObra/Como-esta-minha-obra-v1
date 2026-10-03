@@ -123,7 +123,7 @@ Nova tabela `public.cobrancas_obra`, uma linha por assinatura de obra:
 
 `assinaturas` continua guardando o trial (`trial_fim`, `relatorios_enviados_trial`) e o `abacatepay_customer_id`. Colunas `plano` e `limite_obras` ficam sem uso e saem na segunda migration (contrair, E6).
 
-Funções que usam `limite_obras` ou o status da conta (`private.assinatura_permite_escrita`, `fn_criar_obra`, convites e envio de relatório) passam a consultar o estado **da obra**. Regerar `src/lib/database.types.ts` e atualizar `security.test.sql` (pgTAP).
+**Divisão entre E2 e E3 (decidida na implementação, 03/10/2026):** a E2 só **adiciona** a tabela e as funções `private.obra_cobranca_vigente` e `private.obra_permite_escrita`, sem trocar nenhum chamador, para não alterar o comportamento de produção. A E3 troca os chamadores de `private.assinatura_permite_escrita` (e a checagem de `limite_obras` em `fn_criar_obra`) para o estado **da obra**, junto com a gravação pelo webhook; sem isso a tabela ficaria vazia e as obras perderiam acesso. Os chamadores a trocar na E3, conforme o banco: `fn_criar_obra`, `fn_arquivar_obra`, `fn_atualizar_capa_obra`, `fn_preparar_envio_relatorio`, `fn_reservar_foto`, `fn_salvar_rascunho`, `fn_solicitar_acesso_obra`, `fn_revogar_acesso_obra` e a policy `storage_fotos_insert`. Regerar `src/lib/database.types.ts` e manter os testes pgTAP (`cobranca.test.sql`).
 
 ### 5.4. Checkout (`cobranca/actions.ts`)
 
@@ -209,8 +209,8 @@ Pré-requisitos: produto criado no dev mode; variáveis da Vercel sem placeholde
 |---|---|---|
 | E0 | Spike no dev mode: o `externalId` volta no webhook; se o checkout com `customerId` reaproveita o cartão de uma assinatura anterior (a documentação não diz); `trialDays` por produto para a Q1 (limites, `trial_started`, quando ocorre a primeira cobrança); comportamento das falhas (`retryPolicy`); payloads de `completed`, `renewed` e `cancelled` | Sim (só pesquisa) |
 | E1 | Ambiente por domínio (5.1) e produto no dev mode (5.2) | Sim, sem mudar comportamento |
-| E2 | Migration expandir (5.3) | Sim |
-| E3 | Webhook, gating e jobs (5.6, 5.7, 5.8), lendo o estado novo com fallback no antigo | Sim |
+| E2 | Migration expandir (5.3): tabela `cobrancas_obra`, funções de permissão por obra e testes pgTAP, **sem trocar chamadores** | Sim. **Feita e testada localmente (03/10/2026); ainda não aplicada no Supabase de produção** |
+| E3 | Webhook, gating e jobs (5.6, 5.7, 5.8); troca dos chamadores de `assinatura_permite_escrita` para `obra_permite_escrita` (fallback legado já previsto na função) | Sim |
 | E4 | Checkout, cancelamento e telas (5.4, 5.5, 5.9), com a rota `/cobranca` | Sim, depois do roteiro da seção 6 |
 | E5 | Migration contrair (`drop` de `plano` e `limite_obras`) e limpeza de código morto | Depois de E4 verificado em produção |
 | E6 | Textos públicos (landing, `/precos`, FAQ, termos) e e-mails com o novo modelo | Junto da liberação |
