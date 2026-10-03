@@ -38,14 +38,21 @@ export default function TermosPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-serif text-2xl font-light">3. Planos e trial</h2>
+        <h2 className="font-serif text-2xl font-light">3. Cobrança por obra e trial</h2>
         {/* REVISAR: Estevão/Geraldino */}
         <p className="text-cinza-2">
           O trial gratuito tem duração e limites descritos na página de preços
-          (dias e quantidade de envios). Planos pagos seguem cobrança mensal via
-          AbacatePay. Upgrade/downgrade aplica-se no próximo ciclo, sem
-          pró-rata. Cancelamento encerra cobranças futuras e deixa a conta em
-          modo somente leitura.
+          (dias, uma obra e quantidade de envios). Depois dele, cada obra ativa
+          tem uma assinatura mensal própria, cobrada via AbacatePay com ciclo e
+          data de cobrança próprios, sem limite de obras. Você pode cancelar a
+          cobrança de uma ou mais obras a qualquer momento: cada obra cancelada
+          mantém os recursos até o fim do período já pago e depois fica somente
+          leitura para consulta, sem devolução proporcional. Se o pagamento de uma
+          obra falhar, apenas essa obra fica somente leitura por até 14 dias para
+          regularização, e a assinatura dela é cancelada se o pagamento não ocorrer
+          nesse prazo; as demais obras não são afetadas. Acessos adicionais de
+          e-mail são cobrados por 30 dias, a partir da aceitação do convite, na
+          fatura da obra.
         </p>
       </section>
 
@@ -61,7 +68,7 @@ export default function TermosPage() {
       <section className="space-y-3">
         <h2 className="font-serif text-2xl font-light">5. Uso aceitável</h2>
         <p className="text-cinza-2">
-          É vedado uso ilícito, tentativa de burlar limites do plano, engenharia
+          É vedado uso ilícito, tentativa de burlar as regras de cobrança, engenharia
           reversa abusiva, envio de malware ou violação de direitos de
           terceiros. Podemos suspender contas em caso de abuso.
         </p>

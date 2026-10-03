@@ -1,7 +1,12 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Botao, Cartao } from "@/components/ui";
-import { EMAIL_EXTRA, PLANOS, TRIAL } from "@/config/pricing";
+import {
+  EMAIL_ADICIONAL,
+  OBRA_ATIVA,
+  TRIAL,
+  calcularTotalMensal,
+} from "@/config/pricing";
 import { formatarBRL } from "@/lib/formatacao";
 
 export const metadata: Metadata = {
@@ -23,23 +28,21 @@ const FAQ = [
   },
   {
     q: "Posso cancelar quando quiser?",
-    a: "Você pode cancelar a sua assinatura quando quiser e ela fica disponível até o vencimento do período.",
+    a: "Você cancela a cobrança de uma obra, de várias ou de todas quando quiser. Cada obra cancelada mantém todos os recursos até o fim do período que você já pagou e depois fica somente leitura, para consulta. Não há devolução proporcional.",
   },
   {
     q: "O que é e-mail adicional?",
-    a: `O primeiro destinatário por obra é grátis. Do segundo em diante cobramos ${formatarBRL(EMAIL_EXTRA.precoCentavos)} por ciclo, na próxima parcela.`,
+    a: `Cada obra inclui um e-mail sem custo. Cada acesso adicional custa ${formatarBRL(EMAIL_ADICIONAL.precoCentavos)} a cada 30 dias, cobrado na fatura da obra a partir do momento em que o convidado aceita o acesso.`,
   },
   {
     q: "E se eu precisar de mais obras?",
-    a: "Faça upgrade em Planos. A troca entra no próximo ciclo, sem pró-rata. No downgrade, arquive obras excedentes antes.",
+    a: "Não há limite de obras e nem faixas de plano. Cada obra ativa tem a sua própria assinatura e a sua própria fatura mensal; você contrata uma obra por vez na tela de Cobrança.",
   },
   {
     q: "Meus dados estão seguros?",
     a: "Usamos Supabase (RLS), Storage privado e operadores alinhados à LGPD. Detalhes em Política de privacidade.",
   },
 ] as const;
-
-const PLANOS_BASE = PLANOS.filter((p) => p.id === "obra_1" || p.id === "obra_3");
 
 export default function LandingPage() {
   return (
@@ -187,55 +190,45 @@ export default function LandingPage() {
         </ul>
       </section>
 
-      {/* Planos */}
+      {/* Preço */}
       <section className="border-t border-divisor bg-escuro text-white">
         <div className="mx-auto max-w-[1240px] px-4 py-20">
-          <h2 className="font-serif text-3xl font-light">Planos mensais</h2>
+          <h2 className="font-serif text-3xl font-light">Uma cobrança por obra</h2>
           <p className="mt-2 text-sm text-white/60">
-            Trial de {TRIAL.dias} dias · {TRIAL.limiteRelatorios} relatório ·
-            sem cartão
+            Trial de {TRIAL.dias} dias · {TRIAL.limiteRelatorios} relatório · sem
+            cartão
           </p>
           <div className="mt-10 grid gap-6 min-[800px]:grid-cols-3">
-            {PLANOS_BASE.map((p) => (
-              <div
-                key={p.id}
-                className={`rounded-[20px] p-6 ${
-                  p.id === "obra_3"
-                    ? "bg-marca text-white"
-                    : "border border-white/15 bg-white/5"
-                }`}
-              >
-                {p.id === "obra_3" && (
-                  <p className="mb-2 text-[10px] uppercase tracking-[0.18em]">
-                    Recomendado
-                  </p>
-                )}
-                <h3 className="font-serif text-2xl font-light">{p.nome}</h3>
-                <p className="mt-2 font-serif text-3xl font-light">
-                  {formatarBRL(p.precoCentavos)}
-                  <span className="text-sm opacity-70">/mês</span>
-                </p>
-                <p className="mt-4 text-sm opacity-80">
-                  Até {p.limiteObras} obra{p.limiteObras > 1 ? "s" : ""} ·
-                  relatórios ilimitados
-                </p>
-              </div>
-            ))}
-            <div className="rounded-[20px] border border-white/15 bg-white/5 p-6">
-              <h3 className="font-serif text-2xl font-light">
-                Acima de 4 obras
-              </h3>
+            <div className="rounded-[20px] bg-marca p-6 text-white">
+              <h3 className="font-serif text-2xl font-light">Obra ativa</h3>
               <p className="mt-2 font-serif text-3xl font-light">
-                R$ 319,90/mês
-                <span className="text-sm opacity-70"> + R$ 99,90/mês/obra</span>
+                {formatarBRL(OBRA_ATIVA.precoCentavos)}
+                <span className="text-sm opacity-70">/mês por obra</span>
               </p>
-              <p className="mt-4 text-sm opacity-80">A partir de 4 obras</p>
+              <p className="mt-4 text-sm opacity-90">
+                Relatórios ilimitados, página do cliente, PDF e clima automático.
+                Sem limite de obras e sem faixas de plano.
+              </p>
+            </div>
+            <div className="rounded-[20px] border border-white/15 bg-white/5 p-6 min-[800px]:col-span-2">
+              <h3 className="font-serif text-2xl font-light">Você paga só o que usa</h3>
+              <ul className="mt-4 grid gap-2 text-sm text-white/80 min-[500px]:grid-cols-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <li key={n} className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                    <span>{n} obra{n > 1 ? "s" : ""} ativa{n > 1 ? "s" : ""}</span>
+                    <span>{formatarBRL(calcularTotalMensal(n))}/mês</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-sm text-white/60">
+                Cada obra tem a sua assinatura e você cancela só as que quiser.
+              </p>
             </div>
           </div>
           <p className="mt-8 max-w-2xl text-sm text-white/60">
-            O envio de relatório ocorre para um e-mail cadastrado; haverá o
-            acréscimo de {formatarBRL(EMAIL_EXTRA.precoCentavos)}/mês por
-            e-mail adicional de envio do relatório.
+            Cada obra inclui um e-mail para o envio do relatório. Acessos
+            adicionais custam {formatarBRL(EMAIL_ADICIONAL.precoCentavos)} a cada
+            30 dias, na fatura da obra.
           </p>
           <div className="mt-8">
             <Link href="/entrar">

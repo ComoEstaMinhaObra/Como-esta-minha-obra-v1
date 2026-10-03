@@ -62,7 +62,7 @@ export default function PoliticaPrivacidadePage() {
             (proprietários) e status de convite/login.
           </li>
           <li>
-            <strong className="text-tinta">Assinatura:</strong> plano, status,
+            <strong className="text-tinta">Assinatura:</strong> cobrança por obra (status, datas),
             identificadores do provedor de pagamento (sem armazenar número
             completo de cartão).
           </li>
@@ -78,7 +78,7 @@ export default function PoliticaPrivacidadePage() {
         <h2 className="font-serif text-2xl font-light">3. Finalidades</h2>
         <p className="text-cinza-2">
           Prestação do serviço de relatórios e página do proprietário;
-          autenticação; cobrança de planos e add-ons; envio de e-mails
+          autenticação; cobrança por obra e acessos adicionais; envio de e-mails
           transacionais (convite, novo relatório, confirmação de cadastro,
           recuperação de senha); suporte;
           cumprimento de obrigações legais; melhoria de segurança e prevenção a
