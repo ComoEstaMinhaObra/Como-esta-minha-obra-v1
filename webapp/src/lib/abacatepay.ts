@@ -213,6 +213,32 @@ export async function registrarUso(
   );
 }
 
+export interface AbacateAssinatura {
+  id: string;
+  checkoutId?: string | null;
+  customerId?: string | null;
+  amount: number;
+  status: string;
+  trialDays?: number | null;
+  /** Fim do período de teste do produto com trialDays; é quando ocorre a primeira cobrança. */
+  trialEndsAt?: string | null;
+  createdAt?: string;
+}
+
+/**
+ * GET /subscriptions/list e procura pelo id. O payload dos webhooks não traz a data do fim do
+ * trial, só esta consulta (spike E0, 03/10/2026). Primeira página (limit 100) basta por ora.
+ */
+export async function consultarAssinatura(
+  id: string,
+): Promise<AbacateAssinatura | null> {
+  const lista = await request<AbacateAssinatura[]>(
+    "GET",
+    "/subscriptions/list?limit=100",
+  );
+  return (lista ?? []).find((s) => s.id === id) ?? null;
+}
+
 /** POST /subscriptions/cancel */
 export async function cancelarAssinatura(id: string): Promise<unknown> {
   return request("POST", "/subscriptions/cancel", { id });

@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatarBRLCompacto } from "@/lib/formatacao";
 import {
-  podeAdicionarEmailExtra,
-  podeCriarObra,
-  podeEditarRascunho,
-  podeEnviarRelatorio,
-  podeVerSomenteLeitura,
-  type EstadoAssinatura,
-} from "@/lib/gating";
-import {
   calcularAvancoGeral,
   calcularFinanceiro,
   calcularFinanceiroProjetado,
@@ -279,43 +271,5 @@ describe("P / M / BRL", () => {
     expect(formatarBRLCompacto(47_300_000)).toBe("R$ 473 mil");
     expect(formatarBRLCompacto(103_300_000)).toBe("R$ 1,03 mi");
     expect(formatarBRLCompacto(89_900)).toBe("R$ 899,00");
-  });
-});
-
-describe("Gating 5.5", () => {
-  const base = (over: Partial<EstadoAssinatura>): EstadoAssinatura => ({
-    status: "trial",
-    limiteObras: 1,
-    obrasAtivas: 0,
-    trialFim: new Date(Date.now() + 7 * 86400000),
-    relatoriosEnviadosTrial: 0,
-    ...over,
-  });
-
-  it("matriz", () => {
-    expect(podeCriarObra(base({ status: "trial", obrasAtivas: 0 }))).toBe(true);
-    expect(podeCriarObra(base({ status: "trial", obrasAtivas: 1 }))).toBe(false);
-    expect(podeCriarObra(base({ status: "ativa", limiteObras: 3, obrasAtivas: 2 }))).toBe(true);
-    expect(podeCriarObra(base({ status: "inadimplente" }))).toBe(false);
-    expect(podeCriarObra(base({ status: "cancelada" }))).toBe(false);
-
-    expect(podeEditarRascunho(base({ status: "trial" }))).toBe(true);
-    expect(podeEditarRascunho(base({ status: "ativa" }))).toBe(true);
-    expect(podeEditarRascunho(base({ status: "inadimplente" }))).toBe(false);
-
-    expect(podeEnviarRelatorio(base({ status: "trial", relatoriosEnviadosTrial: 0 }))).toBe(true);
-    expect(podeEnviarRelatorio(base({ status: "trial", relatoriosEnviadosTrial: 1 }))).toBe(false);
-    expect(
-      podeEnviarRelatorio(
-        base({ status: "trial", trialFim: new Date(Date.now() - 1000) }),
-      ),
-    ).toBe(false);
-    expect(podeEnviarRelatorio(base({ status: "ativa" }))).toBe(true);
-    expect(podeEnviarRelatorio(base({ status: "cancelada" }))).toBe(false);
-
-    expect(podeAdicionarEmailExtra(base({ status: "trial" }))).toBe(false);
-    expect(podeAdicionarEmailExtra(base({ status: "ativa" }))).toBe(true);
-
-    expect(podeVerSomenteLeitura(base({ status: "cancelada" }))).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCronEnv } from "@/config/env";
 import { enviarEmailConvite } from "@/lib/email/enviar";
+import { executarJobCobranca } from "@/lib/cobranca/job";
 import { logSeguro } from "@/lib/log";
 import { processarOutbox } from "@/lib/outbox";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,9 +13,19 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Plano Hobby: no máximo 2 crons; o job da cobrança por obra roda junto da outbox, uma vez por
+  // dia, e antes dela, para não depender de a outbox estar disponível.
+  let cobranca: Awaited<ReturnType<typeof executarJobCobranca>> | null = null;
+  try {
+    cobranca = await executarJobCobranca(admin);
+  } catch {
+    logSeguro("error", { evento: "cobranca_job_diario" });
+  }
+
   const { data, error } = await admin.rpc("fn_listar_outbox_pendente");
   if (error) {
-    return NextResponse.json({ erro: "OUTBOX_INDISPONIVEL" }, { status: 500 });
+    return NextResponse.json({ erro: "OUTBOX_INDISPONIVEL", cobranca }, { status: 500 });
   }
 
   const itens = (data ?? []) as unknown as { id: string }[];
@@ -56,5 +67,10 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ encontradas: itens.length, processadas, falhas });
+  return NextResponse.json({
+    encontradas: itens.length,
+    processadas,
+    falhas,
+    cobranca,
+  });
 }

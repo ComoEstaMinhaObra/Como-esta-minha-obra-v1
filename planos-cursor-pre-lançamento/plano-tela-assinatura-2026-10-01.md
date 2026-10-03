@@ -157,7 +157,7 @@ Como o AbacatePay não envia evento de falha de pagamento, o app infere:
 - cobrança `ativa` com `periodo_fim + 1 dia < agora` e sem renovação → `inadimplente`, `inadimplente_desde = agora` e e-mail ao usuário (cita a obra);
 - `cancelamento_agendado` com `acesso_ate < agora` → `cancelada`.
 
-Rodam no cron existente (`vercel.json`); o plano Hobby limita crons a execução diária, o que basta aqui.
+O job roda **dentro da rota do cron da outbox** (`/api/cron/outbox`, diária), e não em um terceiro cron: o plano Hobby da Vercel limita a 2 crons por conta e já existem 2 (`clima` e `outbox`). Ele roda antes da outbox para não depender dela.
 
 ### 5.8. Gating (`src/lib/gating.ts`)
 
@@ -209,14 +209,32 @@ Pré-requisitos: produto criado no dev mode; variáveis da Vercel sem placeholde
 |---|---|---|
 | E0 | Spike no dev mode: o `externalId` volta no webhook; se o checkout com `customerId` reaproveita o cartão de uma assinatura anterior (a documentação não diz); `trialDays` por produto para a Q1 (limites, `trial_started`, quando ocorre a primeira cobrança); comportamento das falhas (`retryPolicy`); payloads de `completed`, `renewed` e `cancelled` | Sim (só pesquisa) |
 | E1 | Ambiente por domínio (5.1) e produto no dev mode (5.2) | Sim, sem mudar comportamento |
-| E2 | Migration expandir (5.3): tabela `cobrancas_obra`, funções de permissão por obra e testes pgTAP, **sem trocar chamadores** | Sim. **Feita e testada localmente (03/10/2026); ainda não aplicada no Supabase de produção** |
-| E3 | Webhook, gating e jobs (5.6, 5.7, 5.8); troca dos chamadores de `assinatura_permite_escrita` para `obra_permite_escrita` (fallback legado já previsto na função) | Sim |
+| E2 | Migration expandir (5.3): tabela `cobrancas_obra`, funções de permissão por obra e testes pgTAP, **sem trocar chamadores** | Sim. **Feita e aplicada em produção em 03/10/2026** |
+| E3 | Webhook, gating e jobs (5.6, 5.7, 5.8); troca dos chamadores de `assinatura_permite_escrita` para `obra_permite_escrita` (fallback legado já previsto na função) | Sim. **Feita em 03/10/2026; a migration está aplicada em produção; o código TypeScript entra com o push** (ver 7.1) |
 | E4 | Checkout, cancelamento e telas (5.4, 5.5, 5.9), com a rota `/cobranca` | Sim, depois do roteiro da seção 6 |
 | E5 | Migration contrair (`drop` de `plano` e `limite_obras`) e limpeza de código morto | Depois de E4 verificado em produção |
 | E6 | Textos públicos (landing, `/precos`, FAQ, termos) e e-mails com o novo modelo | Junto da liberação |
 | E7 | Produto em produção, variáveis finais na Vercel e desativação dos produtos antigos | Junto da liberação |
 
 Cada etapa com `npm run typecheck`, `lint`, `test` e `build` passando.
+
+### 7.1. Estado da E3 (03/10/2026)
+
+**Feito**
+- Migration `20261003230001_cobranca_por_obra_gating.sql`, aplicada em produção: `fn_cobranca_registrar`, `fn_cobranca_renovar`, `fn_cobranca_cancelada_webhook` e `fn_cobranca_job_diario` (só `service_role`); `fn_cobranca_solicitar_cancelamento` e `fn_cobranca_desfazer_cancelamento` (dono da obra).
+- Gating por obra no banco: `fn_atualizar_capa_obra`, `fn_reservar_foto`, `fn_salvar_rascunho`, `fn_solicitar_acesso_obra`, `fn_preparar_envio_relatorio`, `fn_finalizar_envio_relatorio` e a policy `storage_fotos_insert` usam `private.obra_permite_escrita`. Nenhuma função ou policy usa mais `assinatura_permite_escrita` (a função fica até a E5).
+- `fn_criar_obra`: quem tem cobrança vigente (ou conta ativa do legado) cria obras sem limite; trial cria uma. O limite do trial de 1 envio só vale para obra sem cobrança vigente.
+- Regra do trial corrigida: vale só para quem **nunca teve cobrança**; obra com histórico de cobrança sem cobrança vigente fica somente leitura.
+- Webhook (`abacatepay-webhook.ts`): fluxo por obra (`completed`, `trial_started`, `renewed`, `cancelled`), localizando a obra por `checkout.externalId`; o fluxo legado (externalId = id da assinatura da conta) convive até a E5. Erros de negócio permanentes (`COBRANCA_DUPLICADA` etc.) ficam no `webhooks_log` sem forçar retentativa; cancelamento sem pedido do app grava `CANCELADA_SEM_PEDIDO` para o admin conferir.
+- `consultarAssinatura` (lê `trialEndsAt` em `/subscriptions/list`), `gating.ts` por obra, job diário (`src/lib/cobranca/job.ts`) com e-mail de pagamento pendente, rodando dentro do cron da outbox.
+- Testes: 133 pgTAP (44 novos), 94 Vitest, 20 de segurança direta, 9 e2e, `tsc`, eslint, `next build`.
+
+**Limitações conhecidas desta etapa (resolvidas depois)**
+- O checkout continua o antigo (`/planos`, E4): nenhuma cobrança por obra nasce em produção até lá. O webhook por obra só é exercitado quando o checkout novo passar a mandar o id da obra como `externalId`.
+- `assinaturas.status` não vira `ativa` no fluxo por obra (para o fallback legado não liberar obras sem cobrança). Efeito: compra de **e-mail adicional** (que exige conta `ativa`) fica indisponível para clientes do modelo novo até a fase de e-mails adicionais do plano de 28/09.
+- Cliente `inadimplente` não consegue cancelar a própria cobrança (`COBRANCA_NAO_CANCELAVEL`): espera o cancelamento automático em até 14 dias.
+- O link do e-mail de pagamento pendente aponta para `/planos` até a rota virar `/cobranca` (E4).
+- O e-mail de renovação dos acessos adicionais (`fn_enfileirar_renovacao_emails`) segue só no fluxo legado.
 
 ---
 

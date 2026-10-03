@@ -1087,6 +1087,35 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_cobranca_cancelada_webhook: {
+        Args: { p_agora?: string; p_subscription_id: string }
+        Returns: Json
+      }
+      fn_cobranca_desfazer_cancelamento: {
+        Args: { p_obra: string }
+        Returns: undefined
+      }
+      fn_cobranca_job_diario: { Args: { p_agora?: string }; Returns: Json }
+      fn_cobranca_registrar: {
+        Args: {
+          p_checkout_id: string
+          p_obra: string
+          p_periodo_fim: string
+          p_periodo_inicio: string
+          p_primeira_cobranca_em?: string
+          p_subscription_id: string
+          p_valor_centavos: number
+        }
+        Returns: Json
+      }
+      fn_cobranca_renovar: {
+        Args: { p_agora?: string; p_subscription_id: string }
+        Returns: Json
+      }
+      fn_cobranca_solicitar_cancelamento: {
+        Args: { p_obra: string }
+        Returns: Json
+      }
       fn_confirmar_outbox: {
         Args: { p_installment: number; p_outbox: string; p_usage_id: string }
         Returns: Json

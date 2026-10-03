@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { RelatorioSnapshot } from "@/lib/relatorios/tipos";
 import { ConviteAcessoEmail } from "@/emails/convite-acesso";
 import { NovoRelatorioEmail } from "@/emails/novo-relatorio";
+import { PagamentoPendenteEmail } from "@/emails/pagamento-pendente";
 import { logSeguro } from "@/lib/log";
 
 function resendOuNull() {
@@ -93,4 +94,28 @@ export async function enviarEmailNovoRelatorio(params: {
       }),
     });
   }
+}
+
+/** Aviso de pagamento pendente de uma obra (job diário da cobrança). Sem Resend configurado, só registra. */
+export async function enviarEmailPagamentoPendente(params: {
+  para: string;
+  obraNome: string;
+  limite: string;
+}) {
+  const link = `${publicEnv.NEXT_PUBLIC_APP_URL}/planos`;
+  logSeguro("info", { evento: "email_pagamento_pendente" });
+
+  const resend = resendOuNull();
+  if (!resend) return;
+
+  await resend.emails.send({
+    from: getEmailEnv().EMAIL_FROM,
+    to: params.para,
+    subject: `Pagamento pendente da obra ${params.obraNome}`,
+    react: createElement(PagamentoPendenteEmail, {
+      obraNome: params.obraNome,
+      limite: params.limite,
+      link,
+    }),
+  });
 }

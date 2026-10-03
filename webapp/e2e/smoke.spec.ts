@@ -59,7 +59,7 @@ test.describe("smoke marketing + guards (sem auth)", () => {
       page.getByRole("button", { name: "Continuar com Microsoft" }),
     ).toBeVisible();
 
-    const senha = page.getByLabel("Senha");
+    const senha = page.getByLabel("Senha", { exact: true });
     await expect(senha).toHaveAttribute("type", "password");
     await page.getByRole("button", { name: "Mostrar senha" }).click();
     await expect(senha).toHaveAttribute("type", "text");
