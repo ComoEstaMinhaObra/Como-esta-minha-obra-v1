@@ -29,6 +29,22 @@ function adminClient() {
   });
 }
 
+/** Registra a cobrança de uma obra como o webhook faz (cobrança por obra, service_role). */
+async function cobrarObra(obraId: string) {
+  const agora = new Date();
+  const fim = new Date(agora);
+  fim.setMonth(fim.getMonth() + 1);
+  const { error } = await adminClient().rpc("fn_cobranca_registrar", {
+    p_obra: obraId,
+    p_subscription_id: `subs_${randomUUID().slice(0, 12)}`,
+    p_checkout_id: `bill_${randomUUID().slice(0, 12)}`,
+    p_valor_centavos: 12990,
+    p_periodo_inicio: agora.toISOString(),
+    p_periodo_fim: fim.toISOString(),
+  });
+  expect(error).toBeNull();
+}
+
 async function criarUsuario(email: string) {
   const admin = adminClient();
   const { data, error } = await admin.auth.admin.createUser({
@@ -384,16 +400,12 @@ describe("segurança direta JWT/PostgREST", () => {
   });
 
   it("relatório publicado é imutável; duas finalizações são idempotentes", async () => {
-    const a = await criarUsuario(`${prefix}-pub@test.local`);
+    await criarUsuario(`${prefix}-pub@test.local`);
     const ca = await login(`${prefix}-pub@test.local`);
     const obraId = await criarObra(ca, "Obra pub");
     const pub = await publicarPrimeiroRelatorio(ca, obraId);
     const adminAss = adminClient();
-    const { error: promoErr } = await adminAss
-      .from("assinaturas")
-      .update({ status: "ativa", plano: "obra_5", limite_obras: 5 })
-      .eq("user_id", a.id);
-    expect(promoErr).toBeNull();
+    await cobrarObra(obraId);
 
     const { data: upd, error: updErr } = await ca
       .from("relatorio_versoes")
@@ -769,18 +781,10 @@ describe("segurança direta JWT/PostgREST", () => {
   });
 
   it("revogar convite pendente cancela a cobrança antes do claim", async () => {
-    const usuario = await criarUsuario(`${prefix}-cancel-outbox@test.local`);
+    await criarUsuario(`${prefix}-cancel-outbox@test.local`);
     const ca = await login(`${prefix}-cancel-outbox@test.local`);
     const obraId = await criarObra(ca, "Obra outbox");
-    await adminClient()
-      .from("assinaturas")
-      .update({
-        status: "ativa",
-        plano: "obra_5",
-        limite_obras: 5,
-        abacatepay_subscription_id: "sub_teste",
-      })
-      .eq("user_id", usuario.id);
+    await cobrarObra(obraId);
     await ca.rpc("fn_solicitar_acesso_obra", {
       p_obra: obraId,
       p_email: `${prefix}-gratis@test.local`,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCronEnv } from "@/config/env";
+import { geocodificarEndereco } from "@/lib/clima/geocode";
 import { sincronizarClimaObra } from "@/lib/clima/sincronizar";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -11,6 +12,27 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Obras que ficaram sem coordenadas (endereço que o geocoder não entendeu na criação) ganham
+  // outra tentativa por dia, poucas por execução para respeitar o limite do Nominatim.
+  const { data: semCoordenadas } = await admin
+    .from("obras")
+    .select("id, endereco")
+    .is("arquivada_em", null)
+    .is("lat", null)
+    .order("criado_em", { ascending: false })
+    .limit(3);
+  let geocodificadas = 0;
+  for (const obra of semCoordenadas ?? []) {
+    const geo = await geocodificarEndereco(obra.endereco);
+    if (!geo) continue;
+    const { error: upErr } = await admin
+      .from("obras")
+      .update({ lat: geo.lat, lng: geo.lng })
+      .eq("id", obra.id);
+    if (!upErr) geocodificadas += 1;
+  }
+
   const { data: obras, error } = await admin
     .from("obras")
     .select("id, lat, lng")
@@ -42,6 +64,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
+    geocodificadas,
     processadas: ok + falhas,
     ok,
     falhas,

@@ -68,7 +68,7 @@ describe("obraPermiteEscrita (espelha private.obra_permite_escrita)", () => {
     expect(obraPermiteEscrita(obra({ cobrancas: [agendadaVencida], donoJaTeveCobranca: true }))).toBe(false);
   });
 
-  it("obra inadimplente ou cancelada fica somente leitura, mesmo no trial ou no legado", () => {
+  it("obra inadimplente ou cancelada fica somente leitura, mesmo no trial", () => {
     expect(obraPermiteEscrita(obra({ cobrancas: [inadimplente], donoJaTeveCobranca: true }))).toBe(false);
     expect(obraPermiteEscrita(obra({ cobrancas: [cancelada], donoJaTeveCobranca: true }))).toBe(false);
     expect(
@@ -94,9 +94,9 @@ describe("obraPermiteEscrita (espelha private.obra_permite_escrita)", () => {
     expect(obraPermiteEscrita(obra({ donoJaTeveCobranca: true }))).toBe(false);
   });
 
-  it("legado: conta ativa do modelo antigo escreve em obra sem cobrança", () => {
+  it("conta fora do trial, sem cobrança da obra, não escreve (não existe mais o legado)", () => {
     const conta = { status: "ativa" as const, trialFim: null, relatoriosEnviadosTrial: 0 };
-    expect(obraPermiteEscrita(obra({ conta }))).toBe(true);
+    expect(obraPermiteEscrita(obra({ conta }))).toBe(false);
     expect(obraPermiteEscrita(obra({ conta: { ...conta, status: "inadimplente" } }))).toBe(false);
     expect(obraPermiteEscrita(obra({ conta: { ...conta, status: "cancelada" } }))).toBe(false);
   });
@@ -135,14 +135,14 @@ describe("podeEnviarRelatorio", () => {
 });
 
 describe("outros gates", () => {
-  it("e-mail adicional só com cobrança vigente (ou legado ativo)", () => {
+  it("e-mail adicional só com cobrança vigente", () => {
     expect(podeAdicionarEmailExtra(obra())).toBe(false);
     expect(podeAdicionarEmailExtra(obra({ cobrancas: [ativa], donoJaTeveCobranca: true }))).toBe(true);
     expect(
       podeAdicionarEmailExtra(
         obra({ conta: { status: "ativa", trialFim: null, relatoriosEnviadosTrial: 0 } }),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("toda obra pode ser consultada", () => {
@@ -170,11 +170,12 @@ describe("podeCriarObra (espelha fn_criar_obra)", () => {
     expect(podeCriarObra(base({ temCobrancaVigente: true, obrasAtivas: 7 }))).toBe(true);
   });
 
-  it("legado ativo cria sem limite; inadimplente e cancelada não criam", () => {
+  it("conta fora do trial só cria com cobrança vigente", () => {
     const conta = { status: "ativa" as const, trialFim: null, relatoriosEnviadosTrial: 0 };
-    expect(podeCriarObra(base({ conta, obrasAtivas: 4 }))).toBe(true);
+    expect(podeCriarObra(base({ conta, obrasAtivas: 4 }))).toBe(false);
     expect(podeCriarObra(base({ conta: { ...conta, status: "inadimplente" } }))).toBe(false);
     expect(podeCriarObra(base({ conta: { ...conta, status: "cancelada" } }))).toBe(false);
+    expect(podeCriarObra(base({ conta, temCobrancaVigente: true, obrasAtivas: 4 }))).toBe(true);
   });
 });
 

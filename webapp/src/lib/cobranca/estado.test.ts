@@ -77,7 +77,7 @@ describe("montarResumoCobranca", () => {
     expect(r.linhas[0].proximaCobranca?.toISOString()).toBe(dia(12));
   });
 
-  it("inadimplente: sem ações e com o limite de 14 dias de recuperação", () => {
+  it("inadimplente: só regularizar, com o limite de 14 dias de recuperação", () => {
     const r = montarResumoCobranca(
       [obra("a")],
       [cobranca("a", { status: "inadimplente", inadimplente_desde: dia(-2) })],
@@ -87,7 +87,9 @@ describe("montarResumoCobranca", () => {
     const l = r.linhas[0];
     expect(l.estado).toBe("inadimplente");
     expect(l.limiteRecuperacao?.toISOString()).toBe(dia(12));
-    expect(l.acoes).toEqual({ contratar: false, cancelar: false, reativar: false, reativarApos: null });
+    expect(l.acoes).toEqual({
+      contratar: false, cancelar: false, regularizar: true, reativar: false, reativarApos: null,
+    });
     expect(r.totalMensalCentavos).toBe(12990); // ainda será cobrada
   });
 
@@ -134,7 +136,7 @@ describe("montarResumoCobranca", () => {
     expect(comPeriodo.linhas).toHaveLength(1);
     expect(comPeriodo.linhas[0].arquivada).toBe(true);
     expect(comPeriodo.linhas[0].acoes).toEqual({
-      contratar: false, cancelar: false, reativar: false, reativarApos: null,
+      contratar: false, cancelar: false, regularizar: false, reativar: false, reativarApos: null,
     });
 
     const encerrada = montarResumoCobranca(
@@ -149,14 +151,13 @@ describe("montarResumoCobranca", () => {
     expect(semCobranca.linhas).toHaveLength(0);
   });
 
-  it("conta ativa do modelo antigo: obra sem cobrança aparece como legado, sem contratar", () => {
+  it("conta fora do trial, obra sem cobrança: pode contratar (não existe mais o legado)", () => {
     const r = montarResumoCobranca(
       [obra("a")],
       [],
       { status: "ativa", trial_fim: null, relatorios_enviados_trial: 0 },
       AGORA,
     );
-    expect(r.linhas[0].legado).toBe(true);
-    expect(r.linhas[0].acoes.contratar).toBe(false);
+    expect(r.linhas[0].acoes.contratar).toBe(true);
   });
 });

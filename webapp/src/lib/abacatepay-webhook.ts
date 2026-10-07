@@ -189,8 +189,17 @@ async function processarCobrancaObra(
       if (permanente(error.message ?? msg)) return falhar(error.message ?? msg);
       throw new Error(msg);
     }
-    await marcarProcessado(admin, logId);
     const alterada = (data as { alterada?: boolean } | null)?.alterada;
+    if (alterada) {
+      // O adicional dos e-mails pagos entra só na próxima parcela: relança a cada renovação.
+      // A chave por evento torna a repetição do webhook idempotente; o cron da outbox processa.
+      const { error: errEmails } = await admin.rpc("fn_enfileirar_renovacao_emails_obra", {
+        p_subscription_id: subId,
+        p_event_id: payload.id ?? "",
+      });
+      if (errEmails) throw new Error(sanitizarErro(errEmails));
+    }
+    await marcarProcessado(admin, logId);
     return {
       ok: true,
       mensagem: alterada ? "cobranca renovada" : "renovacao ignorada",

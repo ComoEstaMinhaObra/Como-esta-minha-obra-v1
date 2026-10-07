@@ -316,7 +316,11 @@ export function FormNovaObra() {
         }
       }
 
-      toast("Página de acompanhamento criada");
+      toast(
+        result.avisoClima
+          ? "Página de acompanhamento criada. Não achamos o endereço no mapa: a previsão do tempo será tentada de novo automaticamente."
+          : "Página de acompanhamento criada",
+      );
       router.push(`/obras/${result.obraId}`);
     } finally {
       setCarregando(false);

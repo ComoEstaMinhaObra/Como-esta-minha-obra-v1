@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Botao, CampoSenha, CampoTexto, useToast } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
@@ -16,24 +16,14 @@ import {
   TAMANHO_MINIMO_SENHA,
   senhaAceita,
 } from "@/lib/auth/forca-senha";
+import { emailNaoConfirmado, mensagemDeErro } from "@/lib/auth/mensagens-erro";
+import {
+  SEGUNDOS_ESPERA_REENVIO,
+  rotuloReenvio,
+  segundosRestantes,
+} from "@/lib/auth/reenvio-confirmacao";
 
 type Modo = "entrar" | "criar" | "recuperar";
-
-function mensagemDeErro(mensagem: string): string {
-  if (mensagem.includes("Invalid login credentials")) {
-    return "E-mail ou senha incorretos.";
-  }
-  if (mensagem.includes("Email not confirmed")) {
-    return "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.";
-  }
-  if (
-    mensagem.includes("Password should") ||
-    mensagem.toLowerCase().includes("weak")
-  ) {
-    return MENSAGEM_REGRA_SENHA;
-  }
-  return "Não foi possível concluir. Tente novamente.";
-}
 
 export function FormEntrar() {
   const { toast } = useToast();
@@ -49,6 +39,18 @@ export function FormEntrar() {
   );
   const [carregando, setCarregando] = useState(false);
   const [captcha, setCaptcha] = useState<string | null>(null);
+  const [reenviando, setReenviando] = useState(false);
+  const [liberaReenvioEm, setLiberaReenvioEm] = useState(0);
+  const [restantes, setRestantes] = useState(0);
+
+  useEffect(() => {
+    if (liberaReenvioEm === 0) return;
+    const atualizar = () =>
+      setRestantes(segundosRestantes(liberaReenvioEm, Date.now()));
+    atualizar();
+    const id = window.setInterval(atualizar, 1000);
+    return () => window.clearInterval(id);
+  }, [liberaReenvioEm]);
 
   const urlCallback = `${publicEnv.NEXT_PUBLIC_APP_URL}/auth/callback${
     next && next.startsWith("/") ? `?next=${encodeURIComponent(next)}` : ""
@@ -66,7 +68,11 @@ export function FormEntrar() {
           password: senha,
         });
         if (error) {
-          toast(mensagemDeErro(error.message));
+          if (emailNaoConfirmado(error.message)) {
+            setEnviado("confirmacao");
+            return;
+          }
+          toast(mensagemDeErro(error.message, error.code));
           return;
         }
         window.location.assign(urlCallback);
@@ -90,9 +96,10 @@ export function FormEntrar() {
         resetarTurnstile();
         setCaptcha(null);
         if (error) {
-          toast(mensagemDeErro(error.message));
+          toast(mensagemDeErro(error.message, error.code));
           return;
         }
+        setLiberaReenvioEm(Date.now() + SEGUNDOS_ESPERA_REENVIO * 1000);
         setEnviado("confirmacao");
         return;
       }
@@ -107,7 +114,7 @@ export function FormEntrar() {
       resetarTurnstile();
       setCaptcha(null);
       if (error) {
-        toast(mensagemDeErro(error.message));
+        toast(mensagemDeErro(error.message, error.code));
         return;
       }
       setEnviado("recuperacao");
@@ -116,15 +123,82 @@ export function FormEntrar() {
     }
   }
 
+  async function reenviarConfirmacao() {
+    setReenviando(true);
+    try {
+      const { error } = await createClient().auth.resend({
+        type: "signup",
+        email: email.trim(),
+        options: {
+          emailRedirectTo: urlCallback,
+          captchaToken: captcha ?? undefined,
+        },
+      });
+      resetarTurnstile();
+      setCaptcha(null);
+      if (error) {
+        toast(mensagemDeErro(error.message, error.code));
+        return;
+      }
+      setLiberaReenvioEm(Date.now() + SEGUNDOS_ESPERA_REENVIO * 1000);
+      toast("Reenviamos o link de confirmação.");
+    } finally {
+      setReenviando(false);
+    }
+  }
+
+  function voltarPara(destino: Modo) {
+    setEnviado(null);
+    setSenha("");
+    setCaptcha(null);
+    setModo(destino);
+  }
+
   if (enviado === "confirmacao") {
+    const aguardandoCaptcha =
+      Boolean(publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY) && !captcha;
     return (
-      <div className="space-y-3 text-center">
-        <h1 className="font-serif text-3xl font-light">Confirme seu e-mail</h1>
-        <p className="text-sm text-cinza-2">
-          Enviamos um link de confirmação para{" "}
-          <strong className="text-tinta">{email}</strong>. Abra o e-mail e
-          toque no link para ativar sua conta.
-        </p>
+      <div className="w-full max-w-sm space-y-5 text-center">
+        <div className="space-y-3">
+          <h1 className="font-serif text-3xl font-light">Confirme seu e-mail</h1>
+          <p className="text-sm text-cinza-2">
+            Se for um cadastro novo, enviamos um link de confirmação para{" "}
+            <strong className="text-tinta">{email}</strong>. Abra o e-mail e
+            toque no link para ativar sua conta.
+          </p>
+          <p className="text-sm text-cinza-2">
+            Se esse e-mail já tiver conta, nenhum link é enviado — use as
+            opções abaixo.
+          </p>
+        </div>
+
+        <TurnstileCampo onToken={setCaptcha} />
+
+        <Botao
+          type="button"
+          className="w-full"
+          disabled={reenviando || restantes > 0 || aguardandoCaptcha}
+          onClick={reenviarConfirmacao}
+        >
+          {rotuloReenvio(restantes, reenviando)}
+        </Botao>
+
+        <div className="space-y-2 text-sm">
+          <button
+            type="button"
+            className="block w-full text-tinta underline-offset-2 hover:underline"
+            onClick={() => voltarPara("entrar")}
+          >
+            Já tenho conta — entrar
+          </button>
+          <button
+            type="button"
+            className="block w-full text-cinza-2 underline-offset-2 hover:underline"
+            onClick={() => voltarPara("recuperar")}
+          >
+            Esqueci minha senha
+          </button>
+        </div>
       </div>
     );
   }

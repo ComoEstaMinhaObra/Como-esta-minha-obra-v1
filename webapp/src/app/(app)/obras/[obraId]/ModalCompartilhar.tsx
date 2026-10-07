@@ -11,6 +11,8 @@ import {
 } from "@/components/ui";
 import { ModalCobrancaNecessaria } from "@/components/ui/ModalCobrancaNecessaria";
 import { publicEnv } from "@/config/env";
+import { EMAIL_ADICIONAL } from "@/config/pricing";
+import { formatarBRL } from "@/lib/formatacao";
 import {
   liberarAcessoObra,
   listarAcessosObra,
@@ -104,6 +106,12 @@ export function ModalCompartilhar({
               </Botao>
             </div>
           </div>
+          {acessos.length > 0 && (
+            <p className="-mt-3 text-xs text-cinza-3">
+              O 1º e-mail da obra é gratuito. Este será um acesso adicional:{" "}
+              {formatarBRL(EMAIL_ADICIONAL.precoCentavos)} a cada 30 dias, na fatura da obra.
+            </p>
+          )}
 
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.18em] text-cinza-2">

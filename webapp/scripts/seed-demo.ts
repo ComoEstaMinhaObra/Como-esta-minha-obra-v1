@@ -101,12 +101,13 @@ async function main() {
     .update({ nome: DEMO_FRANCISCO.nomeEmpreiteiro })
     .eq("id", userId);
 
+  // A demo fica em trial estendido: o banco só deixa escrever em obra com cobrança vigente ou no
+  // trial, e o seed não deve criar cobrança no provedor.
   await admin
     .from("assinaturas")
     .update({
-      status: "ativa",
-      plano: "obra_1",
-      limite_obras: 1,
+      status: "trial",
+      trial_fim: new Date(Date.now() + 365 * 86400000).toISOString(),
       atualizado_em: new Date().toISOString(),
     })
     .eq("user_id", userId);

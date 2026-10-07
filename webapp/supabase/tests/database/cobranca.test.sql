@@ -78,13 +78,13 @@ select ok(
   'trial vencido sem cobrança: a obra fica somente leitura'
 );
 
--- ===== permissão por obra: legado (fase expandir) =====
+-- ===== permissão por obra: a conta ativa do modelo antigo não vale mais (E5) =====
 update public.assinaturas set status = 'ativa'
 where user_id = '00000000-0000-0000-0000-00000000c002';
 
 select ok(
-  private.obra_permite_escrita((select id from t_b)),
-  'legado: conta ativa do modelo antigo, obra sem cobrança registrada, aceita escrita'
+  not private.obra_permite_escrita((select id from t_b)),
+  'conta ativa do modelo antigo, sem cobrança da obra: somente leitura (sem ramo legado)'
 );
 
 -- primeira cobrança da obra B: inadimplente
@@ -96,7 +96,7 @@ values ('00000000-0000-0000-0000-00000000c002', (select id from t_b), 'subs_b1',
 
 select ok(
   not private.obra_permite_escrita((select id from t_b)),
-  'obra inadimplente não cai no legado: somente leitura'
+  'obra inadimplente: somente leitura'
 );
 
 update public.cobrancas_obra set status = 'ativa', inadimplente_desde = null,

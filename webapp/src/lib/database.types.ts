@@ -109,8 +109,6 @@ export type Database = {
           atualizado_em: string
           criado_em: string
           id: string
-          limite_obras: number
-          plano: Database["public"]["Enums"]["plano_tipo"]
           relatorios_enviados_trial: number
           status: Database["public"]["Enums"]["assinatura_status"]
           trial_fim: string | null
@@ -122,8 +120,6 @@ export type Database = {
           atualizado_em?: string
           criado_em?: string
           id?: string
-          limite_obras?: number
-          plano?: Database["public"]["Enums"]["plano_tipo"]
           relatorios_enviados_trial?: number
           status?: Database["public"]["Enums"]["assinatura_status"]
           trial_fim?: string | null
@@ -135,8 +131,6 @@ export type Database = {
           atualizado_em?: string
           criado_em?: string
           id?: string
-          limite_obras?: number
-          plano?: Database["public"]["Enums"]["plano_tipo"]
           relatorios_enviados_trial?: number
           status?: Database["public"]["Enums"]["assinatura_status"]
           trial_fim?: string | null
@@ -1119,9 +1113,25 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_enfileirar_renovacao_emails_obra: {
+        Args: { p_event_id: string; p_subscription_id: string }
+        Returns: Json
+      }
       fn_cobranca_renovar: {
         Args: { p_agora?: string; p_subscription_id: string }
         Returns: Json
+      }
+      fn_cobranca_solicitar_regularizacao: {
+        Args: { p_obra: string }
+        Returns: Json
+      }
+      fn_cobranca_concluir_regularizacao: {
+        Args: { p_obra: string }
+        Returns: undefined
+      }
+      fn_cobranca_desfazer_regularizacao: {
+        Args: { p_obra: string }
+        Returns: undefined
       }
       fn_cobranca_solicitar_cancelamento: {
         Args: { p_obra: string }
@@ -1262,7 +1272,6 @@ export type Database = {
         | "falhou"
         | "incerto"
         | "cancelado"
-      plano_tipo: "trial" | "obra_1" | "obra_3" | "obra_5"
       relatorio_status: "rascunho" | "enviado" | "processando"
       versao_status: "processando" | "publicada" | "falhou"
       versao_tipo: "original" | "retificacao"
@@ -1432,7 +1441,6 @@ export const Constants = {
         "falhou",
         "incerto",
       ],
-      plano_tipo: ["trial", "obra_1", "obra_3", "obra_5"],
       relatorio_status: ["rascunho", "enviado", "processando"],
       versao_status: ["processando", "publicada", "falhou"],
       versao_tipo: ["original", "retificacao"],

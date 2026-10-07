@@ -7,7 +7,13 @@ import { Botao, Cartao, ModalBase, Selo, useToast } from "@/components/ui";
 import type { LinhaCobranca, ResumoCobranca } from "@/lib/cobranca/estado";
 import { DIAS_RECUPERACAO } from "@/lib/cobranca/constantes";
 import { formatarBRL } from "@/lib/formatacao";
-import { cancelarCobrancas, contratarObra, type ErroContratar } from "./actions";
+import {
+  cancelarCobrancas,
+  contratarObra,
+  regularizarPagamento,
+  type ErroContratar,
+  type ErroRegularizar,
+} from "./actions";
 
 function dataBr(d: Date | null): string {
   if (!d) return "—";
@@ -26,10 +32,17 @@ const MENSAGEM_ERRO: Record<ErroContratar, string> = {
   OBRA_ARQUIVADA: "Esta obra está arquivada.",
   JA_CONTRATADA: "Esta obra já tem cobrança ativa.",
   REATIVAR_APOS: "Esta obra mantém os recursos até o fim do período já pago; depois você pode contratar de novo.",
-  ASSINATURA_ANTIGA: "Esta obra já é coberta pela sua assinatura anterior.",
   PRODUTO_NAO_CONFIGURADO: "A cobrança ainda não está disponível. Tente novamente mais tarde.",
   FALHA_CLIENTE: "Não foi possível abrir o pagamento agora. Tente novamente em alguns minutos.",
   FALHA_CHECKOUT: "Não foi possível abrir o pagamento agora. Tente novamente em alguns minutos.",
+};
+
+const MENSAGEM_ERRO_REGULARIZAR: Partial<Record<ErroRegularizar, string>> = {
+  COBRANCA_NAO_REGULARIZAVEL: "Esta obra não tem pagamento pendente para regularizar.",
+  FALHA_PROVEDOR:
+    "Não foi possível encerrar a cobrança com falha agora. Nada foi alterado; tente novamente em alguns minutos.",
+  FALHA_CONCLUIR:
+    "A cobrança com falha foi encerrada, mas não conseguimos abrir o novo pagamento. Use “Reativar” nesta obra para pagar.",
 };
 
 const SELO: Record<LinhaCobranca["estado"], { texto: string; tom: "ambar" | "verde" | "cinza" | "preto" }> = {
@@ -61,6 +74,7 @@ export function CobrancaCliente({
   const [erro, setErro] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [contratando, setContratando] = useState<LinhaCobranca | null>(null);
+  const [regularizando, setRegularizando] = useState<LinhaCobranca | null>(null);
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
 
@@ -98,6 +112,26 @@ export function CobrancaCliente({
       if (r && !r.ok) {
         setContratando(null);
         setErro(MENSAGEM_ERRO[r.erro as ErroContratar] ?? MENSAGEM_ERRO.FALHA_CHECKOUT);
+      }
+    });
+  }
+
+  function confirmarRegularizacao() {
+    if (!regularizando) return;
+    const obraId = regularizando.obraId;
+    setErro(null);
+    startTransition(async () => {
+      const r = await regularizarPagamento(obraId);
+      // Em sucesso a ação redireciona para o novo checkout e não retorna.
+      if (r && !r.ok) {
+        setRegularizando(null);
+        const codigo = r.erro as ErroRegularizar;
+        setErro(
+          MENSAGEM_ERRO_REGULARIZAR[codigo] ??
+            MENSAGEM_ERRO[codigo as ErroContratar] ??
+            MENSAGEM_ERRO.FALHA_CHECKOUT,
+        );
+        router.refresh();
       }
     });
   }
@@ -209,6 +243,7 @@ export function CobrancaCliente({
                 selecionada={selecionadas.includes(l.obraId)}
                 onAlternar={() => alternar(l.obraId)}
                 onContratar={() => setContratando(l)}
+                onRegularizar={() => setRegularizando(l)}
                 pending={pending}
               />
             </li>
@@ -283,6 +318,38 @@ export function CobrancaCliente({
       </ModalBase>
 
       <ModalBase
+        aberto={!!regularizando}
+        onFechar={() => setRegularizando(null)}
+        titulo="Regularizar pagamento"
+      >
+        {regularizando && (
+          <div className="space-y-4 text-sm">
+            <p>
+              <strong className="font-medium">{regularizando.nome}</strong> está com o pagamento pendente
+              desde {dataBr(regularizando.inadimplenteDesde)}.
+            </p>
+            <p className="text-cinza-2">
+              Não dá para trocar o cartão de uma assinatura em andamento. Vamos encerrar a cobrança que
+              falhou (sem novas tentativas) e levar você a um novo pagamento de{" "}
+              {formatarBRL(precoObraCentavos)} por mês, com a data de cobrança contando de hoje.
+            </p>
+            <p className="text-cinza-2">
+              Se você não concluir o novo pagamento, a obra continua somente leitura e você pode pagar
+              depois em “Reativar”.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Botao variante="secundario" onClick={() => setRegularizando(null)} disabled={pending}>
+                Voltar
+              </Botao>
+              <Botao onClick={confirmarRegularizacao} disabled={pending}>
+                {pending ? "Abrindo pagamento…" : "Continuar para o pagamento"}
+              </Botao>
+            </div>
+          </div>
+        )}
+      </ModalBase>
+
+      <ModalBase
         aberto={confirmandoCancelamento}
         onFechar={() => setConfirmandoCancelamento(false)}
         titulo="Cancelar cobrança"
@@ -324,6 +391,7 @@ function LinhaObra({
   selecionada,
   onAlternar,
   onContratar,
+  onRegularizar,
   pending,
 }: {
   l: LinhaCobranca;
@@ -332,6 +400,7 @@ function LinhaObra({
   selecionada: boolean;
   onAlternar: () => void;
   onContratar: () => void;
+  onRegularizar: () => void;
   pending: boolean;
 }) {
   const selo = SELO[l.estado];
@@ -352,7 +421,7 @@ function LinhaObra({
             <Link href={`/obras/${l.obraId}`} className="font-serif text-lg font-light hover:underline">
               {l.nome}
             </Link>
-            <Selo tom={selo.tom}>{l.legado ? "Assinatura anterior" : selo.texto}</Selo>
+            <Selo tom={selo.tom}>{selo.texto}</Selo>
             {l.arquivada && <Selo tom="cinza">Arquivada</Selo>}
           </div>
           <p className="text-sm text-cinza-2">{descricao(l, preco)}</p>
@@ -363,6 +432,11 @@ function LinhaObra({
         {l.acoes.contratar && (
           <Botao onClick={onContratar} disabled={pending}>
             Assinar esta obra
+          </Botao>
+        )}
+        {l.acoes.regularizar && (
+          <Botao onClick={onRegularizar} disabled={pending}>
+            Regularizar pagamento
           </Botao>
         )}
         {l.acoes.reativar && (
@@ -387,13 +461,12 @@ function descricao(l: LinhaCobranca, preco: number): string {
         ? `Primeira cobrança de ${formatarBRL(l.valorCentavos ?? preco)} em ${dataBr(l.proximaCobranca)}, depois todo mês.`
         : `${formatarBRL(l.valorCentavos ?? preco)}/mês · próxima cobrança em ${dataBr(l.proximaCobranca)}.`;
     case "inadimplente":
-      return `Pagamento pendente desde ${dataBr(l.inadimplenteDesde)}. Esta obra está somente leitura; o AbacatePay tenta cobrar de novo e, se não for pago até ${dataBr(l.limiteRecuperacao)} (${DIAS_RECUPERACAO} dias), a assinatura da obra é cancelada.`;
+      return `Pagamento pendente desde ${dataBr(l.inadimplenteDesde)}. Esta obra está somente leitura; o AbacatePay tenta cobrar de novo e, se não for pago até ${dataBr(l.limiteRecuperacao)} (${DIAS_RECUPERACAO} dias), a assinatura da obra é cancelada. Para pagar agora com outro cartão, use “Regularizar pagamento”.`;
     case "cancelamento_agendado":
       return `Cobrança cancelada. Você mantém tudo até ${dataBr(l.acessoAte)}; depois a obra fica somente leitura.`;
     case "cancelada":
       return "Somente leitura: suas informações continuam disponíveis para consulta. Contrate de novo para voltar a editar e enviar relatórios.";
     default:
-      if (l.legado) return "Coberta pela sua assinatura anterior, sem cobrança adicional por obra.";
       if (l.emTrialAte) return `Em trial até ${dataBr(l.emTrialAte)}. Assine para continuar depois disso.`;
       return `Sem assinatura: somente leitura. ${formatarBRL(preco)}/mês para editar e enviar relatórios.`;
   }

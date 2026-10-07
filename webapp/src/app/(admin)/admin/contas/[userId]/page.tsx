@@ -18,9 +18,10 @@ export default async function AdminContaDetalhePage({
     (contas ?? []) as {
       userId: string;
       nome: string;
-      plano: string;
       status: string;
       obrasAtivas: number;
+      obrasPagas?: number;
+      obrasInadimplentes?: number;
     }[]
   ).find((c) => c.userId === userId);
   if (!conta) notFound();
@@ -50,9 +51,10 @@ export default async function AdminContaDetalhePage({
       </div>
 
       <section className="space-y-2 text-sm">
-        <p>Plano: {conta.plano}</p>
-        <p>Status: {conta.status}</p>
+        <p>Conta: {conta.status}</p>
         <p>Obras ativas: {conta.obrasAtivas}</p>
+        <p>Obras com cobrança ativa: {conta.obrasPagas ?? 0}</p>
+        <p>Obras com pagamento pendente: {conta.obrasInadimplentes ?? 0}</p>
       </section>
 
       <section>

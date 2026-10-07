@@ -45,11 +45,11 @@ export interface LinhaCobranca {
   limiteRecuperacao: Date | null;
   /** Obra sem assinatura usando o trial da conta. */
   emTrialAte: Date | null;
-  /** Obra coberta pela assinatura da conta do modelo antigo (até a limpeza da E5). */
-  legado: boolean;
   acoes: {
     contratar: boolean;
     cancelar: boolean;
+    /** Obra com pagamento pendente: novo checkout no lugar da assinatura que falhou. */
+    regularizar: boolean;
     reativar: boolean;
     /** Data a partir da qual a reativação é permitida (período já pago em andamento). */
     reativarApos: Date | null;
@@ -103,8 +103,6 @@ export function montarResumoCobranca(
     const primeira = data(atual?.primeira_cobranca_em ?? null);
     const adiada = !!primeira && primeira > agora;
     const inadimplenteDesde = data(atual?.inadimplente_desde ?? null);
-    const legado =
-      estado === "sem_assinatura" && conta?.status === "ativa" && !arquivada;
 
     const reativarApos =
       estado === "cancelamento_agendado" && acessoAte && acessoAte > agora ? acessoAte : null;
@@ -124,10 +122,10 @@ export function montarResumoCobranca(
         ? new Date(inadimplenteDesde.getTime() + DIAS_RECUPERACAO * DIA)
         : null,
       emTrialAte: estado === "sem_assinatura" && trialValido && !arquivada ? trialFim : null,
-      legado,
       acoes: {
-        contratar: estado === "sem_assinatura" && !arquivada && !legado,
+        contratar: estado === "sem_assinatura" && !arquivada,
         cancelar: estado === "ativa" && !arquivada,
+        regularizar: estado === "inadimplente" && !arquivada,
         reativar:
           !arquivada &&
           (estado === "cancelada" || (estado === "cancelamento_agendado" && reativarApos === null)),

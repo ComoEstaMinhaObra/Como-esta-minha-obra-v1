@@ -133,6 +133,28 @@ describe("webhook da cobrança por obra", () => {
     expect(chamada(a, "fn_cobranca_registrar")).toBeUndefined();
   });
 
+  it("subscription.renewed relança o adicional dos e-mails pagos da obra", async () => {
+    const a = admin({
+      cobranca: { id: "c1", obra_id: OBRA, status: "ativa" },
+      rpc: { fn_cobranca_renovar: { data: { alterada: true } } },
+    });
+    await processarEventoAssinatura(a as never, payload("subscription.renewed"));
+
+    const c = chamada(a, "fn_enfileirar_renovacao_emails_obra");
+    expect(c?.args.p_subscription_id).toBe("subs_1");
+    expect(c?.args.p_event_id).toBeTruthy();
+  });
+
+  it("subscription.renewed ignorada não relança o adicional", async () => {
+    const a = admin({
+      cobranca: { id: "c1", obra_id: OBRA, status: "cancelada" },
+      rpc: { fn_cobranca_renovar: { data: { alterada: false } } },
+    });
+    await processarEventoAssinatura(a as never, payload("subscription.renewed"));
+
+    expect(chamada(a, "fn_enfileirar_renovacao_emails_obra")).toBeUndefined();
+  });
+
   it("subscription.cancelled sem pedido do app registra o alerta no log", async () => {
     const a = admin({
       cobranca: { id: "c1", obra_id: OBRA, status: "ativa" },

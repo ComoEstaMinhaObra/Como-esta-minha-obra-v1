@@ -53,6 +53,7 @@ export function codigoRpc(
     "COBRANCA_AUSENTE",
     "COBRANCA_NAO_CANCELAVEL",
     "COBRANCA_NAO_DESFAZIVEL",
+    "COBRANCA_NAO_REGULARIZAVEL",
   ];
   for (const codigo of conhecido) {
     if (msg.includes(codigo)) return codigo;
@@ -77,6 +78,8 @@ export function mensagemRpc(codigo: string): string {
       return "Esta cobrança não pode ser cancelada agora.";
     case "COBRANCA_NAO_DESFAZIVEL":
       return "O cancelamento não pode mais ser desfeito.";
+    case "COBRANCA_NAO_REGULARIZAVEL":
+      return "Esta obra não tem pagamento pendente para regularizar.";
     case "SEM_PERMISSAO":
       return "Você não tem permissão para esta ação.";
     case "VALOR_INVALIDO":

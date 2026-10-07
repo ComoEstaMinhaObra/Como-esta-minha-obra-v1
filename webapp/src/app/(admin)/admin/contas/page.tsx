@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 type ContaRow = {
   userId: string;
   nome: string;
-  plano: string;
   status: string;
   nObras: number;
+  nPagas: number;
+  nInadimplentes: number;
 };
 
 export default async function AdminContasPage({
@@ -21,17 +22,19 @@ export default async function AdminContasPage({
   const lista = (data ?? []) as {
     userId: string;
     nome: string;
-    plano: string;
     status: string;
     obrasAtivas: number;
+    obrasPagas: number;
+    obrasInadimplentes: number;
   }[];
 
   let rows: ContaRow[] = lista.map((p) => ({
     userId: p.userId,
     nome: p.nome || "—",
-    plano: p.plano,
     status: p.status,
     nObras: p.obrasAtivas,
+    nPagas: p.obrasPagas ?? 0,
+    nInadimplentes: p.obrasInadimplentes ?? 0,
   }));
 
   if (busca) {
@@ -47,7 +50,7 @@ export default async function AdminContasPage({
       <header>
         <h1 className="font-serif text-3xl font-light">Contas</h1>
         <p className="mt-1 text-sm text-cinza-2">
-          IDs, nome mínimo, plano e contagens — sem e-mail ou conteúdo de obra
+          IDs, nome mínimo e contagens de obras — sem e-mail ou conteúdo de obra
         </p>
       </header>
       <form>
@@ -64,15 +67,16 @@ export default async function AdminContasPage({
             <tr>
               <th className="px-4 py-3 font-medium">ID</th>
               <th className="px-4 py-3 font-medium">Nome</th>
-              <th className="px-4 py-3 font-medium">Plano</th>
-              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Conta</th>
               <th className="px-4 py-3 font-medium">Obras</th>
+              <th className="px-4 py-3 font-medium">Pagas</th>
+              <th className="px-4 py-3 font-medium">Pgto. pendente</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-cinza-2">
+                <td colSpan={6} className="px-4 py-8 text-center text-cinza-2">
                   Nenhuma conta
                 </td>
               </tr>
@@ -85,9 +89,10 @@ export default async function AdminContasPage({
                     </Link>
                   </td>
                   <td className="px-4 py-3">{r.nome}</td>
-                  <td className="px-4 py-3">{r.plano}</td>
                   <td className="px-4 py-3">{r.status}</td>
                   <td className="px-4 py-3 tabular-nums">{r.nObras}</td>
+                  <td className="px-4 py-3 tabular-nums">{r.nPagas}</td>
+                  <td className="px-4 py-3 tabular-nums">{r.nInadimplentes}</td>
                 </tr>
               ))
             )}

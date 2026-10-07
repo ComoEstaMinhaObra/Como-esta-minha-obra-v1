@@ -4,7 +4,7 @@
  */
 import { TRIAL } from "@/config/pricing";
 
-/** Estado da conta: trial e, no modelo antigo (legado até a E5), ativa/inadimplente/cancelada. */
+/** Estado da conta no banco. Só o trial importa para o gating; a cobrança é por obra. */
 export type AssinaturaStatus =
   | "trial"
   | "ativa"
@@ -62,15 +62,12 @@ export function obraPermiteEscrita(e: EstadoObra): boolean {
   // Obra com histórico de cobrança sem cobrança vigente: somente leitura.
   if (e.cobrancas.length > 0) return false;
 
-  if (e.conta.status === "trial") {
-    return (
-      e.conta.trialFim !== null &&
-      agora <= e.conta.trialFim &&
-      !e.donoJaTeveCobranca
-    );
-  }
-  // Legado (até a E5): conta ativa do modelo antigo.
-  return e.conta.status === "ativa";
+  return (
+    e.conta.status === "trial" &&
+    e.conta.trialFim !== null &&
+    agora <= e.conta.trialFim &&
+    !e.donoJaTeveCobranca
+  );
 }
 
 export function podeEditarRascunho(e: EstadoObra): boolean {
@@ -90,9 +87,9 @@ export function podeEnviarRelatorio(e: EstadoObra): boolean {
   return true;
 }
 
-/** Acesso adicional de e-mail só em obra com cobrança vigente (ou conta ativa do legado). */
+/** Acesso adicional de e-mail só em obra com cobrança vigente. */
 export function podeAdicionarEmailExtra(e: EstadoObra): boolean {
-  return cobrancaVigente(e.cobrancas, agoraDe(e)) || e.conta.status === "ativa";
+  return cobrancaVigente(e.cobrancas, agoraDe(e));
 }
 
 /** Toda obra pode ser consultada, em qualquer estado de cobrança. */
@@ -113,7 +110,7 @@ export interface EstadoCriarObra {
  * própria cobrança; sem cobrança vale o trial, com uma obra dentro do prazo.
  */
 export function podeCriarObra(e: EstadoCriarObra): boolean {
-  if (e.conta.status === "ativa" || e.temCobrancaVigente) return true;
+  if (e.temCobrancaVigente) return true;
   if (e.conta.status !== "trial") return false;
   const agora = agoraDe(e);
   return (

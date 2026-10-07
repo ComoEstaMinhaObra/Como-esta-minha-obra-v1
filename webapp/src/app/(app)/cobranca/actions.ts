@@ -22,7 +22,6 @@ export type ErroContratar =
   | "OBRA_ARQUIVADA"
   | "JA_CONTRATADA"
   | "REATIVAR_APOS"
-  | "ASSINATURA_ANTIGA"
   | "PRODUTO_NAO_CONFIGURADO"
   | "FALHA_CLIENTE"
   | "FALHA_CHECKOUT";
@@ -89,15 +88,6 @@ export async function contratarObra(obraId: string) {
     .eq("user_id", user.id)
     .maybeSingle();
   if (!assinatura) return { ok: false as const, erro: "SEM_PERMISSAO" as const };
-  // Conta ativa do modelo antigo já cobre a obra; contratar de novo cobraria em duplicidade.
-  if (assinatura.status === "ativa" && !existente) {
-    const { count } = await supabase
-      .from("cobrancas_obra")
-      .select("id", { count: "exact", head: true })
-      .eq("obra_id", obraId);
-    if (!count) return { ok: false as const, erro: "ASSINATURA_ANTIGA" as const };
-  }
-
   let customerId = assinatura.abacatepay_customer_id;
   if (!customerId) {
     try {
@@ -213,4 +203,61 @@ export async function cancelarCobrancas(obraIds: string[]) {
   revalidatePath("/cobranca");
   revalidatePath("/obras");
   return { ok: true as const, resultados };
+}
+
+export type ErroRegularizar =
+  | ErroContratar
+  | "COBRANCA_NAO_REGULARIZAVEL"
+  | "FALHA_PROVEDOR"
+  | "FALHA_CONCLUIR";
+
+/**
+ * Regulariza o pagamento pendente de uma obra. O provedor não troca o cartão de uma assinatura,
+ * então encerra a que falhou e abre um novo checkout. A intenção é gravada antes de chamar o
+ * provedor; se o provedor falhar, a intenção é desfeita e a obra continua como estava. Se o
+ * usuário abandonar o novo checkout, a obra fica somente leitura e pode ser reativada.
+ */
+export async function regularizarPagamento(obraId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, erro: "NAO_AUTENTICADO" as const };
+
+  const { data, error } = await supabase.rpc("fn_cobranca_solicitar_regularizacao", {
+    p_obra: obraId,
+  });
+  if (error) {
+    const codigo = codigoRpc(error);
+    return {
+      ok: false as const,
+      erro: (codigo === "COBRANCA_NAO_REGULARIZAVEL"
+        ? codigo
+        : "FALHA_PROVEDOR") as ErroRegularizar,
+    };
+  }
+
+  const { subscriptionId } = data as { subscriptionId: string };
+  try {
+    await cancelarAssinatura(subscriptionId);
+  } catch (e) {
+    logSeguro("error", { evento: "regularizar_cancelar", ids: { obraId } });
+    void (e instanceof AbacatePayError ? sanitizarErro(e) : null);
+    await supabase.rpc("fn_cobranca_desfazer_regularizacao", { p_obra: obraId });
+    return { ok: false as const, erro: "FALHA_PROVEDOR" as ErroRegularizar };
+  }
+
+  const { error: errConcluir } = await supabase.rpc("fn_cobranca_concluir_regularizacao", {
+    p_obra: obraId,
+  });
+  if (errConcluir) {
+    logSeguro("error", { evento: "regularizar_concluir", ids: { obraId } });
+    revalidatePath("/cobranca");
+    return { ok: false as const, erro: "FALHA_CONCLUIR" as ErroRegularizar };
+  }
+  revalidatePath("/cobranca");
+  revalidatePath("/obras");
+
+  // Em sucesso redireciona para o novo checkout e não retorna.
+  return contratarObra(obraId);
 }
