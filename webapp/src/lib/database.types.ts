@@ -1182,6 +1182,7 @@ export type Database = {
         Returns: Json
       }
       fn_listar_obras_empreiteiro: { Args: never; Returns: Json }
+      fn_listar_obras_proprietario: { Args: never; Returns: Json }
       fn_listar_outbox_pendente: { Args: never; Returns: Json }
       fn_marcar_versao_falhou: {
         Args: { p_erro: string; p_versao: string }

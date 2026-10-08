@@ -1,7 +1,7 @@
 -- pgTAP: grants, RLS, helpers e invariantes de segurança
 
 begin;
-select plan(56);
+select plan(59);
 
 select has_schema('private');
 
@@ -92,6 +92,35 @@ select ok(
     'execute'
   ),
   'anon sem execute em fn_criar_obra'
+);
+
+select ok(
+  (
+    select prosecdef and array_to_string(proconfig, ',') like '%search_path=""%'
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_listar_obras_proprietario'
+    limit 1
+  ),
+  'fn_listar_obras_proprietario é SECURITY DEFINER com search_path seguro'
+);
+
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.fn_listar_obras_proprietario()',
+    'execute'
+  ),
+  'authenticated executa fn_listar_obras_proprietario'
+);
+
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.fn_listar_obras_proprietario()',
+    'execute'
+  ),
+  'anon não executa fn_listar_obras_proprietario'
 );
 
 select ok(

@@ -250,6 +250,10 @@ describe("segurança direta JWT/PostgREST", () => {
     expect(rpcErr).toBeTruthy();
     const { error: adminErr } = await anonC.rpc("fn_admin_kpis");
     expect(adminErr).toBeTruthy();
+    const { error: resumoErr } = await anonC.rpc(
+      "fn_listar_obras_proprietario",
+    );
+    expect(resumoErr).toBeTruthy();
     void error;
   });
 
@@ -324,6 +328,99 @@ describe("segurança direta JWT/PostgREST", () => {
       erros.some((e) => e.error?.message.includes("PRECISA_ASSINAR")),
     ).toBe(true);
   });
+
+  it("perfil do proprietário lista acessos ativos pelo último snapshot publicado", async () => {
+    const emailA = `${prefix}-resumo-a@test.local`;
+    const emailB = `${prefix}-resumo-b@test.local`;
+    const emailP = `${prefix}-resumo-p@test.local`;
+    await criarUsuario(emailA);
+    await criarUsuario(emailB);
+    await criarUsuario(emailP);
+    const ca = await login(emailA);
+    const cb = await login(emailB);
+    const cp = await login(emailP);
+
+    const obraPublicada = await criarObra(ca, "Obra publicada");
+    const obraSemRelatorio = await criarObra(cb, "Obra sem relatório");
+    const [{ error: acessoAErr }, { error: acessoBErr }] = await Promise.all([
+      ca.rpc("fn_solicitar_acesso_obra", {
+        p_obra: obraPublicada,
+        p_email: emailP,
+      }),
+      cb.rpc("fn_solicitar_acesso_obra", {
+        p_obra: obraSemRelatorio,
+        p_email: emailP,
+      }),
+    ]);
+    expect(acessoAErr).toBeNull();
+    expect(acessoBErr).toBeNull();
+
+    const dados = await rascunhoMinimo(ca, obraPublicada);
+    dados.etapas[0]!.pct = 37;
+    dados.prazo = [{ motivo: "chuvas", dias: 7 }];
+    await publicarPrimeiroRelatorio(ca, obraPublicada, dados);
+
+    const { error: alterarVivaErr } = await adminClient()
+      .from("obras")
+      .update({ nome: "Nome vivo ainda não publicado" })
+      .eq("id", obraPublicada);
+    expect(alterarVivaErr).toBeNull();
+
+    const { data: resumo, error: resumoErr } = await cp.rpc(
+      "fn_listar_obras_proprietario",
+    );
+    expect(resumoErr).toBeNull();
+    const lista = resumo as {
+      id: string;
+      nome: string;
+      endereco: string | null;
+      avanco: number | null;
+      inicioContratual: string | null;
+      entregaPrevista: string | null;
+      temRelatorioPublicado: boolean;
+    }[];
+    expect(lista).toHaveLength(2);
+    expect(lista.find((obra) => obra.id === obraPublicada)).toMatchObject({
+      nome: "Obra publicada",
+      endereco: "Rua A, 1, Salvador",
+      avanco: 37,
+      inicioContratual: "2026-01-01",
+      entregaPrevista: "2026-12-08",
+      temRelatorioPublicado: true,
+    });
+    expect(lista.find((obra) => obra.id === obraSemRelatorio)).toMatchObject({
+      nome: "Obra sem relatório",
+      endereco: null,
+      avanco: null,
+      inicioContratual: null,
+      entregaPrevista: null,
+      temRelatorioPublicado: false,
+    });
+
+    const { data: linhaViva } = await cp
+      .from("obras")
+      .select("id")
+      .eq("id", obraPublicada)
+      .maybeSingle();
+    expect(linhaViva).toBeNull();
+
+    const { data: acessoB } = await cb
+      .from("obra_acessos")
+      .select("id")
+      .eq("obra_id", obraSemRelatorio)
+      .eq("user_id", (await cp.auth.getUser()).data.user!.id)
+      .single();
+    const { error: revogarErr } = await cb.rpc("fn_revogar_acesso_obra", {
+      p_obra: obraSemRelatorio,
+      p_acesso: acessoB!.id,
+    });
+    expect(revogarErr).toBeNull();
+    const { data: depoisRevogacao, error: depoisErr } = await cp.rpc(
+      "fn_listar_obras_proprietario",
+    );
+    expect(depoisErr).toBeNull();
+    expect(depoisRevogacao).toHaveLength(1);
+  }, 30_000);
 
   it("duas criações concorrentes na última vaga resultam em uma obra", async () => {
     await criarUsuario(`${prefix}-slot@test.local`);

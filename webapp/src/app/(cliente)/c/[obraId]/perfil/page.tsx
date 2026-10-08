@@ -3,15 +3,17 @@ import { redirect } from "next/navigation";
 import { sairCliente } from "../actions";
 import { ClientePageHeader } from "@/components/cliente/ClientePageHeader";
 import { Avatar, BarraProgresso } from "@/components/ui";
-import {
-  calcularAvancoGeral,
-  calcularNovaDataTermino,
-} from "@/lib/relatorios/calculos";
-import { createClient } from "@/lib/supabase/server";
 import { formatarDataBr } from "@/lib/datas";
 import { carregarDadosCliente } from "@/lib/cliente/carregar-dados";
+import { listarObrasProprietario } from "@/lib/cliente/listar-obras";
 
-function statusDeAvanco(pct: number) {
+function statusDeAvanco(pct: number | null, temRelatorioPublicado: boolean) {
+  if (!temRelatorioPublicado || pct === null)
+    return {
+      label: "Aguardando relatório",
+      cor: "text-cinza-2",
+      dot: "bg-cinza-3",
+    };
   if (pct >= 100)
     return { label: "Concluída", cor: "text-tinta", dot: "bg-tinta" };
   if (pct <= 0)
@@ -32,55 +34,13 @@ export default async function PerfilPage({
     redirect(`/c/${obraId}`);
   }
   const { dados } = result;
-  const supabase = await createClient();
-  const { data: acessos } = await supabase
-    .from("obra_acessos")
-    .select("obra_id")
-    .eq("user_id", dados.usuario.id)
-    .eq("status", "ativo");
-  const obraIds = (acessos ?? []).map((a) => a.obra_id);
-  const obrasCards: {
-    id: string;
-    nome: string;
-    endereco: string;
-    avanco: number;
-    inicio: string;
-    entrega: string;
-    atual: boolean;
-  }[] = [];
-
-  if (obraIds.length > 0) {
-    const { data: obras } = await supabase
-      .from("obras")
-      .select(
-        "id, nome, endereco, inicio_contratual, termino_contratual, arquivada_em",
-      )
-      .in("id", obraIds)
-      .is("arquivada_em", null);
-    for (const o of obras ?? []) {
-      const [{ data: etapas }, { data: dias }] = await Promise.all([
-        supabase.from("etapas").select("peso, pct_atual").eq("obra_id", o.id),
-        supabase.from("dias_aditivados").select("dias").eq("obra_id", o.id),
-      ]);
-      obrasCards.push({
-        id: o.id,
-        nome: o.nome,
-        endereco: o.endereco,
-        avanco: calcularAvancoGeral(
-          (etapas ?? []).map((e) => ({
-            peso: Number(e.peso),
-            pct: e.pct_atual,
-          })),
-        ),
-        inicio: o.inicio_contratual,
-        entrega: calcularNovaDataTermino(
-          o.termino_contratual,
-          (dias ?? []).map((d) => d.dias),
-        ),
-        atual: o.id === obraId,
-      });
-    }
-  }
+  const obrasResult = await listarObrasProprietario();
+  const obrasCards = obrasResult.ok
+    ? obrasResult.obras.map((obra) => ({
+        ...obra,
+        atual: obra.id === obraId,
+      }))
+    : [];
 
   const dadosPessoais = [
     ["Nome", dados.usuario.nome],
@@ -123,12 +83,24 @@ export default async function PerfilPage({
           <div className="flex items-baseline gap-2">
             <h2 className="font-serif text-[24px] font-normal">Minhas obras</h2>
             <span className="text-[10.5px] text-cinza-3">
-              {obrasCards.length} obra{obrasCards.length === 1 ? "" : "s"}
+              {obrasResult.ok
+                ? `${obrasCards.length} obra${obrasCards.length === 1 ? "" : "s"}`
+                : "indisponível"}
             </span>
           </div>
+          {!obrasResult.ok ? (
+            <p className="mt-[18px] text-[12px] leading-relaxed text-cinza-2">
+              Não foi possível carregar suas obras agora. Tente novamente em
+              alguns minutos.
+            </p>
+          ) : obrasCards.length === 0 ? (
+            <p className="mt-[18px] text-[12px] leading-relaxed text-cinza-2">
+              Nenhuma obra vinculada a esta conta.
+            </p>
+          ) : null}
           <ul className="mt-[18px] grid grid-cols-1 gap-[14px]">
             {obrasCards.map((o) => {
-              const st = statusDeAvanco(o.avanco);
+              const st = statusDeAvanco(o.avanco, o.temRelatorioPublicado);
               return (
                 <li key={o.id}>
                   <Link href={`/c/${o.id}`} className="block">
@@ -150,19 +122,28 @@ export default async function PerfilPage({
                           {st.label}
                         </span>
                       </div>
-                      <p className="mt-[5px] text-[11.5px] text-cinza-2">
-                        {o.endereco}
-                      </p>
-                      <div className="mt-4 flex items-center gap-3">
-                        <BarraProgresso pct={o.avanco} />
-                        <span className="text-[11px] text-cinza-2">
-                          {o.avanco}%
-                        </span>
-                      </div>
+                      {o.endereco ? (
+                        <p className="mt-[5px] text-[11.5px] text-cinza-2">
+                          {o.endereco}
+                        </p>
+                      ) : null}
+                      {o.avanco !== null ? (
+                        <div className="mt-4 flex items-center gap-3">
+                          <BarraProgresso pct={o.avanco} />
+                          <span className="text-[11px] text-cinza-2">
+                            {o.avanco}%
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="mt-4 text-[11px] text-cinza-2">
+                          O primeiro relatório ainda não foi publicado.
+                        </p>
+                      )}
                       <div className="mt-2.5 flex items-center justify-between gap-3">
                         <span className="text-[10px] tracking-[0.1em] uppercase text-cinza-3">
-                          {formatarDataBr(o.inicio)} —{" "}
-                          {formatarDataBr(o.entrega)}
+                          {o.inicioContratual && o.entregaPrevista
+                            ? `${formatarDataBr(o.inicioContratual)} — ${formatarDataBr(o.entregaPrevista)}`
+                            : "Cronograma no primeiro relatório"}
                         </span>
                         <span className="text-[14px] text-cinza-2">→</span>
                       </div>

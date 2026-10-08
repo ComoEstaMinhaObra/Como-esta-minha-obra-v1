@@ -8,7 +8,7 @@ Este documento deve permanecer alinhado ao schema. Alterações de policy, RPC o
 |---|---|---|---|---|
 | Perfil | Próprio | Próprio | RPC operacional | Somente `nome` próprio |
 | Assinatura/uso | Própria | Própria se também cliente pagante | RPC operacional | Backend/webhook |
-| Obra ativa | Própria | Não lê a linha viva; usa a obra contida no snapshot | RPC operacional | RPC |
+| Obra ativa | Própria | Resumo mínimo via RPC; não lê a linha viva e usa o snapshot para os dados publicados | RPC operacional | RPC |
 | Obra arquivada | Resumo mínimo via RPC | Nada | RPC operacional | Nada, salvo rotina futura de purga |
 | Rascunho | Próprio | Nada | Nada | RPC de rascunho |
 | Versão publicada | Própria; dados de edição via RPC owner-only | Compartilhada e ativa, sem `dados_aplicacao` | Metadados operacionais | Nada |
@@ -39,7 +39,7 @@ Este documento deve permanecer alinhado ao schema. Alterações de policy, RPC o
 
 ## RPCs públicas (`authenticated`)
 
-`fn_criar_obra`, `fn_salvar_rascunho`, `fn_preparar_envio_relatorio`, `fn_dados_versao_atual`, `fn_atualizar_capa_obra`, `fn_reservar_foto`, `fn_remover_foto_rascunho`, `fn_solicitar_acesso_obra`, `fn_revogar_acesso_obra`, `fn_arquivar_obra`, `fn_consumir_rate_limit`, `fn_registrar_customer_id`, `fn_listar_obras_empreiteiro`, `fn_sou_admin`, `fn_admin_*`, `fn_proximos_rotulos`, `fn_saldo_estornavel`, `fn_avanco_geral`, `etapas_padrao`.
+`fn_criar_obra`, `fn_salvar_rascunho`, `fn_preparar_envio_relatorio`, `fn_dados_versao_atual`, `fn_atualizar_capa_obra`, `fn_reservar_foto`, `fn_remover_foto_rascunho`, `fn_solicitar_acesso_obra`, `fn_revogar_acesso_obra`, `fn_arquivar_obra`, `fn_consumir_rate_limit`, `fn_registrar_customer_id`, `fn_listar_obras_empreiteiro`, `fn_listar_obras_proprietario`, `fn_sou_admin`, `fn_admin_*`, `fn_proximos_rotulos`, `fn_saldo_estornavel`, `fn_avanco_geral`, `etapas_padrao`.
 
 ## RPCs somente backend
 
