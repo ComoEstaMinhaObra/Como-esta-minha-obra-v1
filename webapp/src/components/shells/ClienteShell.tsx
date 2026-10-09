@@ -103,7 +103,7 @@ export function ClienteShell({
   return (
     <div
       data-cliente-shell
-      className={`mx-auto min-h-screen w-full max-w-[390px] bg-fundo pb-[92px] md:max-w-[760px] lg:grid lg:max-w-none ${menuRecolhido ? "lg:grid-cols-[64px_minmax(0,1fr)]" : "lg:grid-cols-[216px_minmax(0,1fr)]"} lg:pb-0`}
+      className={`mx-auto min-h-screen w-full bg-fundo pb-[92px] md:max-w-[760px] lg:grid lg:max-w-none ${menuRecolhido ? "lg:grid-cols-[64px_minmax(0,1fr)]" : "lg:grid-cols-[216px_minmax(0,1fr)]"} lg:pb-0`}
     >
       <main className="min-w-0 lg:col-start-2">{children}</main>
       {mostrarRetornoDashboard ? (
@@ -126,7 +126,7 @@ export function ClienteShell({
           Retornar ao Dashboard
         </Link>
       ) : null}
-      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto grid max-w-[390px] grid-cols-4 items-center gap-1 border-t border-divisor bg-fundo/90 px-[22px] pb-[calc(20px+env(safe-area-inset-bottom))] pt-3 backdrop-blur-md md:max-w-[760px] lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:mx-0 lg:flex lg:h-dvh lg:max-w-none lg:flex-col lg:items-stretch lg:border-r lg:border-t-0 lg:border-divisor lg:px-0 lg:py-4">
+      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto grid grid-cols-4 items-center gap-1 border-t border-divisor bg-fundo/90 px-[22px] pb-[calc(20px+env(safe-area-inset-bottom))] pt-3 backdrop-blur-md md:max-w-[760px] lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:mx-0 lg:flex lg:h-dvh lg:max-w-none lg:flex-col lg:items-stretch lg:border-r lg:border-t-0 lg:border-divisor lg:px-0 lg:py-4">
         <button
           type="button"
           onClick={() => setMenuRecolhido((recolhido) => !recolhido)}
