@@ -40,10 +40,8 @@ jobs:
           NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: "1"
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
           SUPABASE_SECRET_KEY: ci_placeholder_secret
-          ABACATEPAY_API_KEY: abc_dev_xxx
-          ABACATEPAY_WEBHOOK_SECRET: ci_webhook_secret
-          ABACATEPAY_PROD_OBRA_ATIVA: prod_xxx
-          ABACATEPAY_PROD_EMAIL_EXTRA: prod_xxx
+          MERCADOPAGO_ACCESS_TOKEN: APP_USR-ci-token
+          MERCADOPAGO_WEBHOOK_SECRET: ci_webhook_secret
           RESEND_API_KEY: re_xxx
           EMAIL_FROM: "Como Está Minha Obra <relatorios@comoestaminhaobra.com.br>"
           CRON_SECRET: ci_cron_secret
@@ -110,10 +108,8 @@ jobs:
           NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: "1"
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
           SUPABASE_SECRET_KEY: ci_placeholder_secret
-          ABACATEPAY_API_KEY: abc_dev_xxx
-          ABACATEPAY_WEBHOOK_SECRET: ci_webhook_secret
-          ABACATEPAY_PROD_OBRA_ATIVA: prod_xxx
-          ABACATEPAY_PROD_EMAIL_EXTRA: prod_xxx
+          MERCADOPAGO_ACCESS_TOKEN: APP_USR-ci-token
+          MERCADOPAGO_WEBHOOK_SECRET: ci_webhook_secret
           RESEND_API_KEY: re_xxx
           EMAIL_FROM: "Como Está Minha Obra <relatorios@comoestaminhaobra.com.br>"
           CRON_SECRET: ci_cron_secret

@@ -12,6 +12,8 @@ const publicSchema = z.object({
   NEXT_PUBLIC_TRIAL_DIAS: z.coerce.number().int().positive(),
   NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: z.coerce.number().int().nonnegative(),
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional().default(""),
+  // Chave pública do Mercado Pago (formulário de cartão no app); pública por desenho.
+  NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: z.string().min(1).optional(),
 });
 
 const adminSchema = z.object({
@@ -28,19 +30,16 @@ const emailSchema = z.object({
   EMAIL_FROM: z.string().min(1),
 });
 
-const cobrancaSchema = z.object({
-  ABACATEPAY_API_KEY: z.string().min(1),
-  ABACATEPAY_WEBHOOK_SECRET: z.string().min(1),
-  // Produto único da cobrança por obra; o checkout confere a presença na hora de contratar.
-  ABACATEPAY_PROD_OBRA_ATIVA: z.string().min(1).optional(),
-  ABACATEPAY_PROD_EMAIL_EXTRA: z.string().min(1),
+const mercadoPagoSchema = z.object({
+  MERCADOPAGO_ACCESS_TOKEN: z.string().min(1),
+  MERCADOPAGO_WEBHOOK_SECRET: z.string().min(1),
 });
 
 export type PublicEnv = z.infer<typeof publicSchema>;
+export type MercadoPagoEnv = z.infer<typeof mercadoPagoSchema>;
 export type AdminEnv = z.infer<typeof adminSchema>;
 export type CronEnv = z.infer<typeof cronSchema>;
 export type EmailEnv = z.infer<typeof emailSchema>;
-export type CobrancaEnv = z.infer<typeof cobrancaSchema>;
 
 function formatZodError(error: z.ZodError): string {
   return error.issues
@@ -81,6 +80,8 @@ function readPublicEnv(): PublicEnv {
       NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS:
         process.env.NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS,
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+      NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY:
+        process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY || undefined,
     },
     "públicas",
   );
@@ -127,16 +128,14 @@ export function getEmailEnv(): EmailEnv {
   );
 }
 
-/** Cobrança (AbacatePay): API, webhook e produtos. */
-export function getCobrancaEnv(): CobrancaEnv {
+/** Cobrança (Mercado Pago): token de acesso da API e segredo do webhook. */
+export function getMercadoPagoEnv(): MercadoPagoEnv {
   return lerEnv(
-    cobrancaSchema,
+    mercadoPagoSchema,
     {
-      ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
-      ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
-      ABACATEPAY_PROD_OBRA_ATIVA: process.env.ABACATEPAY_PROD_OBRA_ATIVA,
-      ABACATEPAY_PROD_EMAIL_EXTRA: process.env.ABACATEPAY_PROD_EMAIL_EXTRA,
+      MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
+      MERCADOPAGO_WEBHOOK_SECRET: process.env.MERCADOPAGO_WEBHOOK_SECRET,
     },
-    "cobrança",
+    "Mercado Pago",
   );
 }

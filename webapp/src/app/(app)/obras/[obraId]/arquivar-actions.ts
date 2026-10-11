@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AbacatePayError, cancelarAssinatura } from "@/lib/abacatepay";
+import { cancelarAssinatura } from "@/lib/mercadopago";
 import { logSeguro, sanitizarErro } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
 import { processarOutbox } from "@/lib/outbox";
 import { codigoRpc } from "@/lib/rpc-erros";
 
 /**
- * Arquiva a obra. Se ela tem cobrança ativa, encerra a renovação (cancelamento no AbacatePay) e
+ * Arquiva a obra. Se ela tem cobrança ativa, encerra a renovação (cancelamento no Mercado Pago) e
  * mantém os recursos até o fim do período já pago; o período aproveitável pode ser usado por uma
  * obra nova (regra Q1). Sem devolução proporcional.
  */
@@ -51,7 +51,7 @@ export async function arquivarObraAction(obraId: string, nomeConfirmacao: string
       acessoAte = r.acessoAte;
     } catch (e) {
       logSeguro("error", { evento: "arquivar_cancelar_cobranca", ids: { obraId } });
-      void (e instanceof AbacatePayError ? sanitizarErro(e) : null);
+      void sanitizarErro(e);
       await supabase.rpc("fn_cobranca_desfazer_cancelamento", { p_obra: obraId });
       return { ok: false as const, erro: "COBRANCA_NAO_CANCELADA" };
     }

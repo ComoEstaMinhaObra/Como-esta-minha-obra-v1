@@ -6,6 +6,10 @@ const enviarEmailPagamentoPendente = vi.fn();
 vi.mock("@/lib/email/enviar", () => ({
   enviarEmailPagamentoPendente: (...a: unknown[]) => enviarEmailPagamentoPendente(...a),
 }));
+const cancelarAssinatura = vi.fn();
+vi.mock("@/lib/mercadopago", () => ({
+  cancelarAssinatura: (...a: unknown[]) => cancelarAssinatura(...a),
+}));
 
 function admin(opcoes: {
   rpc: { data?: unknown; error?: { message: string } | null };
@@ -28,13 +32,20 @@ function admin(opcoes: {
   };
 }
 
-const retorno = (novas: Array<{ userId: string; obraId: string }>) => ({
+const retorno = (
+  novas: Array<{ userId: string; obraId: string }>,
+  assinaturasInadimplentes: string[] = [],
+) => ({
   novasInadimplentes: novas.map((n, i) => ({ cobrancaId: `c${i}`, ...n })),
   canceladasPorFimDoPeriodo: 2,
-  canceladasPorInadimplencia: 1,
+  canceladasPorInadimplencia: assinaturasInadimplentes.length || 1,
+  assinaturasCanceladasPorInadimplencia: assinaturasInadimplentes,
 });
 
-beforeEach(() => enviarEmailPagamentoPendente.mockReset());
+beforeEach(() => {
+  enviarEmailPagamentoPendente.mockReset();
+  cancelarAssinatura.mockReset();
+});
 
 describe("executarJobCobranca", () => {
   it("avisa por e-mail o dono de cada obra que ficou inadimplente", async () => {
@@ -50,6 +61,7 @@ describe("executarJobCobranca", () => {
       emailsEnviados: 2,
       canceladasPorFimDoPeriodo: 2,
       canceladasPorInadimplencia: 1,
+      canceladasNoProvedor: 0,
     });
     expect(enviarEmailPagamentoPendente).toHaveBeenCalledTimes(2);
     expect(enviarEmailPagamentoPendente).toHaveBeenCalledWith({
@@ -93,5 +105,32 @@ describe("executarJobCobranca", () => {
   it("erro do banco no job é lançado", async () => {
     const a = admin({ rpc: { error: { message: "falha" } } });
     await expect(executarJobCobranca(a as never)).rejects.toThrow();
+  });
+
+  it("cancela no Mercado Pago as assinaturas canceladas por inadimplência", async () => {
+    cancelarAssinatura.mockResolvedValue({});
+    const a = admin({ rpc: { data: retorno([], ["sub_1", "sub_2"]) } });
+    const r = await executarJobCobranca(a as never);
+    expect(cancelarAssinatura).toHaveBeenCalledWith("sub_1");
+    expect(cancelarAssinatura).toHaveBeenCalledWith("sub_2");
+    expect(r.canceladasNoProvedor).toBe(2);
+  });
+
+  it("repete o cancelamento no provedor e segue com as demais se uma falhar de vez", async () => {
+    cancelarAssinatura.mockImplementation(async (id: string) => {
+      if (id === "sub_ruim") throw new Error("fora do ar");
+      return {};
+    });
+    const a = admin({ rpc: { data: retorno([], ["sub_ruim", "sub_ok"]) } });
+    const r = await executarJobCobranca(a as never);
+    expect(cancelarAssinatura.mock.calls.filter((c) => c[0] === "sub_ruim")).toHaveLength(3);
+    expect(r.canceladasNoProvedor).toBe(1);
+  });
+
+  it("uma falha transitória do provedor é superada na repetição", async () => {
+    cancelarAssinatura.mockRejectedValueOnce(new Error("timeout")).mockResolvedValue({});
+    const a = admin({ rpc: { data: retorno([], ["sub_1"]) } });
+    const r = await executarJobCobranca(a as never);
+    expect(r.canceladasNoProvedor).toBe(1);
   });
 });

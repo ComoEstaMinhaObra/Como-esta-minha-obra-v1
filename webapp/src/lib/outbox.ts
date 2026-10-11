@@ -1,13 +1,21 @@
 import "server-only";
 
-import {
-  AbacatePayError,
-  produtoEmailExtraId,
-  registrarUso,
-} from "@/lib/abacatepay";
+import { EMAIL_ADICIONAL, OBRA_ATIVA } from "@/config/pricing";
 import { logSeguro, sanitizarErro } from "@/lib/log";
+import {
+  atualizarValorAssinatura,
+  consultarAssinatura,
+  MercadoPagoError,
+  reaisParaCentavos,
+} from "@/lib/mercadopago";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+/**
+ * Processa um item da outbox do e-mail adicional. No Mercado Pago não há lançamento avulso: o
+ * adicional é o valor da própria assinatura da obra. `add` soma R$ 29,90 e `subtract` tira; o
+ * novo valor vale daqui em diante, então a renovação não relança nada. O valor já cobrado e a data
+ * da próxima cobrança não mudam (spike de 11/10/2026).
+ */
 export async function processarOutbox(outboxId: string): Promise<{
   ok: boolean;
   enviarEmail?: boolean;
@@ -40,19 +48,38 @@ export async function processarOutbox(outboxId: string): Promise<{
   }
 
   try {
-    const uso = await registrarUso({
-      id: c.subscriptionId,
-      productId: produtoEmailExtraId(),
-      units: 1,
-      action: c.operacao,
-    });
+    const atual = await consultarAssinatura(c.subscriptionId);
+    // Só mexe no valor de assinatura viva. Compensar (subtract) aceita assinatura cancelada pelo
+    // próprio app, mas aí não há próxima cobrança a corrigir.
+    if (atual.status !== "authorized") {
+      const compensacaoSemEfeito = c.operacao === "subtract" && atual.status === "cancelled";
+      if (!compensacaoSemEfeito) {
+        await admin.rpc("fn_falhar_outbox", {
+          p_outbox: outboxId,
+          p_erro: "ASSINATURA_INATIVA",
+          p_incerto: false,
+        });
+        return { ok: false, erro: "COBRANCA_RECUSADA" };
+      }
+    }
+
+    const atualCentavos = reaisParaCentavos(atual.auto_recurring.transaction_amount);
+    const delta = c.operacao === "add" ? EMAIL_ADICIONAL.precoCentavos : -EMAIL_ADICIONAL.precoCentavos;
+    // Nunca abaixo do valor da obra: um valor menor indica divergência, não um e-mail a menos.
+    const novoCentavos = Math.max(OBRA_ATIVA.precoCentavos, atualCentavos + delta);
+    if (atual.status === "authorized" && novoCentavos !== atualCentavos) {
+      await atualizarValorAssinatura(c.subscriptionId, novoCentavos);
+    }
+
     let conf: unknown = null;
     let confErr: { message: string } | null = null;
     for (let tentativa = 0; tentativa < 3; tentativa += 1) {
       const resultado = await admin.rpc("fn_confirmar_outbox", {
         p_outbox: outboxId,
-        p_usage_id: uso.id,
-        p_installment: uso.installmentNumber,
+        // Identificador próprio: o Mercado Pago não devolve id de lançamento.
+        p_usage_id: `mp:${outboxId}`,
+        // Parcela que sai com o valor novo.
+        p_installment: (atual.summarized?.charged_quantity ?? 0) + 1,
       });
       conf = resultado.data;
       confErr = resultado.error;
@@ -79,7 +106,7 @@ export async function processarOutbox(outboxId: string): Promise<{
       obraId: c.obraId,
     };
   } catch (e) {
-    const status = e instanceof AbacatePayError ? e.status : 0;
+    const status = e instanceof MercadoPagoError ? e.status : 0;
     const incerto = status === 0 || status >= 500;
     const retry429 = status === 429;
     if (retry429) {

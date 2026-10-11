@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { processarEventoAssinatura, type WebhookPayload } from "@/lib/abacatepay-webhook";
+import { processarNotificacaoMp } from "@/lib/cobranca/mercadopago-webhook";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { codigoRpc } from "@/lib/rpc-erros";
@@ -19,16 +19,21 @@ export async function reprocessarWebhookAction(logId: string) {
   });
   if (error) return { ok: false as const, erro: codigoRpc(error) };
 
-  const payload = data as {
+  // O log guarda o tipo (coluna evento) e o id do recurso consultado; reprocessar consulta o estado de novo.
+  const registro = data as {
+    eventId: string;
     evento: string;
-    payload: WebhookPayload;
+    payload: { dataId?: string; acao?: string | null };
   };
+  const dataId = registro.payload?.dataId;
+  if (!dataId) return { ok: false as const, erro: "WEBHOOK_SEM_RECURSO" };
   const admin = createAdminClient();
   try {
-    const resultado = await processarEventoAssinatura(admin, {
-      ...payload.payload,
-      event: payload.evento,
-    }, { forcar: true });
+    const resultado = await processarNotificacaoMp(
+      admin,
+      { tipo: registro.evento, dataId, acao: registro.payload.acao ?? undefined },
+      { forcar: true, eventId: registro.eventId },
+    );
     revalidatePath("/admin/webhooks");
     return { ok: true as const, mensagem: resultado.mensagem };
   } catch (e) {

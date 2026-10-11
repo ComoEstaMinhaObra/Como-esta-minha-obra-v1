@@ -32,17 +32,17 @@ const MENSAGEM_ERRO: Record<ErroContratar, string> = {
   OBRA_ARQUIVADA: "Esta obra está arquivada.",
   JA_CONTRATADA: "Esta obra já tem cobrança ativa.",
   REATIVAR_APOS: "Esta obra mantém os recursos até o fim do período já pago; depois você pode contratar de novo.",
-  PRODUTO_NAO_CONFIGURADO: "A cobrança ainda não está disponível. Tente novamente mais tarde.",
-  FALHA_CLIENTE: "Não foi possível abrir o pagamento agora. Tente novamente em alguns minutos.",
-  FALHA_CHECKOUT: "Não foi possível abrir o pagamento agora. Tente novamente em alguns minutos.",
+  CARTAO_OBRIGATORIO: "Informe os dados do cartão para continuar.",
+  CARTAO_RECUSADO: "O cartão foi recusado. Confira os dados ou use outro cartão.",
+  FALHA_CHECKOUT: "Não foi possível concluir o pagamento agora. Tente novamente em alguns minutos.",
 };
 
 const MENSAGEM_ERRO_REGULARIZAR: Partial<Record<ErroRegularizar, string>> = {
   COBRANCA_NAO_REGULARIZAVEL: "Esta obra não tem pagamento pendente para regularizar.",
   FALHA_PROVEDOR:
-    "Não foi possível encerrar a cobrança com falha agora. Nada foi alterado; tente novamente em alguns minutos.",
+    "Não foi possível trocar a cobrança agora. Nada foi alterado; tente novamente em alguns minutos.",
   FALHA_CONCLUIR:
-    "A cobrança com falha foi encerrada, mas não conseguimos abrir o novo pagamento. Use “Reativar” nesta obra para pagar.",
+    "O novo pagamento foi aprovado, mas não conseguimos concluir a troca. Entre em contato com o suporte; você não será cobrado em duplicidade.",
 };
 
 const SELO: Record<LinhaCobranca["estado"], { texto: string; tom: "ambar" | "verde" | "cinza" | "preto" }> = {
@@ -107,12 +107,19 @@ export function CobrancaCliente({
     const obraId = contratando.obraId;
     setErro(null);
     startTransition(async () => {
+      // O cartão tokenizado vem do formulário da próxima etapa; sem ele a ação responde CARTAO_OBRIGATORIO.
       const r = await contratarObra(obraId);
-      // Em sucesso a ação redireciona para o checkout e não retorna.
-      if (r && !r.ok) {
-        setContratando(null);
+      setContratando(null);
+      if (!r.ok) {
         setErro(MENSAGEM_ERRO[r.erro as ErroContratar] ?? MENSAGEM_ERRO.FALHA_CHECKOUT);
+        return;
       }
+      toast(
+        r.confirmando
+          ? "Pagamento recebido. Estamos confirmando a cobrança desta obra."
+          : "Obra contratada. A alteração aparece na sua cobrança.",
+      );
+      router.refresh();
     });
   }
 
@@ -122,9 +129,8 @@ export function CobrancaCliente({
     setErro(null);
     startTransition(async () => {
       const r = await regularizarPagamento(obraId);
-      // Em sucesso a ação redireciona para o novo checkout e não retorna.
-      if (r && !r.ok) {
-        setRegularizando(null);
+      setRegularizando(null);
+      if (!r.ok) {
         const codigo = r.erro as ErroRegularizar;
         setErro(
           MENSAGEM_ERRO_REGULARIZAR[codigo] ??
@@ -132,7 +138,14 @@ export function CobrancaCliente({
             MENSAGEM_ERRO.FALHA_CHECKOUT,
         );
         router.refresh();
+        return;
       }
+      toast(
+        r.confirmando
+          ? "Pagamento recebido. Estamos confirmando a cobrança desta obra."
+          : "Pagamento regularizado. A obra voltou a ter todos os recursos.",
+      );
+      router.refresh();
     });
   }
 
@@ -461,7 +474,7 @@ function descricao(l: LinhaCobranca, preco: number): string {
         ? `Primeira cobrança de ${formatarBRL(l.valorCentavos ?? preco)} em ${dataBr(l.proximaCobranca)}, depois todo mês.`
         : `${formatarBRL(l.valorCentavos ?? preco)}/mês · próxima cobrança em ${dataBr(l.proximaCobranca)}.`;
     case "inadimplente":
-      return `Pagamento pendente desde ${dataBr(l.inadimplenteDesde)}. Esta obra está somente leitura; o AbacatePay tenta cobrar de novo e, se não for pago até ${dataBr(l.limiteRecuperacao)} (${DIAS_RECUPERACAO} dias), a assinatura da obra é cancelada. Para pagar agora com outro cartão, use “Regularizar pagamento”.`;
+      return `Pagamento pendente desde ${dataBr(l.inadimplenteDesde)}. Esta obra está somente leitura; o Mercado Pago tenta cobrar de novo e, se não for pago até ${dataBr(l.limiteRecuperacao)} (${DIAS_RECUPERACAO} dias), a assinatura da obra é cancelada. Para pagar agora com outro cartão, use “Regularizar pagamento”.`;
     case "cancelamento_agendado":
       return `Cobrança cancelada. Você mantém tudo até ${dataBr(l.acessoAte)}; depois a obra fica somente leitura.`;
     case "cancelada":

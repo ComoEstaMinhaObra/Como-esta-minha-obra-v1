@@ -1,18 +1,18 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getCobrancaEnv, publicEnv } from "@/config/env";
-import {
-  AbacatePayError,
-  cancelarAssinatura,
-  criarAssinatura,
-  criarCliente,
-  garantirProdutoObraComTrial,
-  RETRY_POLICY_OBRA,
-} from "@/lib/abacatepay";
+import { publicEnv } from "@/config/env";
+import { OBRA_ATIVA } from "@/config/pricing";
+import { registrarCobrancaAssinatura } from "@/lib/cobranca/mercadopago-webhook";
 import { logSeguro, sanitizarErro } from "@/lib/log";
+import {
+  cancelarAssinatura,
+  cartaoRecusado,
+  criarAssinatura,
+  type AssinaturaMp,
+} from "@/lib/mercadopago";
 import { codigoRpc } from "@/lib/rpc-erros";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type ErroContratar =
@@ -22,23 +22,81 @@ export type ErroContratar =
   | "OBRA_ARQUIVADA"
   | "JA_CONTRATADA"
   | "REATIVAR_APOS"
-  | "PRODUTO_NAO_CONFIGURADO"
-  | "FALHA_CLIENTE"
+  | "CARTAO_OBRIGATORIO"
+  | "CARTAO_RECUSADO"
   | "FALHA_CHECKOUT";
 
-const PLACEHOLDER = /xxx|preench|placeholder/i;
+type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
 /**
- * Abre o checkout da assinatura de UMA obra (R$ 129,90 por mês). O externalId do checkout é o id
- * da obra: o webhook localiza a obra por ele. Se há período pago aproveitável (obra arquivada,
- * regra Q1), usa o produto com trialDays, e a primeira cobrança fica para o fim desse período.
+ * Cria a assinatura da obra no Mercado Pago com o cartão tokenizado no navegador. O cartão é
+ * validado na criação: recusado devolve erro na hora e nada é criado (spike de 11/10/2026).
+ * Com período pago aproveitável (obra arquivada, regra Q1) a primeira cobrança é adiada
+ * (`free_trial` em dias); sem ele a primeira parcela é cobrada na hora.
  */
-export async function contratarObra(obraId: string) {
+async function criarAssinaturaDaObra(
+  supabase: SupabaseServer,
+  email: string,
+  obraId: string,
+  cardTokenId: string,
+): Promise<
+  { ok: true; assinatura: AssinaturaMp } | { ok: false; erro: ErroContratar }
+> {
+  try {
+    const { data: vaga } = await supabase.rpc("fn_vaga_paga_disponivel");
+    const v = vaga as { disponivel?: boolean; dias?: number } | null;
+    const dias = v?.disponivel && v.dias && v.dias >= 1 ? Math.floor(v.dias) : undefined;
+
+    const appUrl = publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+    const assinatura = await criarAssinatura({
+      obraId,
+      payerEmail: email,
+      valorCentavos: OBRA_ATIVA.precoCentavos,
+      motivo: "Como Está Minha Obra — obra ativa",
+      backUrl: `${appUrl}/cobranca`,
+      cardTokenId,
+      primeiraCobrancaEmDias: dias,
+      // O token do cartão é de uso único: repetir o envio não cria uma segunda assinatura.
+      chaveIdempotencia: `obra-${obraId}-${cardTokenId}`,
+    });
+    return { ok: true, assinatura };
+  } catch (e) {
+    if (cartaoRecusado(e)) return { ok: false, erro: "CARTAO_RECUSADO" };
+    logSeguro("error", { evento: "checkout_obra", ids: { obraId } });
+    void sanitizarErro(e);
+    return { ok: false, erro: "FALHA_CHECKOUT" };
+  }
+}
+
+/**
+ * Grava a cobrança logo depois da criação. Se falhar, a assinatura já existe no provedor e o
+ * webhook registra em seguida (mesma função, idempotente); a tela fica em "confirmando".
+ */
+async function registrarAposCriar(
+  assinatura: AssinaturaMp,
+  obraId: string,
+): Promise<boolean> {
+  try {
+    const r = await registrarCobrancaAssinatura(createAdminClient(), assinatura);
+    return r.ok;
+  } catch (e) {
+    logSeguro("error", { evento: "registrar_cobranca", ids: { obraId } });
+    void sanitizarErro(e);
+    return false;
+  }
+}
+
+/**
+ * Contrata a assinatura de UMA obra (R$ 129,90 por mês) com o cartão informado. O `external_reference`
+ * da assinatura é o id da obra: o webhook localiza a obra por ele.
+ */
+export async function contratarObra(obraId: string, cardTokenId?: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user?.email) return { ok: false as const, erro: "NAO_AUTENTICADO" as const };
+  if (!cardTokenId) return { ok: false as const, erro: "CARTAO_OBRIGATORIO" as const };
 
   const { error: rlErr } = await supabase.rpc("fn_consumir_rate_limit", {
     p_acao: "checkout",
@@ -82,82 +140,20 @@ export async function contratarObra(obraId: string) {
     }
   }
 
-  const { data: assinatura } = await supabase
+  const { data: conta } = await supabase
     .from("assinaturas")
-    .select("status, abacatepay_customer_id")
+    .select("status")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!assinatura) return { ok: false as const, erro: "SEM_PERMISSAO" as const };
-  let customerId = assinatura.abacatepay_customer_id;
-  if (!customerId) {
-    try {
-      const { data: perfil } = await supabase
-        .from("profiles")
-        .select("nome")
-        .eq("id", user.id)
-        .maybeSingle();
-      const cliente = await criarCliente({
-        email: user.email,
-        name: perfil?.nome || undefined,
-      });
-      customerId = cliente.id;
-      const { error } = await supabase.rpc("fn_registrar_customer_id", {
-        p_customer_id: customerId,
-      });
-      if (error) throw error;
-    } catch (e) {
-      logSeguro("error", { evento: "checkout_cliente", ids: { obraId } });
-      void sanitizarErro(e);
-      return { ok: false as const, erro: "FALHA_CLIENTE" as const };
-    }
-  }
+  if (!conta) return { ok: false as const, erro: "SEM_PERMISSAO" as const };
 
-  try {
-    const { data: vaga } = await supabase.rpc("fn_vaga_paga_disponivel");
-    const v = vaga as { disponivel?: boolean; dias?: number } | null;
+  const criada = await criarAssinaturaDaObra(supabase, user.email, obraId, cardTokenId);
+  if (!criada.ok) return { ok: false as const, erro: criada.erro };
 
-    let produtoId: string;
-    if (v?.disponivel && v.dias && v.dias >= 1) {
-      produtoId = await garantirProdutoObraComTrial(v.dias);
-    } else {
-      const env = getCobrancaEnv();
-      produtoId = env.ABACATEPAY_PROD_OBRA_ATIVA ?? "";
-      if (!produtoId || PLACEHOLDER.test(produtoId)) {
-        return { ok: false as const, erro: "PRODUTO_NAO_CONFIGURADO" as const };
-      }
-    }
-
-    const appUrl = publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-    const checkout = await criarAssinatura({
-      items: [{ id: produtoId, quantity: 1 }],
-      customerId,
-      externalId: obraId,
-      methods: ["CARD"],
-      retryPolicy: { ...RETRY_POLICY_OBRA },
-      metadata: { obraId },
-      returnUrl: `${appUrl}/cobranca`,
-      completionUrl: `${appUrl}/cobranca?sucesso=1&obra=${obraId}`,
-    });
-    if (!checkout.url) {
-      return { ok: false as const, erro: "FALHA_CHECKOUT" as const };
-    }
-    redirect(checkout.url);
-  } catch (e) {
-    // redirect() lança NEXT_REDIRECT: não engolir.
-    if (
-      e &&
-      typeof e === "object" &&
-      "digest" in e &&
-      typeof (e as { digest?: unknown }).digest === "string" &&
-      (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")
-    ) {
-      throw e;
-    }
-    // O detalhe técnico fica só no log; o usuário vê uma mensagem própria.
-    logSeguro("error", { evento: "checkout_obra", ids: { obraId } });
-    void (e instanceof AbacatePayError ? sanitizarErro(e) : null);
-    return { ok: false as const, erro: "FALHA_CHECKOUT" as const };
-  }
+  const registrada = await registrarAposCriar(criada.assinatura, obraId);
+  revalidatePath("/cobranca");
+  revalidatePath("/obras");
+  return { ok: true as const, obraId, confirmando: !registrada };
 }
 
 export interface ResultadoCancelamento {
@@ -194,7 +190,7 @@ export async function cancelarCobrancas(obraIds: string[]) {
       resultados.push({ obraId, ok: true, acessoAte: r.acessoAte });
     } catch (e) {
       logSeguro("error", { evento: "cancelar_cobranca", ids: { obraId } });
-      void (e instanceof AbacatePayError ? sanitizarErro(e) : null);
+      void sanitizarErro(e);
       await supabase.rpc("fn_cobranca_desfazer_cancelamento", { p_obra: obraId });
       resultados.push({ obraId, ok: false, erro: "FALHA_PROVEDOR" });
     }
@@ -212,17 +208,18 @@ export type ErroRegularizar =
   | "FALHA_CONCLUIR";
 
 /**
- * Regulariza o pagamento pendente de uma obra. O provedor não troca o cartão de uma assinatura,
- * então encerra a que falhou e abre um novo checkout. A intenção é gravada antes de chamar o
- * provedor; se o provedor falhar, a intenção é desfeita e a obra continua como estava. Se o
- * usuário abandonar o novo checkout, a obra fica somente leitura e pode ser reativada.
+ * Regulariza o pagamento pendente de uma obra com um cartão novo. A ordem protege o usuário:
+ * 1) grava a intenção; 2) cria a assinatura nova (o cartão é validado e cobrado aqui: se for
+ * recusado, nada muda e a obra segue como estava); 3) encerra a assinatura com falha; 4) conclui
+ * localmente e registra a nova. Falha no passo 3 desfaz o passo 2 antes de a intenção ser desfeita.
  */
-export async function regularizarPagamento(obraId: string) {
+export async function regularizarPagamento(obraId: string, cardTokenId?: string) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false as const, erro: "NAO_AUTENTICADO" as const };
+  if (!user?.email) return { ok: false as const, erro: "NAO_AUTENTICADO" as const };
+  if (!cardTokenId) return { ok: false as const, erro: "CARTAO_OBRIGATORIO" as const };
 
   const { data, error } = await supabase.rpc("fn_cobranca_solicitar_regularizacao", {
     p_obra: obraId,
@@ -236,28 +233,43 @@ export async function regularizarPagamento(obraId: string) {
         : "FALHA_PROVEDOR") as ErroRegularizar,
     };
   }
-
   const { subscriptionId } = data as { subscriptionId: string };
+
+  const criada = await criarAssinaturaDaObra(supabase, user.email, obraId, cardTokenId);
+  if (!criada.ok) {
+    await supabase.rpc("fn_cobranca_desfazer_regularizacao", { p_obra: obraId });
+    return { ok: false as const, erro: criada.erro as ErroRegularizar };
+  }
+
   try {
     await cancelarAssinatura(subscriptionId);
   } catch (e) {
     logSeguro("error", { evento: "regularizar_cancelar", ids: { obraId } });
-    void (e instanceof AbacatePayError ? sanitizarErro(e) : null);
+    void sanitizarErro(e);
+    // Desfaz a assinatura nova (acabou de ser cobrada; o estorno é manual) e a intenção.
+    await cancelarAssinatura(criada.assinatura.id).catch(() => {
+      logSeguro("error", { evento: "regularizar_desfazer_nova", ids: { obraId } });
+    });
     await supabase.rpc("fn_cobranca_desfazer_regularizacao", { p_obra: obraId });
     return { ok: false as const, erro: "FALHA_PROVEDOR" as ErroRegularizar };
   }
 
-  const { error: errConcluir } = await supabase.rpc("fn_cobranca_concluir_regularizacao", {
-    p_obra: obraId,
-  });
+  let errConcluir: unknown = null;
+  for (let tentativa = 0; tentativa < 3; tentativa += 1) {
+    const r = await supabase.rpc("fn_cobranca_concluir_regularizacao", { p_obra: obraId });
+    errConcluir = r.error;
+    if (!errConcluir) break;
+  }
   if (errConcluir) {
+    // As duas assinaturas já foram trocadas no provedor; o webhook da nova registra quando a
+    // regularização concluir. O erro vai para o log para o admin acompanhar.
     logSeguro("error", { evento: "regularizar_concluir", ids: { obraId } });
     revalidatePath("/cobranca");
     return { ok: false as const, erro: "FALHA_CONCLUIR" as ErroRegularizar };
   }
+
+  const registrada = await registrarAposCriar(criada.assinatura, obraId);
   revalidatePath("/cobranca");
   revalidatePath("/obras");
-
-  // Em sucesso redireciona para o novo checkout e não retorna.
-  return contratarObra(obraId);
+  return { ok: true as const, obraId, confirmando: !registrada };
 }

@@ -74,7 +74,7 @@ export default async function AdminKpisPage() {
     {
       titulo: "Cancelamentos sem pedido (30d)",
       valor: String(cobranca.canceladasSemPedido30d ?? 0),
-      detalhe: "tentativas esgotadas ou cancelamento direto no AbacatePay; conferir no painel",
+      detalhe: "tentativas esgotadas ou cancelamento direto no Mercado Pago; conferir no painel",
     },
   ];
 
