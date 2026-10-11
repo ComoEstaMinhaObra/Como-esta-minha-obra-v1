@@ -70,13 +70,13 @@ select public.fn_criar_obra('Obra B', 'Rua 2', 'Cliente', date '2026-01-01', dat
 select public.fn_cobranca_registrar((select id from t_b), 'subs_vb', 'bill_vb', 12990,
   now(),
   (select date_trunc('day', acesso_ate) + interval '23 hours 59 minutes 59 seconds'
-   from public.cobrancas_obra where abacatepay_subscription_id = 'subs_va'),
+   from public.cobrancas_obra where provedor_assinatura_id = 'subs_va'),
   (select date_trunc('day', acesso_ate) + interval '23 hours 59 minutes 59 seconds'
-   from public.cobrancas_obra where abacatepay_subscription_id = 'subs_va'));
+   from public.cobrancas_obra where provedor_assinatura_id = 'subs_va'));
 
 select is(
   (select periodo_aproveitado_por_obra_id::text from public.cobrancas_obra
-   where abacatepay_subscription_id = 'subs_va'),
+   where provedor_assinatura_id = 'subs_va'),
   (select id::text from t_b),
   'a assinatura com primeira cobrança adiada marca o período aproveitado'
 );
@@ -105,7 +105,7 @@ select is(
 -- período já vencido não é aproveitável
 update public.cobrancas_obra
 set periodo_aproveitado_por_obra_id = null, acesso_ate = now() - interval '1 day'
-where abacatepay_subscription_id = 'subs_va';
+where provedor_assinatura_id = 'subs_va';
 select is(
   (public.fn_vaga_paga_disponivel())->>'disponivel',
   'false',

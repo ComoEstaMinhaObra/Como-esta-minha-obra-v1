@@ -6,7 +6,7 @@ select plan(44);
 -- ===== privilégios =====
 select ok(not has_function_privilege('authenticated', 'public.fn_cobranca_registrar(uuid, text, text, int, timestamptz, timestamptz, timestamptz)', 'execute'),
   'authenticated não executa fn_cobranca_registrar');
-select ok(not has_function_privilege('authenticated', 'public.fn_cobranca_renovar(text, timestamptz)', 'execute'),
+select ok(not has_function_privilege('authenticated', 'public.fn_cobranca_renovar(text, timestamptz, timestamptz)', 'execute'),
   'authenticated não executa fn_cobranca_renovar');
 select ok(not has_function_privilege('authenticated', 'public.fn_cobranca_cancelada_webhook(text, timestamptz)', 'execute'),
   'authenticated não executa fn_cobranca_cancelada_webhook');
@@ -65,7 +65,7 @@ select is(
 );
 
 select is(
-  (select user_id::text from public.cobrancas_obra where abacatepay_subscription_id = 'subs_x1'),
+  (select user_id::text from public.cobrancas_obra where provedor_assinatura_id = 'subs_x1'),
   '00000000-0000-0000-0000-00000000d002',
   'a cobrança fica com o dono da obra'
 );
@@ -143,13 +143,13 @@ select is(
 );
 
 select is(
-  (select status::text from public.cobrancas_obra where abacatepay_subscription_id = 'subs_x1'),
+  (select status::text from public.cobrancas_obra where provedor_assinatura_id = 'subs_x1'),
   'cancelamento_agendado',
   'solicitar cancelamento agenda o fim do período'
 );
 
 select ok(
-  (select acesso_ate = periodo_fim from public.cobrancas_obra where abacatepay_subscription_id = 'subs_x1'),
+  (select acesso_ate = periodo_fim from public.cobrancas_obra where provedor_assinatura_id = 'subs_x1'),
   'acesso_ate é o fim do período já pago'
 );
 
@@ -170,7 +170,7 @@ select lives_ok(
 );
 
 select is(
-  (select status::text from public.cobrancas_obra where abacatepay_subscription_id = 'subs_x1'),
+  (select status::text from public.cobrancas_obra where provedor_assinatura_id = 'subs_x1'),
   'ativa',
   'desfazer volta a cobrança para ativa'
 );
@@ -180,7 +180,7 @@ select lives_ok(
   'novo pedido de cancelamento'
 );
 update public.cobrancas_obra set cancelamento_solicitado_em = now() - interval '1 hour'
-where abacatepay_subscription_id = 'subs_x1';
+where provedor_assinatura_id = 'subs_x1';
 select throws_ok(
   format($$select public.fn_cobranca_desfazer_cancelamento(%L)$$, (select id from t_x)),
   'P0001', 'COBRANCA_NAO_DESFAZIVEL',
@@ -232,7 +232,7 @@ select is(
 select public.fn_cobranca_registrar((select id from t_trial), 'subs_t1', 'bill_t1', 12990,
   now() - interval '40 days', now() - interval '10 days');
 update public.cobrancas_obra set status = 'inadimplente', inadimplente_desde = now() - interval '9 days'
-where abacatepay_subscription_id = 'subs_t1';
+where provedor_assinatura_id = 'subs_t1';
 
 select is(
   (public.fn_cobranca_renovar('subs_t1'))->>'estavaInadimplente',
@@ -241,14 +241,14 @@ select is(
 );
 select ok(
   (select status = 'ativa' and inadimplente_desde is null and periodo_fim > now()
-   from public.cobrancas_obra where abacatepay_subscription_id = 'subs_t1'),
+   from public.cobrancas_obra where provedor_assinatura_id = 'subs_t1'),
   'renovação zera a inadimplência e abre novo período'
 );
 
 -- ===== job diário =====
 update public.cobrancas_obra
 set periodo_inicio = now() - interval '40 days', periodo_fim = now() - interval '3 days'
-where abacatepay_subscription_id = 'subs_t1';
+where provedor_assinatura_id = 'subs_t1';
 
 select is(
   jsonb_array_length((public.fn_cobranca_job_diario())->'novasInadimplentes'),
@@ -256,7 +256,7 @@ select is(
   'job marca como inadimplente a ativa com o período vencido há mais de um dia'
 );
 select is(
-  (select status::text from public.cobrancas_obra where abacatepay_subscription_id = 'subs_t1'),
+  (select status::text from public.cobrancas_obra where provedor_assinatura_id = 'subs_t1'),
   'inadimplente',
   'a cobrança vencida ficou inadimplente'
 );
@@ -268,7 +268,7 @@ select is(
 );
 
 update public.cobrancas_obra set acesso_ate = now() - interval '1 day'
-where abacatepay_subscription_id = 'subs_x1';
+where provedor_assinatura_id = 'subs_x1';
 select is(
   (public.fn_cobranca_job_diario())->>'canceladasPorFimDoPeriodo',
   '1',
@@ -276,7 +276,7 @@ select is(
 );
 
 update public.cobrancas_obra set inadimplente_desde = now() - interval '15 days'
-where abacatepay_subscription_id = 'subs_t1';
+where provedor_assinatura_id = 'subs_t1';
 select is(
   (public.fn_cobranca_job_diario())->>'canceladasPorInadimplencia',
   '1',

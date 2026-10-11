@@ -56,7 +56,7 @@ export type Database = {
       }
       assinatura_usos: {
         Row: {
-          abacatepay_usage_id: string | null
+          provedor_uso_id: string | null
           action: string
           assinatura_id: string
           criado_em: string
@@ -66,7 +66,7 @@ export type Database = {
           units: number
         }
         Insert: {
-          abacatepay_usage_id?: string | null
+          provedor_uso_id?: string | null
           action: string
           assinatura_id: string
           criado_em?: string
@@ -76,7 +76,7 @@ export type Database = {
           units: number
         }
         Update: {
-          abacatepay_usage_id?: string | null
+          provedor_uso_id?: string | null
           action?: string
           assinatura_id?: string
           criado_em?: string
@@ -104,8 +104,8 @@ export type Database = {
       }
       assinaturas: {
         Row: {
-          abacatepay_customer_id: string | null
-          abacatepay_subscription_id: string | null
+          provedor_cliente_id: string | null
+          provedor_assinatura_id: string | null
           atualizado_em: string
           criado_em: string
           id: string
@@ -115,8 +115,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          abacatepay_customer_id?: string | null
-          abacatepay_subscription_id?: string | null
+          provedor_cliente_id?: string | null
+          provedor_assinatura_id?: string | null
           atualizado_em?: string
           criado_em?: string
           id?: string
@@ -126,8 +126,8 @@ export type Database = {
           user_id: string
         }
         Update: {
-          abacatepay_customer_id?: string | null
-          abacatepay_subscription_id?: string | null
+          provedor_cliente_id?: string | null
+          provedor_assinatura_id?: string | null
           atualizado_em?: string
           criado_em?: string
           id?: string
@@ -308,8 +308,8 @@ export type Database = {
       }
       cobrancas_obra: {
         Row: {
-          abacatepay_checkout_id: string | null
-          abacatepay_subscription_id: string
+          provedor_checkout_id: string | null
+          provedor_assinatura_id: string
           acesso_ate: string | null
           atualizado_em: string
           cancelamento_solicitado_em: string | null
@@ -326,8 +326,8 @@ export type Database = {
           valor_centavos: number
         }
         Insert: {
-          abacatepay_checkout_id?: string | null
-          abacatepay_subscription_id: string
+          provedor_checkout_id?: string | null
+          provedor_assinatura_id: string
           acesso_ate?: string | null
           atualizado_em?: string
           cancelamento_solicitado_em?: string | null
@@ -344,8 +344,8 @@ export type Database = {
           valor_centavos: number
         }
         Update: {
-          abacatepay_checkout_id?: string | null
-          abacatepay_subscription_id?: string
+          provedor_checkout_id?: string | null
+          provedor_assinatura_id?: string
           acesso_ate?: string | null
           atualizado_em?: string
           cancelamento_solicitado_em?: string | null
@@ -1089,6 +1089,7 @@ export type Database = {
           p_evento: string
           p_force?: boolean
           p_payload: Json
+          p_provedor?: string
         }
         Returns: Json
       }
@@ -1113,12 +1114,16 @@ export type Database = {
         }
         Returns: Json
       }
-      fn_enfileirar_renovacao_emails_obra: {
-        Args: { p_event_id: string; p_subscription_id: string }
+      fn_cobranca_marcar_inadimplente: {
+        Args: { p_agora?: string; p_subscription_id: string }
         Returns: Json
       }
       fn_cobranca_renovar: {
-        Args: { p_agora?: string; p_subscription_id: string }
+        Args: {
+          p_agora?: string
+          p_periodo_fim?: string
+          p_subscription_id: string
+        }
         Returns: Json
       }
       fn_cobranca_solicitar_regularizacao: {
@@ -1228,10 +1233,6 @@ export type Database = {
       }
       fn_reagendar_outbox: {
         Args: { p_erro: string; p_outbox: string }
-        Returns: undefined
-      }
-      fn_registrar_customer_id: {
-        Args: { p_customer_id: string }
         Returns: undefined
       }
       fn_sou_admin: { Args: never; Returns: boolean }

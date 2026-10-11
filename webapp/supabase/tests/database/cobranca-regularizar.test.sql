@@ -57,16 +57,16 @@ select is(
   'solicitar devolve a assinatura a cancelar no provedor'
 );
 select ok(
-  (select cancelamento_solicitado_em is not null from public.cobrancas_obra where abacatepay_subscription_id = 'subs_reg_1'),
+  (select cancelamento_solicitado_em is not null from public.cobrancas_obra where provedor_assinatura_id = 'subs_reg_1'),
   'solicitar grava a intenção antes do provedor'
 );
-select is((select status::text from public.cobrancas_obra where abacatepay_subscription_id = 'subs_reg_1'), 'inadimplente',
+select is((select status::text from public.cobrancas_obra where provedor_assinatura_id = 'subs_reg_1'), 'inadimplente',
   'solicitar ainda não muda o status');
 
 -- falha do provedor: desfazer limpa a intenção
 select public.fn_cobranca_desfazer_regularizacao((select id from t_o));
 select ok(
-  (select cancelamento_solicitado_em is null from public.cobrancas_obra where abacatepay_subscription_id = 'subs_reg_1'),
+  (select cancelamento_solicitado_em is null from public.cobrancas_obra where provedor_assinatura_id = 'subs_reg_1'),
   'desfazer limpa a intenção quando o provedor falha'
 );
 
@@ -81,7 +81,7 @@ select lives_ok(
   format($$select public.fn_cobranca_concluir_regularizacao(%L)$$, (select id from t_o)),
   'concluir aceita cancelamento_agendado criado pelo webhook'
 );
-select is((select status::text from public.cobrancas_obra where abacatepay_subscription_id = 'subs_reg_1'), 'cancelada',
+select is((select status::text from public.cobrancas_obra where provedor_assinatura_id = 'subs_reg_1'), 'cancelada',
   'a cobrança com falha fica cancelada');
 
 -- depois da regularização a obra aceita nova cobrança

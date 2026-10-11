@@ -89,7 +89,7 @@ select ok(
 
 -- primeira cobrança da obra B: inadimplente
 insert into public.cobrancas_obra
-  (user_id, obra_id, abacatepay_subscription_id, status, valor_centavos,
+  (user_id, obra_id, provedor_assinatura_id, status, valor_centavos,
    periodo_inicio, periodo_fim, inadimplente_desde)
 values ('00000000-0000-0000-0000-00000000c002', (select id from t_b), 'subs_b1', 'inadimplente',
         12990, now() - interval '40 days', now() - interval '10 days', now() - interval '9 days');
@@ -101,7 +101,7 @@ select ok(
 
 update public.cobrancas_obra set status = 'ativa', inadimplente_desde = null,
   periodo_fim = now() + interval '20 days'
-where abacatepay_subscription_id = 'subs_b1';
+where provedor_assinatura_id = 'subs_b1';
 
 select ok(
   private.obra_permite_escrita((select id from t_b)),
@@ -110,7 +110,7 @@ select ok(
 
 update public.cobrancas_obra set status = 'cancelamento_agendado',
   cancelamento_solicitado_em = now(), acesso_ate = now() + interval '5 days'
-where abacatepay_subscription_id = 'subs_b1';
+where provedor_assinatura_id = 'subs_b1';
 
 select ok(
   private.obra_permite_escrita((select id from t_b)),
@@ -118,7 +118,7 @@ select ok(
 );
 
 update public.cobrancas_obra set acesso_ate = now() - interval '1 day'
-where abacatepay_subscription_id = 'subs_b1';
+where provedor_assinatura_id = 'subs_b1';
 
 select ok(
   not private.obra_permite_escrita((select id from t_b)),
@@ -128,7 +128,7 @@ select ok(
 -- ===== uma cobrança não cancelada por obra =====
 select throws_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, valor_centavos, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, valor_centavos, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c002', (select id from t_b), 'subs_b2', 12990,
             now() + interval '30 days')$$,
   '23505',
@@ -137,7 +137,7 @@ select throws_ok(
 );
 
 update public.cobrancas_obra set status = 'cancelada'
-where abacatepay_subscription_id = 'subs_b1';
+where provedor_assinatura_id = 'subs_b1';
 
 select ok(
   not private.obra_permite_escrita((select id from t_b)),
@@ -146,7 +146,7 @@ select ok(
 
 select lives_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, valor_centavos, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, valor_centavos, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c002', (select id from t_b), 'subs_b2', 12990,
             now() + interval '30 days')$$,
   'depois de cancelada, a obra aceita uma nova cobrança (reativação)'
@@ -160,7 +160,7 @@ select ok(
 -- ===== constraints =====
 select throws_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, status, valor_centavos, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, status, valor_centavos, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c003', (select id from t_c), 'subs_c0',
             'inadimplente', 12990, now() + interval '30 days')$$,
   '23514', null,
@@ -169,7 +169,7 @@ select throws_ok(
 
 select throws_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, status, valor_centavos, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, status, valor_centavos, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c003', (select id from t_c), 'subs_c0',
             'cancelamento_agendado', 12990, now() + interval '30 days')$$,
   '23514', null,
@@ -178,7 +178,7 @@ select throws_ok(
 
 select throws_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, valor_centavos, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, valor_centavos, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c003', (select id from t_c), 'subs_c0', 0,
             now() + interval '30 days')$$,
   '23514', null,
@@ -187,7 +187,7 @@ select throws_ok(
 
 select throws_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, valor_centavos, periodo_inicio, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, valor_centavos, periodo_inicio, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c003', (select id from t_c), 'subs_c0', 12990,
             now(), now() - interval '1 day')$$,
   '23514', null,
@@ -196,7 +196,7 @@ select throws_ok(
 
 select throws_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, valor_centavos, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, valor_centavos, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c001', (select id from t_b), 'subs_x1', 12990,
             now() + interval '30 days')$$,
   'P0001', 'COBRANCA_DONO_INVALIDO',
@@ -205,24 +205,24 @@ select throws_ok(
 
 select throws_ok(
   $$update public.cobrancas_obra set obra_id = (select id from t_c)
-    where abacatepay_subscription_id = 'subs_b2'$$,
+    where provedor_assinatura_id = 'subs_b2'$$,
   'P0001', 'COBRANCA_IMUTAVEL',
   'usuário e obra da cobrança não mudam depois de criada'
 );
 
 -- ===== id da assinatura único =====
 insert into public.cobrancas_obra
-  (user_id, obra_id, abacatepay_subscription_id, valor_centavos, periodo_fim)
+  (user_id, obra_id, provedor_assinatura_id, valor_centavos, periodo_fim)
 values ('00000000-0000-0000-0000-00000000c003', (select id from t_c), 'subs_c1', 12990,
         now() + interval '30 days');
 
 select throws_ok(
   $$insert into public.cobrancas_obra
-      (user_id, obra_id, abacatepay_subscription_id, valor_centavos, periodo_fim)
+      (user_id, obra_id, provedor_assinatura_id, valor_centavos, periodo_fim)
     values ('00000000-0000-0000-0000-00000000c001', (select id from t_a), 'subs_c1', 12990,
             now() + interval '30 days')$$,
   '23505', null,
-  'abacatepay_subscription_id é único'
+  'provedor_assinatura_id é único'
 );
 
 -- ===== RLS: cada dono só vê as próprias cobranças =====

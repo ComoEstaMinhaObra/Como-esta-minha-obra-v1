@@ -1,13 +1,9 @@
 -- pgTAP: e-mail adicional lançado na assinatura DA OBRA (revisão de 07/10/2026)
 
 begin;
-select plan(23);
+select plan(17);
 
 -- ===== privilégios =====
-select ok(not has_function_privilege('authenticated', 'public.fn_enfileirar_renovacao_emails_obra(text, text)', 'execute'),
-  'authenticated não executa fn_enfileirar_renovacao_emails_obra');
-select ok(has_function_privilege('service_role', 'public.fn_enfileirar_renovacao_emails_obra(text, text)', 'execute'),
-  'service_role executa fn_enfileirar_renovacao_emails_obra');
 
 -- ===== fixtures: pagante (e001) com obra A paga e obra B sem cobrança; trial (e002) =====
 insert into auth.users (id, email, raw_user_meta_data, raw_app_meta_data, email_confirmed_at)
@@ -72,31 +68,8 @@ select is(
   'o 3º e-mail também é cobrado'
 );
 
--- ===== renovação mensal =====
-select is(
-  jsonb_array_length((public.fn_enfileirar_renovacao_emails_obra('subs_em_a', 'evt_renew_1'))->'outboxIds'),
-  1,
-  'a renovação relança só o adicional já confirmado (o 3º ainda está pendente)'
-);
-select is(
-  jsonb_array_length((public.fn_enfileirar_renovacao_emails_obra('subs_em_a', 'evt_renew_1'))->'outboxIds'),
-  0,
-  'repetir o mesmo evento de renovação não duplica a cobrança'
-);
-select is(
-  jsonb_array_length((public.fn_enfileirar_renovacao_emails_obra('subs_inexistente', 'evt_renew_2'))->'outboxIds'),
-  0,
-  'assinatura desconhecida não enfileira nada'
-);
-select is(
-  (select c->>'subscriptionId' from (
-    select public.fn_claim_outbox(o.id) as c
-    from private.billing_outbox o
-    where o.chave_interna like 'renew:evt_renew_1:%'
-    order by o.criado_em limit 1) q),
-  'subs_em_a',
-  'o add de renovação também usa a assinatura da obra'
-);
+-- A renovação mensal não relança o adicional: no Mercado Pago o valor da assinatura é
+-- persistente (fn_enfileirar_renovacao_emails_obra saiu na migration 20261011120001).
 
 -- ===== revogar um e-mail pago desfaz a cobrança =====
 create temp table t_rev as
