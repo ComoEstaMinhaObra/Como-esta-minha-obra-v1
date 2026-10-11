@@ -1,7 +1,7 @@
 -- pgTAP: funções da migração para o Mercado Pago (11/10/2026)
 
 begin;
-select plan(17);
+select plan(21);
 
 -- ===== privilégios =====
 select ok(not has_function_privilege('authenticated', 'public.fn_cobranca_marcar_inadimplente(text, timestamptz)', 'execute'),
@@ -14,6 +14,10 @@ select ok(not has_function_privilege('authenticated', 'public.fn_claim_webhook_e
   'authenticated não executa fn_claim_webhook_evento');
 select ok(has_function_privilege('service_role', 'public.fn_claim_webhook_evento(text, text, jsonb, boolean, text)', 'execute'),
   'service_role executa fn_claim_webhook_evento');
+select ok(not has_function_privilege('authenticated', 'public.fn_cobranca_por_assinatura(text)', 'execute'),
+  'authenticated não executa fn_cobranca_por_assinatura');
+select ok(has_function_privilege('service_role', 'public.fn_cobranca_por_assinatura(text)', 'execute'),
+  'service_role executa fn_cobranca_por_assinatura');
 select ok(to_regprocedure('public.fn_enfileirar_renovacao_emails_obra(text, text)') is null,
   'a renovação mensal do adicional saiu');
 select ok(to_regprocedure('public.fn_registrar_customer_id(text)') is null,
@@ -45,6 +49,12 @@ select public.fn_criar_obra('Obra MP', 'Rua 1', 'Cliente', date '2026-01-01', da
 reset role;
 select public.fn_cobranca_registrar((select id from t_o), 'mp_sub_1', null, 12990,
   now() - interval '1 day', now() + interval '10 days');
+
+-- ===== localizar a cobrança pela assinatura do provedor =====
+select is((public.fn_cobranca_por_assinatura('mp_sub_1'))->>'obraId', (select id::text from t_o),
+  'acha a cobrança pela assinatura do provedor');
+select is(public.fn_cobranca_por_assinatura('mp_inexistente'), null,
+  'assinatura desconhecida devolve nulo');
 
 -- ===== parcela recusada =====
 select is(

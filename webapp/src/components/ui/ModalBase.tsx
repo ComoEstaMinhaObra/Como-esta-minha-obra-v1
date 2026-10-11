@@ -41,7 +41,7 @@ export function ModalBase({
         aria-modal="true"
         aria-label={titulo}
         tabIndex={-1}
-        className={`w-full max-w-lg rounded-[20px] border border-borda bg-fundo p-5 outline-none ${className}`}
+        className={`max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-[20px] border border-borda bg-fundo p-5 outline-none ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {titulo ? (

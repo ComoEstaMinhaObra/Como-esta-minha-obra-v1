@@ -1118,6 +1118,10 @@ export type Database = {
         Args: { p_agora?: string; p_subscription_id: string }
         Returns: Json
       }
+      fn_cobranca_por_assinatura: {
+        Args: { p_subscription_id: string }
+        Returns: Json
+      }
       fn_cobranca_renovar: {
         Args: {
           p_agora?: string

@@ -14,6 +14,7 @@ import {
   type ErroContratar,
   type ErroRegularizar,
 } from "./actions";
+import { FormularioCartao } from "./FormularioCartao";
 
 function dataBr(d: Date | null): string {
   if (!d) return "—";
@@ -60,6 +61,7 @@ export function CobrancaCliente({
   vagaPaga,
   sucesso,
   obraDestaque,
+  chavePublicaMp,
 }: {
   resumo: ResumoCobranca;
   precoObraCentavos: number;
@@ -67,11 +69,14 @@ export function CobrancaCliente({
   vagaPaga: { acessoAte: Date; dias: number } | null;
   sucesso: boolean;
   obraDestaque: string | null;
+  /** Chave pública do Mercado Pago para o formulário de cartão (null: pagamento indisponível). */
+  chavePublicaMp: string | null;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [aviso, setAviso] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroModal, setErroModal] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [contratando, setContratando] = useState<LinhaCobranca | null>(null);
   const [regularizando, setRegularizando] = useState<LinhaCobranca | null>(null);
@@ -102,51 +107,55 @@ export function CobrancaCliente({
     setSelecionadas((s) => (s.includes(obraId) ? s.filter((x) => x !== obraId) : [...s, obraId]));
   }
 
-  function confirmarContratacao() {
-    if (!contratando) return;
-    const obraId = contratando.obraId;
-    setErro(null);
-    startTransition(async () => {
-      // O cartão tokenizado vem do formulário da próxima etapa; sem ele a ação responde CARTAO_OBRIGATORIO.
-      const r = await contratarObra(obraId);
-      setContratando(null);
-      if (!r.ok) {
-        setErro(MENSAGEM_ERRO[r.erro as ErroContratar] ?? MENSAGEM_ERRO.FALHA_CHECKOUT);
-        return;
-      }
-      toast(
-        r.confirmando
-          ? "Pagamento recebido. Estamos confirmando a cobrança desta obra."
-          : "Obra contratada. A alteração aparece na sua cobrança.",
-      );
-      router.refresh();
-    });
+  // Depois do pagamento aprovado, a cobrança é gravada na hora; se a gravação atrasar, a tela
+  // acompanha pelo webhook (mesma espera do parâmetro ?sucesso=1).
+  function aposPagamento(obraId: string, confirmando: boolean, mensagem: string) {
+    setContratando(null);
+    setRegularizando(null);
+    setErroModal(null);
+    toast(
+      confirmando
+        ? "Pagamento recebido. Estamos confirmando a cobrança desta obra."
+        : mensagem,
+    );
+    if (confirmando) router.replace(`/cobranca?sucesso=1&obra=${obraId}`);
+    router.refresh();
   }
 
-  function confirmarRegularizacao() {
+  // Chamado pelo formulário de cartão com o token. Rejeitar libera o formulário para nova tentativa.
+  async function pagarContratacao(token: string) {
+    if (!contratando) return;
+    const obraId = contratando.obraId;
+    setErroModal(null);
+    const r = await contratarObra(obraId, token);
+    if (!r.ok) {
+      setErroModal(MENSAGEM_ERRO[r.erro as ErroContratar] ?? MENSAGEM_ERRO.FALHA_CHECKOUT);
+      throw new Error(r.erro);
+    }
+    aposPagamento(obraId, r.confirmando, "Obra contratada. A alteração aparece na sua cobrança.");
+  }
+
+  async function pagarRegularizacao(token: string) {
     if (!regularizando) return;
     const obraId = regularizando.obraId;
-    setErro(null);
-    startTransition(async () => {
-      const r = await regularizarPagamento(obraId);
-      setRegularizando(null);
-      if (!r.ok) {
-        const codigo = r.erro as ErroRegularizar;
-        setErro(
-          MENSAGEM_ERRO_REGULARIZAR[codigo] ??
-            MENSAGEM_ERRO[codigo as ErroContratar] ??
-            MENSAGEM_ERRO.FALHA_CHECKOUT,
-        );
-        router.refresh();
-        return;
-      }
-      toast(
-        r.confirmando
-          ? "Pagamento recebido. Estamos confirmando a cobrança desta obra."
-          : "Pagamento regularizado. A obra voltou a ter todos os recursos.",
+    setErroModal(null);
+    const r = await regularizarPagamento(obraId, token);
+    if (!r.ok) {
+      const codigo = r.erro as ErroRegularizar;
+      setErroModal(
+        MENSAGEM_ERRO_REGULARIZAR[codigo] ??
+          MENSAGEM_ERRO[codigo as ErroContratar] ??
+          MENSAGEM_ERRO.FALHA_CHECKOUT,
       );
-      router.refresh();
-    });
+      // Estados em que o formulário não deve ficar aberto: nada mais a tentar nesta tela.
+      if (codigo === "FALHA_CONCLUIR" || codigo === "COBRANCA_NAO_REGULARIZAVEL") {
+        setRegularizando(null);
+        setErro(MENSAGEM_ERRO_REGULARIZAR[codigo] ?? null);
+        router.refresh();
+      }
+      throw new Error(r.erro);
+    }
+    aposPagamento(obraId, r.confirmando, "Pagamento regularizado. A obra voltou a ter todos os recursos.");
   }
 
   function confirmarCancelamento() {
@@ -255,8 +264,14 @@ export function CobrancaCliente({
                 destaque={l.obraId === obraDestaque}
                 selecionada={selecionadas.includes(l.obraId)}
                 onAlternar={() => alternar(l.obraId)}
-                onContratar={() => setContratando(l)}
-                onRegularizar={() => setRegularizando(l)}
+                onContratar={() => {
+                  setErroModal(null);
+                  setContratando(l);
+                }}
+                onRegularizar={() => {
+                  setErroModal(null);
+                  setRegularizando(l);
+                }}
                 pending={pending}
               />
             </li>
@@ -309,21 +324,29 @@ export function CobrancaCliente({
             {vagaPaga ? (
               <p className="text-cinza-2">
                 Você arquivou uma obra e ainda tem período pago até {dataBr(vagaPaga.acessoAte)}. Esta
-                obra aproveita esse período: hoje o pagamento é de R$ 0,00 (só para guardar o cartão) e
-                a primeira cobrança acontece nessa data.
+                obra aproveita esse período: hoje nada é cobrado (o cartão só é validado) e a primeira
+                cobrança acontece nessa data.
               </p>
             ) : (
               <p className="text-cinza-2">
-                Você será levado ao pagamento seguro com cartão. Cada obra tem o seu próprio pagamento
-                e a sua data de cobrança.
+                Pague com cartão de crédito. Cada obra tem o seu próprio pagamento e a sua data de
+                cobrança.
               </p>
             )}
+            {erroModal && (
+              <p role="alert" className="rounded-xl border border-borda p-3 text-sm">
+                {erroModal}
+              </p>
+            )}
+            <FormularioCartao
+              chavePublica={chavePublicaMp}
+              valorCentavos={precoObraCentavos}
+              rotuloBotao={vagaPaga ? "Guardar cartão e contratar" : "Pagar e contratar"}
+              onToken={pagarContratacao}
+            />
             <div className="flex flex-wrap gap-2">
-              <Botao variante="secundario" onClick={() => setContratando(null)} disabled={pending}>
+              <Botao variante="secundario" onClick={() => setContratando(null)}>
                 Voltar
-              </Botao>
-              <Botao onClick={confirmarContratacao} disabled={pending}>
-                {pending ? "Abrindo pagamento…" : "Ir para o pagamento"}
               </Botao>
             </div>
           </div>
@@ -342,20 +365,24 @@ export function CobrancaCliente({
               desde {dataBr(regularizando.inadimplenteDesde)}.
             </p>
             <p className="text-cinza-2">
-              Não dá para trocar o cartão de uma assinatura em andamento. Vamos encerrar a cobrança que
-              falhou (sem novas tentativas) e levar você a um novo pagamento de{" "}
-              {formatarBRL(precoObraCentavos)} por mês, com a data de cobrança contando de hoje.
+              Informe um cartão para pagar {formatarBRL(precoObraCentavos)} agora; a cobrança mensal
+              passa a contar de hoje. A cobrança que falhou só é encerrada depois que o novo pagamento
+              for aprovado: se o cartão for recusado, nada muda.
             </p>
-            <p className="text-cinza-2">
-              Se você não concluir o novo pagamento, a obra continua somente leitura e você pode pagar
-              depois em “Reativar”.
-            </p>
+            {erroModal && (
+              <p role="alert" className="rounded-xl border border-borda p-3 text-sm">
+                {erroModal}
+              </p>
+            )}
+            <FormularioCartao
+              chavePublica={chavePublicaMp}
+              valorCentavos={precoObraCentavos}
+              rotuloBotao="Pagar e regularizar"
+              onToken={pagarRegularizacao}
+            />
             <div className="flex flex-wrap gap-2">
-              <Botao variante="secundario" onClick={() => setRegularizando(null)} disabled={pending}>
+              <Botao variante="secundario" onClick={() => setRegularizando(null)}>
                 Voltar
-              </Botao>
-              <Botao onClick={confirmarRegularizacao} disabled={pending}>
-                {pending ? "Abrindo pagamento…" : "Continuar para o pagamento"}
               </Botao>
             </div>
           </div>

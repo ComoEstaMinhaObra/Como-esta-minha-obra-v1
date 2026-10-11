@@ -158,13 +158,13 @@ async function marcarProcessado(
     .eq("id", logId);
 }
 
+/** O service_role não lê a tabela direto: a consulta passa por função (fn_cobranca_por_assinatura). */
 async function localizarCobranca(admin: AdminClient, subId: string) {
-  const { data } = await admin
-    .from("cobrancas_obra")
-    .select("id, obra_id, status")
-    .eq("provedor_assinatura_id", subId)
-    .maybeSingle();
-  return data;
+  const { data, error } = await admin.rpc("fn_cobranca_por_assinatura", {
+    p_subscription_id: subId,
+  });
+  if (error) throw new Error(sanitizarErro(error));
+  return (data as { id: string; obraId: string; userId: string; status: string } | null) ?? null;
 }
 
 function payloadSeguro(

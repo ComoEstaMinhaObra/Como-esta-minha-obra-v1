@@ -116,13 +116,16 @@ type Rpc = (nome: string, args: Record<string, unknown>) => { data?: unknown; er
 
 function fakeAdmin(opcoes: {
   rpc?: Rpc;
-  cobranca?: { id: string; obra_id: string; status: string } | null;
+  cobranca?: { id: string; obraId: string; status: string } | null;
   obra?: { id: string } | null;
 }) {
   const logs: Array<Record<string, unknown>> = [];
   const rpc = vi.fn(async (nome: string, args: Record<string, unknown>) => {
     if (nome === "fn_claim_webhook_evento") {
       return { data: { logId: "log1", duplicado: false }, error: null };
+    }
+    if (nome === "fn_cobranca_por_assinatura") {
+      return { data: opcoes.cobranca ?? null, error: null };
     }
     const r = opcoes.rpc?.(nome, args);
     return { data: r?.data ?? null, error: r?.error ?? null };
@@ -136,7 +139,7 @@ function fakeAdmin(opcoes: {
         },
       };
     }
-    const dado = tabela === "cobrancas_obra" ? opcoes.cobranca ?? null : opcoes.obra ?? null;
+    const dado = opcoes.obra ?? null;
     const q: Record<string, unknown> = {};
     q.select = () => q;
     q.eq = () => q;
@@ -208,7 +211,7 @@ describe("processarNotificacaoMp", () => {
   });
 
   it("o id do evento inclui o estado consultado", async () => {
-    const f = fakeAdmin({ cobranca: { id: "c", obra_id: OBRA, status: "ativa" } });
+    const f = fakeAdmin({ cobranca: { id: "c", obraId: OBRA, status: "ativa" } });
     await processarNotificacaoMp(
       f.admin,
       { tipo: TOPICO_ASSINATURA, dataId: "mp_1" },
@@ -220,7 +223,7 @@ describe("processarNotificacaoMp", () => {
   });
 
   it("reprocessar pelo admin reaproveita o id do log original", async () => {
-    const f = fakeAdmin({ cobranca: { id: "c", obra_id: OBRA, status: "ativa" } });
+    const f = fakeAdmin({ cobranca: { id: "c", obraId: OBRA, status: "ativa" } });
     await processarNotificacaoMp(
       f.admin,
       { tipo: TOPICO_ASSINATURA, dataId: "mp_1" },
@@ -245,7 +248,7 @@ describe("processarNotificacaoMp", () => {
 
   it("parcela paga de cobrança existente renova com o próximo vencimento", async () => {
     const f = fakeAdmin({
-      cobranca: { id: "c", obra_id: OBRA, status: "inadimplente" },
+      cobranca: { id: "c", obraId: OBRA, status: "inadimplente" },
       rpc: (nome) => (nome === "fn_cobranca_renovar" ? { data: { alterada: true } } : {}),
     });
     const r = await processarNotificacaoMp(
@@ -276,7 +279,7 @@ describe("processarNotificacaoMp", () => {
 
   it("parcela recusada marca a obra como inadimplente e avisa o dono", async () => {
     const f = fakeAdmin({
-      cobranca: { id: "c", obra_id: OBRA, status: "ativa" },
+      cobranca: { id: "c", obraId: OBRA, status: "ativa" },
       rpc: (nome) =>
         nome === "fn_cobranca_marcar_inadimplente"
           ? { data: { alterada: true, userId: "u1", obraId: OBRA } }
@@ -294,7 +297,7 @@ describe("processarNotificacaoMp", () => {
 
   it("falha repetida de uma obra que já está inadimplente não manda outro e-mail", async () => {
     const f = fakeAdmin({
-      cobranca: { id: "c", obra_id: OBRA, status: "inadimplente" },
+      cobranca: { id: "c", obraId: OBRA, status: "inadimplente" },
       rpc: (nome) =>
         nome === "fn_cobranca_marcar_inadimplente" ? { data: { alterada: false } } : {},
     });
@@ -305,7 +308,7 @@ describe("processarNotificacaoMp", () => {
 
   it("assinatura cancelada com cobrança chama o cancelamento; sem cobrança é ignorada", async () => {
     const com = fakeAdmin({
-      cobranca: { id: "c", obra_id: OBRA, status: "ativa" },
+      cobranca: { id: "c", obraId: OBRA, status: "ativa" },
       rpc: (nome) =>
         nome === "fn_cobranca_cancelada_webhook" ? { data: { resultado: "agendado_pelo_app" } } : {},
     });
@@ -328,7 +331,7 @@ describe("processarNotificacaoMp", () => {
 
   it("cancelamento sem pedido do app fica marcado para o admin conferir", async () => {
     const f = fakeAdmin({
-      cobranca: { id: "c", obra_id: OBRA, status: "ativa" },
+      cobranca: { id: "c", obraId: OBRA, status: "ativa" },
       rpc: (nome) =>
         nome === "fn_cobranca_cancelada_webhook" ? { data: { resultado: "cancelada_sem_pedido" } } : {},
     });

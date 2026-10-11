@@ -239,11 +239,28 @@ O `record-usage` lançava um avanço avulso (`add`/`subtract`) que valia só par
 - Verificação: `tsc` limpo, `eslint` limpo, 169 testes unitários verdes, `next build` ok.
 
 **Limitações conhecidas (para decidir ou tratar na fase 4/5):**
-1. **Formulário de cartão ainda não existe.** As ações exigem `cardTokenId`; a tela chama sem ele e mostra "Informe os dados do cartão". Contratar e regularizar só funcionam de ponta a ponta depois da fase 4.
+1. ~~Formulário de cartão ainda não existe.~~ Resolvido na fase 4 (seção 8.1c).
 2. **Cancelamento no provedor após 14 dias não é refeito.** Se as 3 tentativas falharem, a cobrança já está cancelada no banco e o job não volta a ela; o erro vai para o log e a assinatura segue autorizada no Mercado Pago. Falta uma conferência diária que compare as obras canceladas com o provedor.
 3. **Regularização com falha ao encerrar a antiga:** a nova assinatura é cancelada, mas a primeira cobrança dela já aconteceu e o estorno é manual.
 4. **Valor do e-mail adicional:** falta conferir, após 12/10/2026 09:45 (UTC-4), que a próxima parcela sai com o valor novo (assinatura `1df70fbd…`). Não há reconciliação periódica do valor da assinatura com os e-mails pagos vigentes.
-5. **Texto legal e telas ainda citam o AbacatePay** (termos, política de privacidade): fase 4.
+5. ~~Texto legal e telas ainda citam o AbacatePay.~~ Resolvido na fase 4.
+
+### 8.1c Fase 4 e teste ponta a ponta (11/10/2026)
+
+**Feito**
+- `FormularioCartao.tsx`: formulário de cartão do Mercado Pago (Card Payment Brick, SDK carregado do domínio oficial; só o token chega ao app). Ligado aos modais de contratar e de regularizar; sem parcelamento; cartão recusado mostra a mensagem e libera nova tentativa.
+- `ModalBase`: passa a rolar dentro da tela (o formulário é alto e cortava o título).
+- Termos e política de privacidade citam o Mercado Pago (com a marcação `REVISAR` para o Estevão/Geraldino).
+- Migration `20261011120002`: `fn_cobranca_por_assinatura`. O `service_role` não lê `cobrancas_obra` direto, e o webhook achava a cobrança sempre vazia; passou a consultar pela função.
+
+**Teste ponta a ponta** (app local + Supabase local + API de teste do Mercado Pago, comprador de teste, Visa de teste no formulário real):
+1. Contratar com cartão aprovado (titular APRO): assinatura `authorized` no Mercado Pago, `cobrancas_obra` criada na hora com o próximo vencimento do provedor, tela mostra "Ativa" e R$ 129,90.
+2. Cartão recusado (titular OTHE): mensagem "O cartão foi recusado", nenhuma cobrança criada.
+3. Cancelar pela tela: assinatura `cancelled` no provedor, cobrança em cancelamento agendado com acesso até o fim do período.
+4. Webhook assinado enviado à rota local com a assinatura e a parcela reais: processado, repetição ignorada (idempotente), assinatura inválida devolve 401. O Mercado Pago respondeu 429 (`local_rate_limited`) a uma consulta feita em sequência rápida; o app devolve 5xx e o provedor reenvia.
+5. Dois defeitos achados e corrigidos: a obra recusava o `back_url` http (o provedor exige https e o campo é obrigatório; em dev local vale o site público) e a consulta direta da cobrança pelo `service_role`.
+
+**Ainda não testado ponta a ponta:** regularizar um pagamento recusado em renovação (não há como forçar a recusa na renovação), e o e-mail adicional com a assinatura real (`processarOutbox`) e notificações reais do Mercado Pago, que exigem o deploy da Staging.
 
 ### 8.2 Resultado do spike (11/10/2026, API real com contas de teste)
 

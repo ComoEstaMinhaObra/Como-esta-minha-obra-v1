@@ -53,7 +53,10 @@ async function criarAssinaturaDaObra(
       payerEmail: email,
       valorCentavos: OBRA_ATIVA.precoCentavos,
       motivo: "Como Está Minha Obra — obra ativa",
-      backUrl: `${appUrl}/cobranca`,
+      // O provedor exige uma URL https mesmo sem usá-la; em dev local (http) vale o site público.
+      backUrl: appUrl.startsWith("https://")
+        ? `${appUrl}/cobranca`
+        : "https://www.comoestaminhaobra.com.br/cobranca",
       cardTokenId,
       primeiraCobrancaEmDias: dias,
       // O token do cartão é de uso único: repetir o envio não cria uma segunda assinatura.

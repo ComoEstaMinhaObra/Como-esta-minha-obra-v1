@@ -128,8 +128,14 @@ async function request<T>(
     const corpo = (parsed ?? {}) as { message?: string; error?: string; code?: string };
     const msg =
       corpo.message ?? corpo.error ?? `Mercado Pago ${method} ${path} falhou com HTTP ${res.status}`;
-    // Só status e caminho vão para o log: o corpo pode ecoar e-mail do pagador.
-    console.error("[mercadopago]", { status: res.status, path: path.split("?")[0] });
+    // Status, caminho e código vão para o log; a mensagem só fora de produção, porque o corpo
+    // pode ecoar o e-mail do pagador.
+    console.error("[mercadopago]", {
+      status: res.status,
+      path: path.split("?")[0],
+      codigo: corpo.code ?? corpo.error,
+      ...(process.env.NODE_ENV !== "production" ? { mensagem: msg } : {}),
+    });
     throw new MercadoPagoError(msg, res.status, corpo.code ?? corpo.error);
   }
   return parsed as T;
@@ -142,6 +148,7 @@ export interface CriarAssinaturaInput {
   valorCentavos: number;
   /** Texto exibido ao pagador no extrato/checkout. */
   motivo: string;
+  /** Obrigatória e só https é aceito (localhost é recusado); não é usada, pois o cartão é pago no app. */
   backUrl: string;
   /** Token do cartão gerado no navegador (formulário do app). Com ele a assinatura nasce autorizada. */
   cardTokenId?: string;

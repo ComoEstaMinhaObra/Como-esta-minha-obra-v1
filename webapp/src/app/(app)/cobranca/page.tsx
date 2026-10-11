@@ -1,3 +1,4 @@
+import { publicEnv } from "@/config/env";
 import { EMAIL_ADICIONAL, OBRA_ATIVA } from "@/config/pricing";
 import { montarResumoCobranca } from "@/lib/cobranca/estado";
 import { createClient } from "@/lib/supabase/server";
@@ -59,6 +60,7 @@ export default async function CobrancaPage({
       }
       sucesso={sp.sucesso === "1"}
       obraDestaque={sp.obra ?? null}
+      chavePublicaMp={publicEnv.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY ?? null}
     />
   );
 }

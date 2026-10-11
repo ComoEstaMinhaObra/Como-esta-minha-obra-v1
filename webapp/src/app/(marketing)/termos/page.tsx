@@ -43,7 +43,7 @@ export default function TermosPage() {
         <p className="text-cinza-2">
           O trial gratuito tem duração e limites descritos na página de preços
           (dias, uma obra e quantidade de envios). Depois dele, cada obra ativa
-          tem uma assinatura mensal própria, cobrada via AbacatePay com ciclo e
+          tem uma assinatura mensal própria, cobrada via Mercado Pago com ciclo e
           data de cobrança próprios, sem limite de obras. Você pode cancelar a
           cobrança de uma ou mais obras a qualquer momento: cada obra cancelada
           mantém os recursos até o fim do período já pago e depois fica somente

@@ -194,6 +194,8 @@ describe("client /preapproval", () => {
     expect(erro).toHaveBeenCalledWith("[mercadopago]", {
       status: 400,
       path: "/preapproval/pre_5",
+      codigo: undefined,
+      mensagem: "Both payer and collector must be real or test users",
     });
     erro.mockRestore();
     expect(new MercadoPagoError("x", 500)).toBeInstanceOf(Error);

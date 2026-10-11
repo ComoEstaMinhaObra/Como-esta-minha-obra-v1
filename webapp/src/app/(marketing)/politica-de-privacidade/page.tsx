@@ -106,7 +106,12 @@ export default function PoliticaPrivacidadePage() {
           </li>
           <li>Vercel — hospedagem do aplicativo</li>
           <li>Resend — envio de e-mails</li>
-          <li>AbacatePay — pagamentos e assinaturas</li>
+          {/* REVISAR: Estevão/Geraldino — operador de pagamento trocado para o Mercado Pago */}
+          <li>
+            Mercado Pago — pagamentos e assinaturas (os dados do cartão são
+            informados em formulário do Mercado Pago e não passam pelos nossos
+            servidores)
+          </li>
         </ul>
       </section>
 
