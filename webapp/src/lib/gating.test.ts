@@ -51,6 +51,23 @@ describe("cobrancaVigente", () => {
 });
 
 describe("obraPermiteEscrita (espelha private.obra_permite_escrita)", () => {
+  it("conta livre escreve em qualquer obra sem cobrança ou trial", () => {
+    expect(
+      obraPermiteEscrita(
+        obra({
+          cobrancas: [cancelada],
+          donoJaTeveCobranca: true,
+          conta: {
+            status: "ativa",
+            trialFim: null,
+            relatoriosEnviadosTrial: 1,
+            contaLivre: true,
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("cobrança ativa aceita escrita, mesmo com o trial da conta vencido", () => {
     expect(
       obraPermiteEscrita(
@@ -168,6 +185,22 @@ describe("podeCriarObra (espelha fn_criar_obra)", () => {
 
   it("quem tem cobrança vigente cria obras sem limite", () => {
     expect(podeCriarObra(base({ temCobrancaVigente: true, obrasAtivas: 7 }))).toBe(true);
+  });
+
+  it("conta livre cria obras sem limite e sem cobrança", () => {
+    expect(
+      podeCriarObra(
+        base({
+          conta: {
+            status: "ativa",
+            trialFim: null,
+            relatoriosEnviadosTrial: 0,
+            contaLivre: true,
+          },
+          obrasAtivas: 100,
+        }),
+      ),
+    ).toBe(true);
   });
 
   it("conta fora do trial só cria com cobrança vigente", () => {

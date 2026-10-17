@@ -33,7 +33,7 @@ export default async function CobrancaPage({
             .eq("user_id", user.id),
           supabase
             .from("assinaturas")
-            .select("status, trial_fim, relatorios_enviados_trial")
+            .select("status, trial_fim, relatorios_enviados_trial, conta_livre")
             .eq("user_id", user.id)
             .maybeSingle(),
           supabase.rpc("fn_vaga_paga_disponivel"),

@@ -18,7 +18,7 @@ export default async function ContaPage() {
           supabase.from("profiles").select("nome").eq("id", user.id).maybeSingle(),
           supabase
             .from("assinaturas")
-            .select("status, trial_fim, relatorios_enviados_trial")
+            .select("status, trial_fim, relatorios_enviados_trial, conta_livre")
             .eq("user_id", user.id)
             .maybeSingle(),
           supabase.from("obras").select("id, nome, arquivada_em").eq("owner_id", user.id),
@@ -50,7 +50,9 @@ export default async function ContaPage() {
         <div>
           <dt className="text-cinza-2">Cobrança</dt>
           <dd>
-            {resumo.trial
+            {resumo.contaLivre
+              ? "Conta livre para testes"
+              : resumo.trial
               ? `Trial · ${resumo.trial.diasRestantes} dia(s) restantes`
               : ativas + pendentes > 0
                 ? `${ativas} obra${ativas === 1 ? "" : "s"} com cobrança ativa · ${formatarBRL(resumo.totalMensalCentavos)}/mês${pendentes > 0 ? ` · ${pendentes} com pagamento pendente` : ""}`
@@ -65,7 +67,9 @@ export default async function ContaPage() {
       </dl>
 
       {/* Assinatura do modelo antigo (conta inteira): sai na limpeza da E5. */}
-      {assinatura?.status === "ativa" ? <CancelarAssinatura /> : null}
+      {assinatura?.status === "ativa" && !assinatura.conta_livre ? (
+        <CancelarAssinatura />
+      ) : null}
 
       <form action={sair}>
         <Botao type="submit" variante="secundario">

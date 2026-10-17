@@ -102,7 +102,7 @@ export default async function DetalheObraPage({
       .eq("user_id", user.id),
     supabase
       .from("assinaturas")
-      .select("status, trial_fim, relatorios_enviados_trial")
+      .select("status, trial_fim, relatorios_enviados_trial, conta_livre")
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
@@ -125,6 +125,7 @@ export default async function DetalheObraPage({
         status: conta.status,
         trialFim: conta.trial_fim ? new Date(conta.trial_fim) : null,
         relatoriosEnviadosTrial: conta.relatorios_enviados_trial,
+        contaLivre: conta.conta_livre,
       },
     });
   const acessoAteCancelamento =

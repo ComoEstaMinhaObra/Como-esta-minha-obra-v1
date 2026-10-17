@@ -201,6 +201,12 @@ export function CobrancaCliente({
         </p>
       </header>
 
+      {resumo.contaLivre && (
+        <div className="rounded-[16px] border border-sucesso/30 bg-sucesso/10 px-4 py-3 text-sm text-sucesso">
+          Conta livre para testes: obras e relatórios ilimitados, sem cobrança.
+        </div>
+      )}
+
       {resumo.trial && (
         <div className="rounded-[16px] border border-marca/30 bg-marca/10 px-4 py-3 text-sm">
           <strong className="font-medium">

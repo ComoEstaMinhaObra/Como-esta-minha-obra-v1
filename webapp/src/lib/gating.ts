@@ -26,6 +26,7 @@ export interface ContaGating {
   status: AssinaturaStatus;
   trialFim: Date | null;
   relatoriosEnviadosTrial: number;
+  contaLivre?: boolean;
 }
 
 export interface EstadoObra {
@@ -57,6 +58,7 @@ export function cobrancaVigente(
 
 /** Editar rascunho, enviar relatório, compartilhar e subir fotos (espelha private.obra_permite_escrita). */
 export function obraPermiteEscrita(e: EstadoObra): boolean {
+  if (e.conta.contaLivre) return true;
   const agora = agoraDe(e);
   if (cobrancaVigente(e.cobrancas, agora)) return true;
   // Obra com histórico de cobrança sem cobrança vigente: somente leitura.
@@ -110,6 +112,7 @@ export interface EstadoCriarObra {
  * própria cobrança; sem cobrança vale o trial, com uma obra dentro do prazo.
  */
 export function podeCriarObra(e: EstadoCriarObra): boolean {
+  if (e.conta.contaLivre) return true;
   if (e.temCobrancaVigente) return true;
   if (e.conta.status !== "trial") return false;
   const agora = agoraDe(e);

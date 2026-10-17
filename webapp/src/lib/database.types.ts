@@ -104,6 +104,7 @@ export type Database = {
       }
       assinaturas: {
         Row: {
+          conta_livre: boolean
           provedor_cliente_id: string | null
           provedor_assinatura_id: string | null
           atualizado_em: string
@@ -115,6 +116,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          conta_livre?: boolean
           provedor_cliente_id?: string | null
           provedor_assinatura_id?: string | null
           atualizado_em?: string
@@ -126,6 +128,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          conta_livre?: boolean
           provedor_cliente_id?: string | null
           provedor_assinatura_id?: string | null
           atualizado_em?: string

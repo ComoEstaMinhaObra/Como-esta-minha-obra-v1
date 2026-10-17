@@ -28,6 +28,7 @@ export interface ContaLinhaDb {
   status: "trial" | "ativa" | "inadimplente" | "cancelada";
   trial_fim: string | null;
   relatorios_enviados_trial: number;
+  conta_livre?: boolean;
 }
 
 export interface LinhaCobranca {
@@ -61,6 +62,7 @@ export interface ResumoCobranca {
   totalMensalCentavos: number;
   proximaCobranca: Date | null;
   trial: { diasRestantes: number; relatoriosUsados: number } | null;
+  contaLivre: boolean;
 }
 
 function data(v: string | null): Date | null {
@@ -75,6 +77,7 @@ export function montarResumoCobranca(
   agora: Date = new Date(),
 ): ResumoCobranca {
   const trialFim = data(conta?.trial_fim ?? null);
+  const contaLivre = conta?.conta_livre === true;
   const donoJaTeveCobranca = cobrancas.length > 0;
   const trialValido =
     conta?.status === "trial" &&
@@ -121,12 +124,16 @@ export function montarResumoCobranca(
       limiteRecuperacao: inadimplenteDesde
         ? new Date(inadimplenteDesde.getTime() + DIAS_RECUPERACAO * DIA)
         : null,
-      emTrialAte: estado === "sem_assinatura" && trialValido && !arquivada ? trialFim : null,
+      emTrialAte:
+        !contaLivre && estado === "sem_assinatura" && trialValido && !arquivada
+          ? trialFim
+          : null,
       acoes: {
-        contratar: estado === "sem_assinatura" && !arquivada,
-        cancelar: estado === "ativa" && !arquivada,
-        regularizar: estado === "inadimplente" && !arquivada,
+        contratar: !contaLivre && estado === "sem_assinatura" && !arquivada,
+        cancelar: !contaLivre && estado === "ativa" && !arquivada,
+        regularizar: !contaLivre && estado === "inadimplente" && !arquivada,
         reativar:
+          !contaLivre &&
           !arquivada &&
           (estado === "cancelada" || (estado === "cancelamento_agendado" && reativarApos === null)),
         reativarApos: arquivada ? null : reativarApos,
@@ -147,8 +154,9 @@ export function montarResumoCobranca(
     linhas,
     totalMensalCentavos,
     proximaCobranca: proximas[0] ?? null,
+    contaLivre,
     trial:
-      conta?.status === "trial" && trialValido && trialFim
+      !contaLivre && conta?.status === "trial" && trialValido && trialFim
         ? {
             diasRestantes: Math.max(0, Math.ceil((trialFim.getTime() - agora.getTime()) / DIA)),
             relatoriosUsados: conta.relatorios_enviados_trial,

@@ -31,6 +31,24 @@ const cobranca = (obra_id: string, over: Partial<CobrancaLinhaDb> = {}): Cobranc
 const trial: ContaLinhaDb = { status: "trial", trial_fim: dia(11), relatorios_enviados_trial: 1 };
 
 describe("montarResumoCobranca", () => {
+  it("conta livre não oferece contratação nem exibe trial", () => {
+    const r = montarResumoCobranca(
+      [obra("a")],
+      [],
+      { ...trial, status: "ativa", trial_fim: null, conta_livre: true },
+      AGORA,
+    );
+    expect(r.contaLivre).toBe(true);
+    expect(r.trial).toBeNull();
+    expect(r.linhas[0].emTrialAte).toBeNull();
+    expect(r.linhas[0].acoes).toMatchObject({
+      contratar: false,
+      cancelar: false,
+      regularizar: false,
+      reativar: false,
+    });
+  });
+
   it("trial: a obra sem assinatura mostra o prazo do trial e pode ser contratada", () => {
     const r = montarResumoCobranca([obra("a")], [], trial, AGORA);
     expect(r.trial).toEqual({ diasRestantes: 11, relatoriosUsados: 1 });
