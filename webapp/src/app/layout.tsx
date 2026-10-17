@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Source_Serif_4 } from "next/font/google";
 import { ToastProvider } from "@/components/ui";
+import { publicEnv } from "@/config/env";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -19,6 +20,10 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
+  // Resolve URLs relativas dos metadados contra o domínio público e dá a cada página um
+  // canonical próprio, para que acessos pelo .vercel.app não concorram com o domínio de produção.
+  metadataBase: new URL(publicEnv.NEXT_PUBLIC_APP_URL),
+  alternates: { canonical: "./" },
   title: {
     default: "Como Está Minha Obra",
     template: "%s · Como Está Minha Obra",

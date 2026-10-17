@@ -75,7 +75,8 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 Itens que **só o humano** executa (agente não faz deploy de produção):
 
 - [ ] Vercel: projeto conectado ao GitHub; envs de produção = lista §2.2 do plano (sem placeholders)
-- [ ] Domínio `comoestaminhaobra.com.br` + `www` apontando para a Vercel
+- [x] Domínio `comoestaminhaobra.com.br` + `www` apontando para a Vercel (DNS e HTTPS ok em 2026-10-17; `NEXT_PUBLIC_APP_URL` de produção = `https://comoestaminhaobra.com.br`). Canônico = apex sem `www`; `www` e `como-esta-minha-obra.vercel.app` redirecionam (308, exceto `/api/*`) via `next.config.ts`.
+- [ ] Painéis externos com o domínio novo (só o responsável): Supabase Auth → URL Configuration (Site URL + Redirect URLs `https://comoestaminhaobra.com.br/**`); Cloudflare Turnstile → hostnames do widget; Mercado Pago → URL do webhook `https://comoestaminhaobra.com.br/api/webhooks/mercadopago`; Resend → domínio verificado (DKIM/SPF) para `relatorios@comoestaminhaobra.com.br`
 - [ ] Confirmar cron Vercel ativo (`vercel.json` / dashboard)
 - [ ] Supabase prod: `supabase db push` (se ainda houver drift), buckets Storage privados OK
 - [ ] SMTP customizado no Supabase Auth → Resend; templates relevantes após a troca para e-mail+senha (2026-08-11): **Confirm signup** ("Confirme seu cadastro — Como Está Minha Obra") e **Reset password** ("Redefina sua senha — Como Está Minha Obra"). O template de Magic Link não é mais usado.
