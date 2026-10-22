@@ -1,7 +1,7 @@
 -- pgTAP: desconto do link de afiliado (permanente e só na 1ª fatura)
 
 begin;
-select plan(39);
+select plan(44);
 
 -- ===== privilégios =====
 select ok(not has_function_privilege('authenticated', 'public.fn_afiliado_desconto_obra(uuid, uuid, int, boolean)', 'execute'),
@@ -119,8 +119,16 @@ select is((public.fn_afiliado_registrar_pagamento((select id from t_o2), '9001',
 select ok(exists (select 1 from jsonb_array_elements(public.fn_afiliado_descontos_a_reverter()) i where i->>'subscriptionId' = 'mp_sub_o2'),
   'o job diário enxerga a reversão pendente');
 
+select is((select valor_centavos from public.cobrancas_obra where provedor_assinatura_id = 'mp_sub_o2'), 10392,
+  'antes da reversão a cobrança guarda o valor com desconto');
 select lives_ok(format($$select public.fn_afiliado_desconto_revertido(%L::uuid)$$, (select id from t_o2)),
   'marcar como revertido');
+select is((select valor_centavos from public.cobrancas_obra where provedor_assinatura_id = 'mp_sub_o2'), 12990,
+  'a reversão devolve o valor da cobrança ao preço cheio (Cobrança e Conta passam a mostrar R$ 129,90)');
+select lives_ok(format($$select public.fn_afiliado_desconto_revertido(%L::uuid)$$, (select id from t_o2)),
+  'repetir a marcação é inofensivo');
+select is((select valor_centavos from public.cobrancas_obra where provedor_assinatura_id = 'mp_sub_o2'), 12990,
+  'repetir a reversão não soma o desconto duas vezes');
 select is((public.fn_afiliado_registrar_pagamento((select id from t_o2), '9001', 10392))->>'reverter', null,
   'depois de revertido, nada mais a reverter');
 select is(public.fn_afiliado_desconto_assinatura('mp_sub_o2', 12990), 0, 'sem desconto em vigor depois da reversão');
@@ -149,6 +157,8 @@ select public.fn_cobranca_registrar((select id from t_p1), 'mp_sub_p1', null, 11
 select is(public.fn_afiliado_desconto_assinatura('mp_sub_p1', 12990), 1299, 'desconto permanente vale na assinatura');
 select is((public.fn_afiliado_registrar_pagamento((select id from t_p1), '9101', 11691))->>'reverter', null,
   'desconto permanente nunca é revertido');
+select is((select valor_centavos from public.cobrancas_obra where provedor_assinatura_id = 'mp_sub_p1'), 11691,
+  'desconto permanente mantém o valor da cobrança com desconto');
 select is((select valor_centavos from private.afiliado_lancamentos where provedor_pagamento_id = '9101'), 585,
   'link de 5% só na 1ª fatura: o 1º pagamento rende comissão sobre o valor com desconto (arredondada)');
 

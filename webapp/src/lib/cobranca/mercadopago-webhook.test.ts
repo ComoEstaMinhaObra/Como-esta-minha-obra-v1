@@ -601,6 +601,31 @@ describe("desconto de afiliado no webhook", () => {
     expect(chamou(f.rpc, "fn_afiliado_desconto_revertido")).toEqual({ p_obra: OBRA });
   });
 
+  it("parcela que chega antes do registro: a cobrança nasce com o preço cheio, não com o valor do desconto", async () => {
+    const f = fakeAdmin({
+      obra: { id: OBRA },
+      cobranca: null,
+      rpc: comDesconto(null, (nome) => (nome === "fn_cobranca_registrar" ? { data: { criada: true } } : {})),
+    });
+    const d = deps(assinaturaComDesconto(), parcela());
+    await processarNotificacaoMp(f.admin, { tipo: TOPICO_PARCELA, dataId: "99" }, { deps: d });
+    expect(d.atualizarValorAssinatura).toHaveBeenCalledWith("mp_1", 12990);
+    // a reversão acontece antes do registro: o valor registrado já é o do preço cheio
+    expect(chamou(f.rpc, "fn_cobranca_registrar")!.p_valor_centavos).toBe(12990);
+  });
+
+  it("parcela antes do registro e reversão já feita numa tentativa anterior: não soma o desconto de novo", async () => {
+    const f = fakeAdmin({
+      obra: { id: OBRA },
+      cobranca: null,
+      rpc: comDesconto(12990, (nome) => (nome === "fn_cobranca_registrar" ? { data: { criada: true } } : {})),
+    });
+    // o provedor já está no preço cheio (PUT da tentativa anterior)
+    const d = deps(assinatura(), parcela());
+    await processarNotificacaoMp(f.admin, { tipo: TOPICO_PARCELA, dataId: "99" }, { deps: d });
+    expect(chamou(f.rpc, "fn_cobranca_registrar")!.p_valor_centavos).toBe(12990);
+  });
+
   it("retentativa reaproveita o alvo já gravado, sem somar o desconto de novo", async () => {
     const f = fakeAdmin({ cobranca: COM_COBRANCA, rpc: comDesconto(12990) });
     const a = assinatura(); // o provedor já está no preço cheio de uma tentativa anterior

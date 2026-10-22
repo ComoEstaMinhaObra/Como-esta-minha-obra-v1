@@ -202,6 +202,9 @@ function payloadSeguro(
  * Comissão do programa de afiliados por pagamento aprovado (fn_afiliado_registrar_pagamento,
  * idempotente pelo id do pagamento). O banco decide se há indicação; sem ela é um no-op barato.
  * Também devolve ao preço cheio a assinatura com desconto de "primeira fatura" que acabou de pagar.
+ * Devolve a assinatura a usar no resto do processamento: depois da reversão ela já vale o preço
+ * cheio no provedor, e uma cobrança ainda não registrada (parcela que chegou antes do registro)
+ * deve nascer com esse valor, não com o do desconto.
  */
 async function registrarPagamentoAfiliado(
   admin: AdminClient,
@@ -209,14 +212,14 @@ async function registrarPagamentoAfiliado(
   parcela: ParcelaMp,
   agora: Date,
   d: DepsMp,
-): Promise<void> {
+): Promise<AssinaturaMp> {
   const pagamentoId = parcela.payment?.id;
   const obraId = assinatura.external_reference ?? "";
-  if (pagamentoId === undefined || pagamentoId === null || !UUID_RE.test(obraId)) return;
+  if (pagamentoId === undefined || pagamentoId === null || !UUID_RE.test(obraId)) return assinatura;
 
   const reais = parcela.transaction_amount ?? assinatura.auto_recurring.transaction_amount;
   const valorCentavos = Math.round(Number(reais) * 100);
-  if (!Number.isFinite(valorCentavos) || valorCentavos <= 0) return;
+  if (!Number.isFinite(valorCentavos) || valorCentavos <= 0) return assinatura;
 
   const { data, error } = await admin.rpc("fn_afiliado_registrar_pagamento", {
     p_obra: obraId,
@@ -226,25 +229,34 @@ async function registrarPagamentoAfiliado(
   });
   if (error) {
     // App publicado antes da migration do programa: ninguém tem indicação ainda, nada a registrar.
-    if (error.code === "PGRST202" || error.code === "42883") return;
+    if (error.code === "PGRST202" || error.code === "42883") return assinatura;
     throw new Error(sanitizarErro(error));
   }
 
   // Desconto de "primeira fatura": depois do 1º pagamento a assinatura volta ao preço cheio.
   const reverter = (data as { reverter?: { descontoCentavos?: number; alvoCentavos?: number | null } | null } | null)
     ?.reverter;
-  if (reverter?.descontoCentavos && reverter.descontoCentavos > 0) {
-    await reverterDesconto(
-      admin,
-      {
-        obraId,
-        assinatura,
-        descontoCentavos: reverter.descontoCentavos,
-        alvoCentavos: reverter.alvoCentavos ?? null,
-      },
-      d.atualizarValorAssinatura,
-    );
-  }
+  if (!reverter?.descontoCentavos || reverter.descontoCentavos <= 0) return assinatura;
+
+  const revertido = await reverterDesconto(
+    admin,
+    {
+      obraId,
+      assinatura,
+      descontoCentavos: reverter.descontoCentavos,
+      alvoCentavos: reverter.alvoCentavos ?? null,
+    },
+    d.atualizarValorAssinatura,
+  );
+  if (!revertido || assinatura.status !== "authorized") return assinatura;
+
+  // Alvo já gravado (retentativa: o provedor já está nele) ou valor atual + desconto.
+  const atual = Math.round(Number(assinatura.auto_recurring.transaction_amount) * 100);
+  const cheio = reverter.alvoCentavos ?? atual + reverter.descontoCentavos;
+  return {
+    ...assinatura,
+    auto_recurring: { ...assinatura.auto_recurring, transaction_amount: cheio / 100 },
+  };
 }
 
 /** Efeitos da notificação sobre a cobrança da obra (registrar, renovar, inadimplência, cancelamento). */
@@ -394,15 +406,16 @@ export async function processarNotificacaoMp(
     // é tratada normalmente e só depois o erro sobe, para o provedor reenviar e a comissão (idempotente
     // por pagamento) ser refeita.
     let falhaAfiliado: unknown = null;
+    let assinaturaAtual = assinatura;
     if (parcela && pagamentoAprovado(parcela)) {
       try {
-        await registrarPagamentoAfiliado(admin, assinatura, parcela, agora, d);
+        assinaturaAtual = await registrarPagamentoAfiliado(admin, assinatura, parcela, agora, d);
       } catch (e) {
         falhaAfiliado = e;
       }
     }
 
-    const resultado = await tratarCobranca(admin, c.logId, assinatura, parcela, agora, d);
+    const resultado = await tratarCobranca(admin, c.logId, assinaturaAtual, parcela, agora, d);
     if (falhaAfiliado) throw falhaAfiliado;
     return resultado;
   } catch (e) {
