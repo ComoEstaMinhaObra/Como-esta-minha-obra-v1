@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import matter from "gray-matter";
+import { parse } from "yaml";
 
 export type BlogFrontmatter = {
   title: string;
@@ -15,6 +15,26 @@ export type BlogPost = BlogFrontmatter & {
 };
 
 const BLOG_DIR = path.join(process.cwd(), "content/blog");
+
+function lerMdx(raw: string): {
+  data: Record<string, unknown>;
+  content: string;
+} {
+  const frontmatter = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (!frontmatter) {
+    throw new Error("Post de blog sem frontmatter YAML");
+  }
+
+  const data = parse(frontmatter[1]);
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("Frontmatter de blog inválido");
+  }
+
+  return {
+    data: data as Record<string, unknown>,
+    content: raw.slice(frontmatter[0].length),
+  };
+}
 
 function validarFrontmatter(data: Record<string, unknown>): BlogFrontmatter {
   const title = data.title;
@@ -48,8 +68,8 @@ export function listarPosts(): BlogPost[] {
 
   const posts = arquivos.map((arquivo) => {
     const raw = fs.readFileSync(path.join(BLOG_DIR, arquivo), "utf8");
-    const { data, content } = matter(raw);
-    const meta = validarFrontmatter(data as Record<string, unknown>);
+    const { data, content } = lerMdx(raw);
+    const meta = validarFrontmatter(data);
     return { ...meta, content };
   });
 
