@@ -9,6 +9,21 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
+      NEXT_PUBLIC_PRECO_OBRA_CENTAVOS: "12990"
+      NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS: "2990"
+      NEXT_PUBLIC_TRIAL_DIAS: "14"
+      NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: "1"
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
+      SUPABASE_SECRET_KEY: ci_placeholder_secret
+      MERCADOPAGO_ACCESS_TOKEN: APP_USR-ci-token
+      MERCADOPAGO_WEBHOOK_SECRET: ci_webhook_secret
+      RESEND_API_KEY: re_xxx
+      EMAIL_FROM: "Como Está Minha Obra <relatorios@comoestaminhaobra.com.br>"
+      CRON_SECRET: ci_cron_secret
     defaults:
       run:
         working-directory: webapp
@@ -30,21 +45,6 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: build
         run: npm run build
-        env:
-          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
-          NEXT_PUBLIC_PRECO_OBRA_CENTAVOS: "12990"
-          NEXT_PUBLIC_PRECO_EMAIL_EXTRA_CENTAVOS: "2990"
-          NEXT_PUBLIC_TRIAL_DIAS: "14"
-          NEXT_PUBLIC_TRIAL_LIMITE_RELATORIOS: "1"
-          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
-          SUPABASE_SECRET_KEY: ci_placeholder_secret
-          MERCADOPAGO_ACCESS_TOKEN: APP_USR-ci-token
-          MERCADOPAGO_WEBHOOK_SECRET: ci_webhook_secret
-          RESEND_API_KEY: re_xxx
-          EMAIL_FROM: "Como Está Minha Obra <relatorios@comoestaminhaobra.com.br>"
-          CRON_SECRET: ci_cron_secret
 
   supabase:
     runs-on: ubuntu-latest
