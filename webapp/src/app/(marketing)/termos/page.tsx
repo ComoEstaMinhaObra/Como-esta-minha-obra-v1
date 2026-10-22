@@ -52,7 +52,9 @@ export default function TermosPage() {
           regularização, e a assinatura dela é cancelada se o pagamento não ocorrer
           nesse prazo; as demais obras não são afetadas. Acessos adicionais de
           e-mail são cobrados por 30 dias, a partir da aceitação do convite, na
-          fatura da obra.
+          fatura da obra. Quem se cadastra por um link de parceiro pode ter
+          desconto na assinatura, na primeira fatura ou em todas, conforme
+          informado no cadastro e na tela de cobrança.
         </p>
       </section>
 
@@ -75,7 +77,45 @@ export default function TermosPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-serif text-2xl font-light">6. Privacidade</h2>
+        <h2 className="font-serif text-2xl font-light">6. Programa de afiliados</h2>
+        {/* REVISAR: Estevão/Geraldino — capítulo novo, validar com assessoria jurídica e contábil */}
+        <ul className="list-disc space-y-2 pl-5 text-cinza-2">
+          <li>
+            O afiliado recebe um link próprio e uma comissão, em percentual
+            definido por link, sobre os pagamentos aprovados de quem se cadastrar
+            por ele: apenas sobre a primeira fatura ou sobre todos os pagamentos,
+            conforme o link. O percentual e as condições do link valem para quem se
+            cadastra depois da definição.
+          </li>
+          <li>
+            A comissão é calculada sobre o valor efetivamente pago pelo cliente,
+            sem descontar tarifas do meio de pagamento, e fica em carência antes de
+            ser liberada para saque. O prazo da carência e o valor mínimo de saque
+            são informados no painel do afiliado.
+          </li>
+          <li>
+            Pagamentos reembolsados, contestados ou estornados têm a comissão
+            correspondente estornada, inclusive do saldo já liberado, que pode ficar
+            negativo e ser compensado em comissões futuras.
+          </li>
+          <li>
+            O saque é solicitado no painel, com a chave Pix do próprio afiliado, e
+            pago manualmente pelo suporte. É vedada a indicação de si mesmo, de
+            contas ligadas ao afiliado, o cadastro em massa ou fictício, e qualquer
+            prática enganosa de divulgação. Em caso de abuso, comissões podem ser
+            estornadas e o link e a conta, suspensos.
+          </li>
+          <li>
+            O afiliado é responsável por seus tributos sobre os valores recebidos. O
+            programa não cria vínculo de emprego, sociedade, representação ou
+            exclusividade, e pode ser alterado ou encerrado, preservadas as
+            comissões já apuradas.
+          </li>
+        </ul>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-serif text-2xl font-light">7. Privacidade</h2>
         <p className="text-cinza-2">
           O tratamento de dados pessoais segue a{" "}
           <a href="/politica-de-privacidade" className="underline">
@@ -86,7 +126,7 @@ export default function TermosPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-serif text-2xl font-light">7. Limitação</h2>
+        <h2 className="font-serif text-2xl font-light">8. Limitação</h2>
         {/* REVISAR: Estevão/Geraldino */}
         <p className="text-cinza-2">
           Na máxima extensão permitida pela lei, a responsabilidade da
@@ -97,7 +137,7 @@ export default function TermosPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-serif text-2xl font-light">8. Foro</h2>
+        <h2 className="font-serif text-2xl font-light">9. Foro</h2>
         {/* REVISAR: Estevão/Geraldino */}
         <p className="text-cinza-2">
           Fica eleito o foro da comarca de Salvador/BA, salvo disposição legal

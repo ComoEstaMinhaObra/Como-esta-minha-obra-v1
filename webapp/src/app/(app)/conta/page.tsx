@@ -12,7 +12,13 @@ export default async function ContaPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { data: assinatura }, { data: obras }, { data: cobrancas }] =
+  const [
+    { data: profile },
+    { data: assinatura },
+    { data: obras },
+    { data: cobrancas },
+    { data: ehAfiliado },
+  ] =
     user
       ? await Promise.all([
           supabase.from("profiles").select("nome").eq("id", user.id).maybeSingle(),
@@ -28,8 +34,9 @@ export default async function ContaPage() {
               "obra_id, status, valor_centavos, periodo_fim, primeira_cobranca_em, inadimplente_desde, acesso_ate, criado_em",
             )
             .eq("user_id", user.id),
+          supabase.rpc("fn_sou_afiliado"),
         ])
-      : [{ data: null }, { data: null }, { data: null }, { data: null }];
+      : [{ data: null }, { data: null }, { data: null }, { data: null }, { data: null }];
 
   const resumo = montarResumoCobranca(obras ?? [], cobrancas ?? [], assinatura ?? null);
   const ativas = resumo.linhas.filter((l) => l.estado === "ativa").length;
@@ -64,6 +71,16 @@ export default async function ContaPage() {
             </Link>
           </dd>
         </div>
+        {ehAfiliado ? (
+          <div>
+            <dt className="text-cinza-2">Programa de afiliados</dt>
+            <dd>
+              <Link href="/conta/afiliado" className="underline">
+                Ver meus links e comissões
+              </Link>
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       {/* Assinatura do modelo antigo (conta inteira): sai na limpeza da E5. */}

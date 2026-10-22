@@ -16,6 +16,7 @@ Este documento deve permanecer alinhado ao schema. Alterações de policy, RPC o
 | Acessos | Da própria obra | Própria associação mínima | Metadados operacionais | RPC/outbox |
 | Clima | Próprio | Somente snapshot publicado | Nada | Cron/backend |
 | Webhooks/outbox | Nada | Nada | RPC operacional sanitizada | Backend |
+| Afiliados: links, indicações, ledger de comissões, saques (`private.afiliado_*`, `private.indicacoes`, `private.afiliados_config`) | O afiliado vê só o próprio painel agregado (RPC); nunca dados pessoais do indicado | O indicado não vê nada do programa | Links, comissões, saques (com a chave Pix completa) e configuração via RPC `fn_admin_*` | Cadastro: trigger. Comissão: webhook. Saque: RPC do afiliado. Pagar/recusar/estornar: RPC admin |
 | Fotos | Próprias, conforme estado | Apenas versão publicada | Nada | Reserva + Storage policy |
 | PDF | Versão publicada própria | Versão publicada compartilhada | Nada | Backend, create-only |
 
@@ -35,12 +36,13 @@ Este documento deve permanecer alinhado ao schema. Alterações de policy, RPC o
 - CSP em desenvolvimento/staging é Report-Only. Produção só recebe policy enforced após C3/C4 (`CSP_ENFORCE=true`).
 - HSTS em produção: `max-age=31536000`, sem `preload` e sem `includeSubDomains`.
 - Auth local: senha mínima 8, `lower_upper_letters_digits` (piso = "média" em `src/lib/auth/forca-senha.ts`; o front classifica "forte" com 12+ caracteres ou símbolo), confirmação de e-mail e `secure_password_change`. Login social (Google e Azure/Microsoft): o trigger `handle_new_user` só ativa convite de proprietário se o e-mail vier verificado; no Azure, habilitar os claims opcionais `email` e `xms_edov`. Turnstile e proteção contra senha vazada no remoto ficam a cargo do Codex.
+- Programa de afiliados (18/10/2026): as tabelas ficam em `private`, sem grant a `anon`/`authenticated`; todo acesso é por RPC `security definer`. O ledger (`afiliado_lancamentos`) é append-only (trigger `IMUTAVEL`); saldo é a soma dos lançamentos. Comissão é idempotente por id do pagamento do provedor (índice único) e nasce só de pagamento aprovado no webhook. Os termos do link (comissão e desconto) ficam congelados na indicação no cadastro. O `ref` do cadastro vem de `user_metadata` (controlado pelo cliente): o antifraude real é pagar só sobre pagamento aprovado, com carência, estorno manual e autoindicação bloqueada. A chave Pix só sai completa em `fn_admin_saques`; o painel do afiliado recebe a chave mascarada. O trigger `on_auth_user_created_indicacao` engole qualquer erro: o cadastro nunca quebra por causa do programa.
 - URLs assinadas já emitidas não são revogadas neste ciclo. Backlog: proxy autenticado.
 
 ## RPCs públicas (`authenticated`)
 
-`fn_criar_obra`, `fn_salvar_rascunho`, `fn_preparar_envio_relatorio`, `fn_dados_versao_atual`, `fn_atualizar_capa_obra`, `fn_reservar_foto`, `fn_remover_foto_rascunho`, `fn_solicitar_acesso_obra`, `fn_revogar_acesso_obra`, `fn_arquivar_obra`, `fn_consumir_rate_limit`, `fn_registrar_customer_id`, `fn_listar_obras_empreiteiro`, `fn_listar_obras_proprietario`, `fn_sou_admin`, `fn_admin_*`, `fn_proximos_rotulos`, `fn_saldo_estornavel`, `fn_avanco_geral`, `etapas_padrao`.
+`fn_criar_obra`, `fn_salvar_rascunho`, `fn_preparar_envio_relatorio`, `fn_dados_versao_atual`, `fn_atualizar_capa_obra`, `fn_reservar_foto`, `fn_remover_foto_rascunho`, `fn_solicitar_acesso_obra`, `fn_revogar_acesso_obra`, `fn_arquivar_obra`, `fn_consumir_rate_limit`, `fn_registrar_customer_id`, `fn_listar_obras_empreiteiro`, `fn_listar_obras_proprietario`, `fn_sou_admin`, `fn_admin_*`, `fn_sou_afiliado`, `fn_afiliado_painel`, `fn_afiliado_solicitar_saque`, `fn_afiliado_registrar_indicacao`, `fn_proximos_rotulos`, `fn_saldo_estornavel`, `fn_avanco_geral`, `etapas_padrao`.
 
 ## RPCs somente backend
 
-`fn_finalizar_envio_relatorio`, `fn_marcar_versao_falhou`, `fn_claim_outbox`, `fn_confirmar_outbox`, `fn_falhar_outbox`, `fn_reagendar_outbox`, `fn_claim_webhook_evento`, `fn_enfileirar_renovacao_emails`, `fn_listar_outbox_pendente`, `fn_purgar_*`.
+`fn_finalizar_envio_relatorio`, `fn_marcar_versao_falhou`, `fn_claim_outbox`, `fn_confirmar_outbox`, `fn_falhar_outbox`, `fn_reagendar_outbox`, `fn_claim_webhook_evento`, `fn_enfileirar_renovacao_emails`, `fn_listar_outbox_pendente`, `fn_purgar_*`, `fn_afiliado_registrar_pagamento`, `fn_afiliado_link_publico`, `fn_afiliado_desconto_*`, `fn_afiliado_descontos_a_reverter`.

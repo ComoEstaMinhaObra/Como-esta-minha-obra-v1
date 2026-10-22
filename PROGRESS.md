@@ -129,6 +129,13 @@ on conflict do nothing;
   - **Atenção:** contas criadas antes via magic link não têm senha — usar "Esqueci minha senha" para definir uma.
   - **Config Supabase (humano):** confirmar em Auth → Providers → Email que signup com senha está habilitado; templates de e-mail relevantes agora são Confirm signup e Reset password (ver checklist S5.5).
 
+- **Programa de afiliados (2026-10-18, a pedido do Estevão):** link `/r/<codigo>` criado no admin (`/admin/afiliados`), atribuído a um usuário; o afiliado acompanha cadastros, assinaturas, saldo e pede saque via Pix em `/conta/afiliado`. O suporte paga o Pix por fora e confirma em `/admin/afiliados/saques`.
+  - Regras por link (definidas no admin): % de comissão, **vitalícia** (todo pagamento aprovado do indicado) ou **só 1ª fatura**, e desconto opcional (% na 1ª fatura ou em todas). Os termos ficam congelados no cadastro do indicado. Carência (30 dias) e saque mínimo (R$ 50) são editáveis no admin. Estorno/chargeback é **manual** (`/admin/afiliados/comissoes`); automatizar pelo tópico `payment` do MP fica para a v2.
+  - Banco: migrations `20261018120001` a `20261018120004` (tabelas em `private`, só por RPC `security definer`; ledger append-only). Testes: `supabase/tests/database/afiliados*.test.sql`.
+  - Atribuição: cookie `cemo_ref` (30 dias, HttpOnly) + `signUp(data.ref)` lido por um trigger separado (nunca quebra o cadastro) + `/auth/callback` para login social.
+  - Comissão: nasce no webhook do MP (`mercadopago-webhook.ts`), idempotente pelo id do pagamento. Descontos de "1ª fatura" voltam ao preço cheio depois do 1º pagamento (webhook + varredura diária no cron de outbox).
+  - **Pendências (humano):** aplicar as migrations em staging (`db push --db-url`, sem `link`) e testar ponta a ponta com cartão de teste; só depois produção. Conferir no painel do MP que o tópico `subscription_authorized_payment` está ativo (sem ele não há comissão). Revisar os textos novos de privacidade (§§2, 3, 5, 7, 8) e termos (§6), marcados com `REVISAR`. Regenerar `database.types.ts` com `--linked` depois do `db push` em produção (os tipos atuais foram acrescentados a partir do banco local).
+
 ## Notas / tarefas futuras
 
 - Purga automática de obras arquivadas após 30 dias (não implementar na v1).

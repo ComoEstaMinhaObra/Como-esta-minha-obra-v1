@@ -83,6 +83,17 @@ test.describe("smoke marketing + guards (sem auth)", () => {
     }
   });
 
+  test("/r/<codigo> grava o cookie de afiliado e vai para a página inicial", async ({
+    request,
+  }) => {
+    const r = await request.get("/r/promo-teste?utm_source=ig", { maxRedirects: 0 });
+    expect(r.status()).toBe(307);
+    expect(new URL(r.headers()["location"]).pathname).toBe("/");
+    expect(r.headers()["location"]).toContain("utm_source=ig");
+    expect(r.headers()["set-cookie"]).toContain("cemo_ref=promo-teste");
+    expect(r.headers()["cache-control"]).toBe("no-store");
+  });
+
   test("CSP Report-Only propaga o mesmo nonce aos scripts do Next", async ({
     page,
   }) => {

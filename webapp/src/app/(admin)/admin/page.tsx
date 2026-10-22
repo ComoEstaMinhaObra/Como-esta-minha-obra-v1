@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatarBRL } from "@/lib/formatacao";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,10 +25,13 @@ const ROTULO_STATUS: Record<string, string> = {
 
 export default async function AdminKpisPage() {
   const supabase = await createClient();
-  const [{ data }, { data: cobrancaData }] = await Promise.all([
+  const [{ data }, { data: cobrancaData }, { data: afiliadosData }] = await Promise.all([
     supabase.rpc("fn_admin_kpis"),
     supabase.rpc("fn_admin_cobranca"),
+    supabase.rpc("fn_admin_afiliados"),
   ]);
+  const saques = (afiliadosData as { resumo?: { saquesPendentes?: number; saquesPendentesCentavos?: number } } | null)
+    ?.resumo;
   const payload = (data ?? {}) as PayloadKpis;
   const cobranca = (cobrancaData ?? {}) as PayloadCobranca;
 
@@ -81,6 +85,15 @@ export default async function AdminKpisPage() {
   return (
     <div className="space-y-8">
       <h1 className="font-serif text-3xl font-light">KPIs</h1>
+      {(saques?.saquesPendentes ?? 0) > 0 && (
+        <p className="rounded-[12px] border border-marca/40 bg-marca/10 px-4 py-3 text-sm">
+          {saques?.saquesPendentes} saque(s) de afiliado para pagar (
+          {formatarBRL(saques?.saquesPendentesCentavos ?? 0)}).{" "}
+          <Link href="/admin/afiliados/saques" className="text-marca underline-offset-2 hover:underline">
+            Ver saques
+          </Link>
+        </p>
+      )}
       <ul className="grid gap-4 min-[800px]:grid-cols-3">
         {kpis.map((k) => (
           <li key={k.titulo} className="border-b border-divisor pb-4">

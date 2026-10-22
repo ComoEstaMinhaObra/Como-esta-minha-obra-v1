@@ -66,6 +66,15 @@ export default function PoliticaPrivacidadePage() {
             identificadores do provedor de pagamento (sem armazenar número
             completo de cartão).
           </li>
+          {/* REVISAR: Estevão/Geraldino — programa de afiliados */}
+          <li>
+            <strong className="text-tinta">Programa de afiliados:</strong> para
+            afiliados, nome, chave Pix informada no pedido de saque, extrato de
+            comissões e saques. Para quem se cadastra por um link de afiliado, o
+            vínculo com esse link e os pagamentos aprovados, usados para calcular
+            a comissão e o desconto. O afiliado vê apenas totais (cadastros,
+            assinaturas e valores), nunca dados pessoais de quem se cadastrou.
+          </li>
           {/* REVISAR: Estevão/Geraldino */}
           <li>
             Dados de navegação mínimos necessários ao funcionamento (sessão,
@@ -78,7 +87,9 @@ export default function PoliticaPrivacidadePage() {
         <h2 className="font-serif text-2xl font-light">3. Finalidades</h2>
         <p className="text-cinza-2">
           Prestação do serviço de relatórios e página do proprietário;
-          autenticação; cobrança por obra e acessos adicionais; envio de e-mails
+          autenticação; cobrança por obra e acessos adicionais; programa de
+          afiliados (atribuição do cadastro ao link, desconto, apuração e
+          pagamento de comissões, prevenção a autoindicação e fraude); envio de e-mails
           transacionais (convite, novo relatório, confirmação de cadastro,
           recuperação de senha); suporte;
           cumprimento de obrigações legais; melhoria de segurança e prevenção a
@@ -106,6 +117,11 @@ export default function PoliticaPrivacidadePage() {
           </li>
           <li>Vercel — hospedagem do aplicativo</li>
           <li>Resend — envio de e-mails</li>
+          {/* REVISAR: Estevão/Geraldino — pagamento manual de comissões por Pix */}
+          <li>
+            Instituição financeira do afiliado — recebe o Pix de comissão (nome e
+            chave Pix informados no pedido de saque)
+          </li>
           {/* REVISAR: Estevão/Geraldino — operador de pagamento trocado para o Mercado Pago */}
           <li>
             Mercado Pago — pagamentos e assinaturas (os dados do cartão são
@@ -142,15 +158,21 @@ export default function PoliticaPrivacidadePage() {
           arquivadas permanecem acessíveis para consulta; após 30 dias do
           arquivamento, conteúdo associado pode ser elegível a limpeza conforme
           política operacional. Logs de webhook e auditoria seguem prazo técnico
-          necessário à segurança e cobrança.
+          necessário à segurança e cobrança. Registros de comissões e saques de
+          afiliados são mantidos pelo prazo necessário a obrigações fiscais,
+          contábeis e de defesa em eventual disputa.
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="font-serif text-2xl font-light">8. Cookies</h2>
+        {/* REVISAR: Estevão/Geraldino — cookie de atribuição do programa de afiliados */}
         <p className="text-cinza-2">
-          Utilizamos cookies essenciais de sessão (autenticação Supabase). Não
-          utilizamos cookies de publicidade de terceiros na v1.
+          Utilizamos cookies essenciais de sessão (autenticação Supabase) e, ao
+          abrir um link de afiliado, um cookie com o código do link por até 30
+          dias, usado apenas para atribuir seu cadastro a esse afiliado e aplicar
+          o desconto do link. Ele é apagado depois do cadastro. Não utilizamos
+          cookies de publicidade de terceiros.
         </p>
       </section>
 

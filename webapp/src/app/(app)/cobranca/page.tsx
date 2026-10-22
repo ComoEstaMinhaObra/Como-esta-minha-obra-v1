@@ -1,8 +1,11 @@
 import { publicEnv } from "@/config/env";
 import { EMAIL_ADICIONAL, OBRA_ATIVA } from "@/config/pricing";
+import { descontoDaObra } from "@/lib/afiliados/desconto";
 import { montarResumoCobranca } from "@/lib/cobranca/estado";
+import { logSeguro } from "@/lib/log";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { CobrancaCliente } from "./CobrancaCliente";
+import { CobrancaCliente, type DescontoTela } from "./CobrancaCliente";
 
 export const metadata = { title: "Cobrança" };
 
@@ -48,11 +51,38 @@ export default async function CobrancaPage({
   const resumo = montarResumoCobranca(obras ?? [], cobrancas ?? [], conta ?? null);
   const v = vaga as { disponivel?: boolean; dias?: number; acessoAte?: string } | null;
 
+  // Desconto de afiliado (link do indicado) das obras que ainda podem ser contratadas. É só
+  // exibição: o valor cobrado é decidido de novo, no servidor, na hora de contratar.
+  const descontos: Record<string, DescontoTela> = {};
+  if (user && !conta?.conta_livre) {
+    const comCobranca = new Set(
+      (cobrancas ?? []).filter((c) => c.status !== "cancelada").map((c) => c.obra_id),
+    );
+    const candidatas = (obras ?? []).filter((o) => !o.arquivada_em && !comCobranca.has(o.id));
+    try {
+      const admin = createAdminClient();
+      const lista = await Promise.all(
+        candidatas.map(
+          async (o) =>
+            [o.id, await descontoDaObra(admin, user.id, o.id, OBRA_ATIVA.precoCentavos, false)] as const,
+        ),
+      );
+      for (const [id, d] of lista) {
+        if (d.descontoCentavos > 0 && d.duracao) {
+          descontos[id] = { descontoCentavos: d.descontoCentavos, duracao: d.duracao };
+        }
+      }
+    } catch {
+      logSeguro("error", { evento: "cobranca_desconto_previa" });
+    }
+  }
+
   return (
     <CobrancaCliente
       resumo={resumo}
       precoObraCentavos={OBRA_ATIVA.precoCentavos}
       precoEmailCentavos={EMAIL_ADICIONAL.precoCentavos}
+      descontos={descontos}
       vagaPaga={
         v?.disponivel && v.acessoAte
           ? { acessoAte: new Date(v.acessoAte), dias: v.dias ?? 0 }

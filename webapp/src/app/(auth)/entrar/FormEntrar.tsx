@@ -17,6 +17,8 @@ import {
   senhaAceita,
 } from "@/lib/auth/forca-senha";
 import { emailNaoConfirmado, mensagemDeErro } from "@/lib/auth/mensagens-erro";
+import { descreverDesconto } from "@/lib/afiliados/formatar";
+import type { RefCadastro } from "@/lib/afiliados/ref";
 import {
   SEGUNDOS_ESPERA_REENVIO,
   rotuloReenvio,
@@ -25,12 +27,18 @@ import {
 
 type Modo = "entrar" | "criar" | "recuperar";
 
-export function FormEntrar() {
+export function FormEntrar({
+  refAfiliado = null,
+}: {
+  refAfiliado?: RefCadastro | null;
+}) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
 
-  const [modo, setModo] = useState<Modo>("entrar");
+  const [modo, setModo] = useState<Modo>(
+    searchParams.get("modo") === "criar" ? "criar" : "entrar",
+  );
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -88,7 +96,11 @@ export function FormEntrar() {
           email: email.trim(),
           password: senha,
           options: {
-            data: { nome: nome.trim() },
+            data: {
+              nome: nome.trim(),
+              // Link de afiliado: o trigger do banco grava a indicação (termos congelados).
+              ...(refAfiliado ? { ref: refAfiliado.codigo } : {}),
+            },
             emailRedirectTo: urlCallback,
             captchaToken: captcha ?? undefined,
           },
@@ -229,12 +241,22 @@ export function FormEntrar() {
         ? "Comece grátis — 14 dias de teste."
         : "Enviaremos um link para definir uma nova senha.";
 
+  const descontoParceiro = refAfiliado
+    ? descreverDesconto(refAfiliado.descontoBps, refAfiliado.descontoDuracao)
+    : null;
+
   return (
     <form onSubmit={onSubmit} className="w-full max-w-sm space-y-5">
       <div className="space-y-2 text-center">
         <h1 className="font-serif text-3xl font-light">{titulo}</h1>
         <p className="text-sm text-cinza-2">{subtitulo}</p>
       </div>
+
+      {modo === "criar" && descontoParceiro ? (
+        <p className="rounded-[12px] border border-sucesso/30 bg-sucesso/10 px-4 py-3 text-center text-sm text-sucesso">
+          Link de parceiro: {descontoParceiro}.
+        </p>
+      ) : null}
 
       {modo !== "recuperar" ? (
         <BotoesSociais redirectTo={urlCallback} desabilitado={carregando} />

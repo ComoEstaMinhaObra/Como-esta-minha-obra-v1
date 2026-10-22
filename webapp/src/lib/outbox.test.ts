@@ -74,6 +74,42 @@ describe("processarOutbox (valor da assinatura no Mercado Pago)", () => {
     expect(chamou("fn_confirmar_outbox")).toBeDefined();
   });
 
+  it("com desconto de afiliado em vigor o piso é a obra já descontada", async () => {
+    rpc.mockImplementation(async (nome: string) => {
+      if (nome === "fn_claim_outbox") return claim("subtract");
+      if (nome === "fn_afiliado_desconto_assinatura") return { data: 2598, error: null };
+      return { data: {}, error: null };
+    });
+    // R$ 103,92 (obra com 20% off) + R$ 29,90 do e-mail adicional
+    consultarAssinatura.mockResolvedValue(viva(133.82));
+    atualizarValorAssinatura.mockResolvedValue({});
+    await processarOutbox("out-6");
+    expect(chamou("fn_afiliado_desconto_assinatura")).toEqual({
+      p_subscription_id: "mp_1",
+      p_preco_centavos: 12990,
+    });
+    // sem o desconto no piso, subiria para o preço cheio (R$ 129,90)
+    expect(atualizarValorAssinatura).toHaveBeenCalledWith("mp_1", 10392);
+
+    atualizarValorAssinatura.mockClear();
+    consultarAssinatura.mockResolvedValue(viva(103.92));
+    await processarOutbox("out-7");
+    expect(atualizarValorAssinatura).not.toHaveBeenCalled();
+  });
+
+  it("erro ao consultar o desconto deixa o item incerto, sem mexer no valor", async () => {
+    rpc.mockImplementation(async (nome: string) => {
+      if (nome === "fn_claim_outbox") return claim("add");
+      if (nome === "fn_afiliado_desconto_assinatura") return { data: null, error: { code: "XX000", message: "x" } };
+      return { data: null, error: null };
+    });
+    consultarAssinatura.mockResolvedValue(viva(129.9));
+    const r = await processarOutbox("out-8");
+    expect(r.ok).toBe(false);
+    expect(atualizarValorAssinatura).not.toHaveBeenCalled();
+    expect(chamou("fn_falhar_outbox")).toMatchObject({ p_incerto: true });
+  });
+
   it("assinatura que não está autorizada falha sem alterar o valor", async () => {
     rpc.mockImplementation(async (nome: string) =>
       nome === "fn_claim_outbox" ? claim("add") : { data: null, error: null },

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { EMAIL_ADICIONAL, OBRA_ATIVA } from "@/config/pricing";
+import { descontoDaAssinatura } from "@/lib/afiliados/desconto";
 import { logSeguro, sanitizarErro } from "@/lib/log";
 import {
   atualizarValorAssinatura,
@@ -66,7 +67,14 @@ export async function processarOutbox(outboxId: string): Promise<{
     const atualCentavos = reaisParaCentavos(atual.auto_recurring.transaction_amount);
     const delta = c.operacao === "add" ? EMAIL_ADICIONAL.precoCentavos : -EMAIL_ADICIONAL.precoCentavos;
     // Nunca abaixo do valor da obra: um valor menor indica divergência, não um e-mail a menos.
-    const novoCentavos = Math.max(OBRA_ATIVA.precoCentavos, atualCentavos + delta);
+    // Com desconto de afiliado em vigor o piso é o valor da obra já descontado.
+    const descontoVigente = await descontoDaAssinatura(
+      admin,
+      c.subscriptionId,
+      OBRA_ATIVA.precoCentavos,
+    );
+    const piso = OBRA_ATIVA.precoCentavos - descontoVigente;
+    const novoCentavos = Math.max(piso, atualCentavos + delta);
     if (atual.status === "authorized" && novoCentavos !== atualCentavos) {
       await atualizarValorAssinatura(c.subscriptionId, novoCentavos);
     }

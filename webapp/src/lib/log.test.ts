@@ -6,6 +6,7 @@ describe("log seguro", () => {
   it("remove e-mail e palavras proibidas", () => {
     expect(sanitizarErro("falha token abc user@site.com")).not.toMatch(/@/);
     expect(sanitizarErro("SQLSTATE 23505")).toContain("[redigido]");
+    expect(sanitizarErro("chave pix 529.982.247-25 do cpf")).not.toMatch(/pix|cpf/i);
   });
 });
 

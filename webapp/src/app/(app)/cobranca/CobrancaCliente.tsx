@@ -54,10 +54,17 @@ const SELO: Record<LinhaCobranca["estado"], { texto: string; tom: "ambar" | "ver
   cancelada: { texto: "Somente leitura", tom: "cinza" },
 };
 
+/** Desconto de afiliado já calculado para uma obra ainda não contratada (só exibição). */
+export interface DescontoTela {
+  descontoCentavos: number;
+  duracao: "primeira_fatura" | "permanente";
+}
+
 export function CobrancaCliente({
   resumo,
   precoObraCentavos,
   precoEmailCentavos,
+  descontos,
   vagaPaga,
   sucesso,
   obraDestaque,
@@ -66,6 +73,8 @@ export function CobrancaCliente({
   resumo: ResumoCobranca;
   precoObraCentavos: number;
   precoEmailCentavos: number;
+  /** Desconto de afiliado por obra (id da obra → desconto), das que ainda podem ser contratadas. */
+  descontos: Record<string, DescontoTela>;
   vagaPaga: { acessoAte: Date; dias: number } | null;
   sucesso: boolean;
   obraDestaque: string | null;
@@ -78,6 +87,17 @@ export function CobrancaCliente({
   const [erro, setErro] = useState<string | null>(null);
   const [erroModal, setErroModal] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const precoDa = (obraId: string) =>
+    precoObraCentavos - (descontos[obraId]?.descontoCentavos ?? 0);
+  const textoValorObra = (obraId: string) => {
+    const d = descontos[obraId];
+    if (!d) return `${formatarBRL(precoObraCentavos)} por mês`;
+    const com = formatarBRL(precoDa(obraId));
+    return d.duracao === "primeira_fatura"
+      ? `${com} na primeira fatura (desconto do parceiro), depois ${formatarBRL(precoObraCentavos)} por mês`
+      : `${com} por mês (desconto do parceiro)`;
+  };
   const [contratando, setContratando] = useState<LinhaCobranca | null>(null);
   const [regularizando, setRegularizando] = useState<LinhaCobranca | null>(null);
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
@@ -266,7 +286,8 @@ export function CobrancaCliente({
             <li key={l.obraId}>
               <LinhaObra
                 l={l}
-                preco={precoObraCentavos}
+                preco={precoDa(l.obraId)}
+                comDesconto={Boolean(descontos[l.obraId])}
                 destaque={l.obraId === obraDestaque}
                 selecionada={selecionadas.includes(l.obraId)}
                 onAlternar={() => alternar(l.obraId)}
@@ -316,7 +337,7 @@ export function CobrancaCliente({
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-cinza-2">Valor</dt>
-                <dd>{formatarBRL(precoObraCentavos)} por mês</dd>
+                <dd className="text-right">{textoValorObra(contratando.obraId)}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-cinza-2">Cobrança</dt>
@@ -346,7 +367,7 @@ export function CobrancaCliente({
             )}
             <FormularioCartao
               chavePublica={chavePublicaMp}
-              valorCentavos={precoObraCentavos}
+              valorCentavos={precoDa(contratando.obraId)}
               rotuloBotao={vagaPaga ? "Guardar cartão e contratar" : "Pagar e contratar"}
               onToken={pagarContratacao}
             />
@@ -371,7 +392,7 @@ export function CobrancaCliente({
               desde {dataBr(regularizando.inadimplenteDesde)}.
             </p>
             <p className="text-cinza-2">
-              Informe um cartão para pagar {formatarBRL(precoObraCentavos)} agora; a cobrança mensal
+              Informe um cartão para pagar {formatarBRL(precoDa(regularizando.obraId))} agora; a cobrança mensal
               passa a contar de hoje. A cobrança que falhou só é encerrada depois que o novo pagamento
               for aprovado: se o cartão for recusado, nada muda.
             </p>
@@ -382,7 +403,7 @@ export function CobrancaCliente({
             )}
             <FormularioCartao
               chavePublica={chavePublicaMp}
-              valorCentavos={precoObraCentavos}
+              valorCentavos={precoDa(regularizando.obraId)}
               rotuloBotao="Pagar e regularizar"
               onToken={pagarRegularizacao}
             />
@@ -433,6 +454,7 @@ export function CobrancaCliente({
 function LinhaObra({
   l,
   preco,
+  comDesconto,
   destaque,
   selecionada,
   onAlternar,
@@ -442,6 +464,7 @@ function LinhaObra({
 }: {
   l: LinhaCobranca;
   preco: number;
+  comDesconto: boolean;
   destaque: boolean;
   selecionada: boolean;
   onAlternar: () => void;
@@ -469,6 +492,7 @@ function LinhaObra({
             </Link>
             <Selo tom={selo.tom}>{selo.texto}</Selo>
             {l.arquivada && <Selo tom="cinza">Arquivada</Selo>}
+            {comDesconto && l.acoes.contratar && <Selo tom="verde">Desconto do parceiro</Selo>}
           </div>
           <p className="text-sm text-cinza-2">{descricao(l, preco)}</p>
         </div>

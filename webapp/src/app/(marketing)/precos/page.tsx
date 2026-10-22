@@ -52,7 +52,7 @@ export default function PrecosPage() {
               <li key={i}>{i}</li>
             ))}
           </ul>
-          <Link href="/entrar" className="mt-6 block">
+          <Link href="/entrar?modo=criar" className="mt-6 block">
             <Botao className="w-full" variante="primario">
               Começar grátis
             </Botao>

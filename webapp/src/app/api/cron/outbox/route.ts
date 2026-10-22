@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCronEnv } from "@/config/env";
+import { executarReversaoDescontos } from "@/lib/afiliados/desconto-job";
 import { enviarEmailConvite } from "@/lib/email/enviar";
 import { executarJobCobranca } from "@/lib/cobranca/job";
 import { logSeguro } from "@/lib/log";
@@ -23,9 +24,17 @@ export async function GET(request: Request) {
     logSeguro("error", { evento: "cobranca_job_diario" });
   }
 
+  // Descontos de afiliado de "primeira fatura" que o webhook não devolveu ao preço cheio.
+  let descontos: Awaited<ReturnType<typeof executarReversaoDescontos>> | null = null;
+  try {
+    descontos = await executarReversaoDescontos(admin);
+  } catch {
+    logSeguro("error", { evento: "afiliado_descontos_job" });
+  }
+
   const { data, error } = await admin.rpc("fn_listar_outbox_pendente");
   if (error) {
-    return NextResponse.json({ erro: "OUTBOX_INDISPONIVEL", cobranca }, { status: 500 });
+    return NextResponse.json({ erro: "OUTBOX_INDISPONIVEL", cobranca, descontos }, { status: 500 });
   }
 
   const itens = (data ?? []) as unknown as { id: string }[];
@@ -72,5 +81,6 @@ export async function GET(request: Request) {
     processadas,
     falhas,
     cobranca,
+    descontos,
   });
 }

@@ -77,7 +77,7 @@ export default function LandingPage() {
             dados contratuais — acompanhe sua obra de perto!
           </p>
           <div className="mt-8 flex flex-wrap gap-3 animate-[fadeUp_0.8s_ease_0.24s_both]">
-            <Link href="/entrar">
+            <Link href="/entrar?modo=criar">
               <Botao variante="primario">
                 Começar grátis — {TRIAL.dias} dias
               </Botao>
@@ -231,7 +231,7 @@ export default function LandingPage() {
             30 dias, na fatura da obra.
           </p>
           <div className="mt-8">
-            <Link href="/entrar">
+            <Link href="/entrar?modo=criar">
               <Botao variante="primario">Começar grátis</Botao>
             </Link>
           </div>

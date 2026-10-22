@@ -1070,12 +1070,107 @@ export type Database = {
           ordem: number
         }[]
       }
+      fn_admin_afiliado_atualizar_link: {
+        Args: {
+          p_ativo: boolean
+          p_comissao_bps: number
+          p_desconto_bps: number
+          p_desconto_duracao: string
+          p_link: string
+          p_rotulo: string
+          p_vitalicia: boolean
+        }
+        Returns: Json
+      }
+      fn_admin_afiliado_comissoes: {
+        Args: { p_limite?: number }
+        Returns: Json
+      }
+      fn_admin_afiliado_config_salvar: {
+        Args: { p_carencia_dias: number; p_saque_minimo_centavos: number }
+        Returns: Json
+      }
+      fn_admin_afiliado_criar_link: {
+        Args: {
+          p_afiliado: string
+          p_codigo: string
+          p_comissao_bps: number
+          p_desconto_bps: number
+          p_desconto_duracao: string
+          p_rotulo: string
+          p_vitalicia: boolean
+        }
+        Returns: Json
+      }
+      fn_admin_afiliado_estornar: {
+        Args: { p_lancamento: string; p_motivo: string }
+        Returns: Json
+      }
+      fn_admin_afiliados: { Args: never; Returns: Json }
+      fn_admin_buscar_usuario: { Args: { p_email: string }; Returns: Json }
       fn_admin_cobranca: { Args: never; Returns: Json }
       fn_admin_contas: { Args: never; Returns: Json }
       fn_admin_kpis: { Args: never; Returns: Json }
       fn_admin_obras: { Args: { p_owner?: string }; Returns: Json }
       fn_admin_reprocessar_webhook: { Args: { p_log: string }; Returns: Json }
+      fn_admin_saque_pagar: {
+        Args: { p_obs?: string; p_saque: string }
+        Returns: Json
+      }
+      fn_admin_saque_recusar: {
+        Args: { p_motivo: string; p_saque: string }
+        Returns: Json
+      }
+      fn_admin_saques: { Args: { p_status?: string }; Returns: Json }
       fn_admin_webhooks: { Args: never; Returns: Json }
+      fn_afiliado_desconto_assinatura: {
+        Args: { p_preco_centavos: number; p_subscription_id: string }
+        Returns: number
+      }
+      fn_afiliado_desconto_liberar: {
+        Args: { p_obra: string; p_user: string }
+        Returns: undefined
+      }
+      fn_afiliado_desconto_obra: {
+        Args: {
+          p_obra: string
+          p_preco_centavos: number
+          p_reservar?: boolean
+          p_user: string
+        }
+        Returns: Json
+      }
+      fn_afiliado_desconto_reversao_alvo: {
+        Args: { p_alvo_centavos: number; p_obra: string }
+        Returns: number
+      }
+      fn_afiliado_desconto_revertido: {
+        Args: { p_obra: string }
+        Returns: undefined
+      }
+      fn_afiliado_descontos_a_reverter: {
+        Args: { p_limite?: number }
+        Returns: Json
+      }
+      fn_afiliado_link_publico: { Args: { p_codigo: string }; Returns: Json }
+      fn_afiliado_painel: { Args: never; Returns: Json }
+      fn_afiliado_registrar_indicacao: {
+        Args: { p_codigo: string }
+        Returns: Json
+      }
+      fn_afiliado_registrar_pagamento: {
+        Args: {
+          p_agora?: string
+          p_obra: string
+          p_pagamento_id: string
+          p_valor_centavos: number
+        }
+        Returns: Json
+      }
+      fn_afiliado_solicitar_saque: {
+        Args: { p_chave: string; p_tipo_chave: string }
+        Returns: Json
+      }
       fn_arquivar_obra: {
         Args: { p_nome: string; p_obra: string }
         Returns: Json
@@ -1243,6 +1338,7 @@ export type Database = {
         Returns: undefined
       }
       fn_sou_admin: { Args: never; Returns: boolean }
+      fn_sou_afiliado: { Args: never; Returns: boolean }
       fn_vaga_paga_disponivel: { Args: never; Returns: Json }
       is_admin: { Args: never; Returns: boolean }
       tem_acesso_obra: { Args: { p_obra: string }; Returns: boolean }

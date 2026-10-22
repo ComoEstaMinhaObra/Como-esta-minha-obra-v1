@@ -9,10 +9,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { OBRA_ATIVA } from "@/config/pricing";
+import { reverterDesconto } from "@/lib/afiliados/desconto";
 import { avisarPagamentoPendente } from "@/lib/cobranca/job";
 import type { Database, Json } from "@/lib/database.types";
 import { logSeguro, sanitizarErro } from "@/lib/log";
 import {
+  atualizarValorAssinatura,
   consultarAssinatura,
   consultarParcela,
   type AssinaturaMp,
@@ -36,6 +38,7 @@ export interface DepsMp {
   consultarAssinatura: (id: string) => Promise<AssinaturaMp>;
   consultarParcela: (id: string) => Promise<ParcelaMp>;
   avisarPagamentoPendente: typeof avisarPagamentoPendente;
+  atualizarValorAssinatura: typeof atualizarValorAssinatura;
   agora: () => Date;
 }
 
@@ -43,6 +46,7 @@ const DEPS_PADRAO: DepsMp = {
   consultarAssinatura,
   consultarParcela,
   avisarPagamentoPendente,
+  atualizarValorAssinatura,
   agora: () => new Date(),
 };
 
@@ -52,6 +56,11 @@ export type EventoCobranca =
   | { tipo: "falhou" }
   | { tipo: "cancelada" }
   | { tipo: "ignorado"; motivo: string };
+
+/** Parcela cobrada com pagamento aprovado: o único sinal de dinheiro recebido. */
+export function pagamentoAprovado(parcela: ParcelaMp | null): boolean {
+  return parcela?.status === "processed" && parcela.payment?.status === "approved";
+}
 
 /** Traduz o estado consultado (assinatura e, quando houver, parcela) para um evento do app. */
 export function interpretarEstado(
@@ -65,7 +74,7 @@ export function interpretarEstado(
   if (!parcela) return { tipo: "autorizada" };
 
   const pagamento = parcela.payment?.status;
-  if (parcela.status === "processed" && pagamento === "approved") {
+  if (pagamentoAprovado(parcela)) {
     return { tipo: "paga" };
   }
   // Recusa: a parcela entra em nova tentativa (recycling) ou esgota as tentativas já recusada.
@@ -101,6 +110,12 @@ function somarUmMes(d: Date): Date {
   return r;
 }
 
+/** Valor mensal da assinatura no provedor (com desconto de afiliado, se houver); sem valor válido, o preço de tabela. */
+function valorCobradoCentavos(a: AssinaturaMp): number {
+  const centavos = Math.round(Number(a.auto_recurring.transaction_amount) * 100);
+  return Number.isFinite(centavos) && centavos > 0 ? centavos : OBRA_ATIVA.precoCentavos;
+}
+
 export type ResultadoRegistro =
   | { ok: true; criada: boolean }
   | { ok: false; erro: string };
@@ -133,7 +148,7 @@ export async function registrarCobrancaAssinatura(
     p_obra: obraId,
     p_subscription_id: assinatura.id,
     p_checkout_id: null as unknown as string,
-    p_valor_centavos: OBRA_ATIVA.precoCentavos,
+    p_valor_centavos: valorCobradoCentavos(assinatura),
     p_periodo_inicio: inicio.toISOString(),
     p_periodo_fim: fim.toISOString(),
     p_primeira_cobranca_em: (adiada ? fim.toISOString() : null) as unknown as string,
@@ -183,6 +198,149 @@ function payloadSeguro(
   };
 }
 
+/**
+ * Comissão do programa de afiliados por pagamento aprovado (fn_afiliado_registrar_pagamento,
+ * idempotente pelo id do pagamento). O banco decide se há indicação; sem ela é um no-op barato.
+ * Também devolve ao preço cheio a assinatura com desconto de "primeira fatura" que acabou de pagar.
+ */
+async function registrarPagamentoAfiliado(
+  admin: AdminClient,
+  assinatura: AssinaturaMp,
+  parcela: ParcelaMp,
+  agora: Date,
+  d: DepsMp,
+): Promise<void> {
+  const pagamentoId = parcela.payment?.id;
+  const obraId = assinatura.external_reference ?? "";
+  if (pagamentoId === undefined || pagamentoId === null || !UUID_RE.test(obraId)) return;
+
+  const reais = parcela.transaction_amount ?? assinatura.auto_recurring.transaction_amount;
+  const valorCentavos = Math.round(Number(reais) * 100);
+  if (!Number.isFinite(valorCentavos) || valorCentavos <= 0) return;
+
+  const { data, error } = await admin.rpc("fn_afiliado_registrar_pagamento", {
+    p_obra: obraId,
+    p_pagamento_id: String(pagamentoId),
+    p_valor_centavos: valorCentavos,
+    p_agora: agora.toISOString(),
+  });
+  if (error) {
+    // App publicado antes da migration do programa: ninguém tem indicação ainda, nada a registrar.
+    if (error.code === "PGRST202" || error.code === "42883") return;
+    throw new Error(sanitizarErro(error));
+  }
+
+  // Desconto de "primeira fatura": depois do 1º pagamento a assinatura volta ao preço cheio.
+  const reverter = (data as { reverter?: { descontoCentavos?: number; alvoCentavos?: number | null } | null } | null)
+    ?.reverter;
+  if (reverter?.descontoCentavos && reverter.descontoCentavos > 0) {
+    await reverterDesconto(
+      admin,
+      {
+        obraId,
+        assinatura,
+        descontoCentavos: reverter.descontoCentavos,
+        alvoCentavos: reverter.alvoCentavos ?? null,
+      },
+      d.atualizarValorAssinatura,
+    );
+  }
+}
+
+/** Efeitos da notificação sobre a cobrança da obra (registrar, renovar, inadimplência, cancelamento). */
+async function tratarCobranca(
+  admin: AdminClient,
+  logId: string,
+  assinatura: AssinaturaMp,
+  parcela: ParcelaMp | null,
+  agora: Date,
+  d: DepsMp,
+): Promise<{ ok: boolean; mensagem: string }> {
+  const evento = interpretarEstado(assinatura, parcela);
+  const cobranca = await localizarCobranca(admin, assinatura.id);
+
+  if (evento.tipo === "ignorado") {
+    await marcarProcessado(admin, logId);
+    return { ok: true, mensagem: `ignorado: ${evento.motivo}` };
+  }
+
+  if (evento.tipo === "cancelada") {
+    if (!cobranca) {
+      // Cancelada antes de registrada (regularização desfeita, cartão trocado): nada a fazer.
+      await marcarProcessado(admin, logId);
+      return { ok: true, mensagem: "cancelada sem cobranca registrada" };
+    }
+    const { data, error } = await admin.rpc("fn_cobranca_cancelada_webhook", {
+      p_subscription_id: assinatura.id,
+    });
+    if (error) throw new Error(sanitizarErro(error));
+    const resultado = (data as { resultado?: string } | null)?.resultado ?? "";
+    if (resultado === "cancelada_sem_pedido") {
+      // Sem pedido do app: cancelamento direto no painel ou 3 parcelas recusadas. O admin confere.
+      logSeguro("error", { evento: "cobranca_cancelada_sem_pedido" });
+      await marcarProcessado(admin, logId, "CANCELADA_SEM_PEDIDO");
+    } else {
+      await marcarProcessado(admin, logId);
+    }
+    return { ok: true, mensagem: `cobranca: ${resultado}` };
+  }
+
+  if (evento.tipo === "falhou") {
+    if (!cobranca) {
+      await marcarProcessado(admin, logId);
+      return { ok: true, mensagem: "falha de parcela sem cobranca registrada" };
+    }
+    const { data, error } = await admin.rpc("fn_cobranca_marcar_inadimplente", {
+      p_subscription_id: assinatura.id,
+      p_agora: agora.toISOString(),
+    });
+    if (error) throw new Error(sanitizarErro(error));
+    const r = data as { alterada?: boolean; userId?: string; obraId?: string } | null;
+    if (r?.alterada && r.userId && r.obraId) {
+      await d.avisarPagamentoPendente(admin, {
+        userId: r.userId,
+        obraId: r.obraId,
+        agora,
+      });
+    }
+    await marcarProcessado(admin, logId);
+    return {
+      ok: true,
+      mensagem: r?.alterada ? "cobranca inadimplente" : "falha ignorada",
+    };
+  }
+
+  // autorizada ou paga
+  if (!cobranca) {
+    if (!podeRegistrar(assinatura, agora)) {
+      await marcarProcessado(admin, logId);
+      return { ok: true, mensagem: "aguardando a primeira cobranca" };
+    }
+    const r = await registrarCobrancaAssinatura(admin, assinatura, agora);
+    if (!r.ok) {
+      await marcarProcessado(admin, logId, r.erro, false);
+      return { ok: false, mensagem: r.erro };
+    }
+    await marcarProcessado(admin, logId);
+    return { ok: true, mensagem: `cobranca da obra ${assinatura.external_reference} registrada` };
+  }
+
+  if (evento.tipo === "paga") {
+    const { data, error } = await admin.rpc("fn_cobranca_renovar", {
+      p_subscription_id: assinatura.id,
+      p_agora: agora.toISOString(),
+      p_periodo_fim: (assinatura.next_payment_date ?? null) as unknown as string,
+    });
+    if (error) throw new Error(sanitizarErro(error));
+    const alterada = (data as { alterada?: boolean } | null)?.alterada;
+    await marcarProcessado(admin, logId);
+    return { ok: true, mensagem: alterada ? "cobranca renovada" : "renovacao ignorada" };
+  }
+
+  await marcarProcessado(admin, logId);
+  return { ok: true, mensagem: "assinatura ja registrada" };
+}
+
 export async function processarNotificacaoMp(
   admin: AdminClient,
   notificacao: NotificacaoMp,
@@ -229,90 +387,24 @@ export async function processarNotificacaoMp(
   }
 
   try {
-    const evento = interpretarEstado(assinatura, parcela);
     const agora = d.agora();
-    const cobranca = await localizarCobranca(admin, assinatura.id);
 
-    if (evento.tipo === "ignorado") {
-      await marcarProcessado(admin, c.logId);
-      return { ok: true, mensagem: `ignorado: ${evento.motivo}` };
+    // Comissão de afiliado: depende só do pagamento aprovado (não do estado da cobrança, que pode
+    // já estar cancelada ou ainda não registrada). Uma falha aqui não pode travar a cobrança: ela
+    // é tratada normalmente e só depois o erro sobe, para o provedor reenviar e a comissão (idempotente
+    // por pagamento) ser refeita.
+    let falhaAfiliado: unknown = null;
+    if (parcela && pagamentoAprovado(parcela)) {
+      try {
+        await registrarPagamentoAfiliado(admin, assinatura, parcela, agora, d);
+      } catch (e) {
+        falhaAfiliado = e;
+      }
     }
 
-    if (evento.tipo === "cancelada") {
-      if (!cobranca) {
-        // Cancelada antes de registrada (regularização desfeita, cartão trocado): nada a fazer.
-        await marcarProcessado(admin, c.logId);
-        return { ok: true, mensagem: "cancelada sem cobranca registrada" };
-      }
-      const { data, error } = await admin.rpc("fn_cobranca_cancelada_webhook", {
-        p_subscription_id: assinatura.id,
-      });
-      if (error) throw new Error(sanitizarErro(error));
-      const resultado = (data as { resultado?: string } | null)?.resultado ?? "";
-      if (resultado === "cancelada_sem_pedido") {
-        // Sem pedido do app: cancelamento direto no painel ou 3 parcelas recusadas. O admin confere.
-        logSeguro("error", { evento: "cobranca_cancelada_sem_pedido" });
-        await marcarProcessado(admin, c.logId, "CANCELADA_SEM_PEDIDO");
-      } else {
-        await marcarProcessado(admin, c.logId);
-      }
-      return { ok: true, mensagem: `cobranca: ${resultado}` };
-    }
-
-    if (evento.tipo === "falhou") {
-      if (!cobranca) {
-        await marcarProcessado(admin, c.logId);
-        return { ok: true, mensagem: "falha de parcela sem cobranca registrada" };
-      }
-      const { data, error } = await admin.rpc("fn_cobranca_marcar_inadimplente", {
-        p_subscription_id: assinatura.id,
-        p_agora: agora.toISOString(),
-      });
-      if (error) throw new Error(sanitizarErro(error));
-      const r = data as { alterada?: boolean; userId?: string; obraId?: string } | null;
-      if (r?.alterada && r.userId && r.obraId) {
-        await d.avisarPagamentoPendente(admin, {
-          userId: r.userId,
-          obraId: r.obraId,
-          agora,
-        });
-      }
-      await marcarProcessado(admin, c.logId);
-      return {
-        ok: true,
-        mensagem: r?.alterada ? "cobranca inadimplente" : "falha ignorada",
-      };
-    }
-
-    // autorizada ou paga
-    if (!cobranca) {
-      if (!podeRegistrar(assinatura, agora)) {
-        await marcarProcessado(admin, c.logId);
-        return { ok: true, mensagem: "aguardando a primeira cobranca" };
-      }
-      const r = await registrarCobrancaAssinatura(admin, assinatura, agora);
-      if (!r.ok) {
-        await marcarProcessado(admin, c.logId, r.erro, false);
-        return { ok: false, mensagem: r.erro };
-      }
-      await marcarProcessado(admin, c.logId);
-      return { ok: true, mensagem: `cobranca da obra ${assinatura.external_reference} registrada` };
-    }
-
-    if (evento.tipo === "paga") {
-      const { data, error } = await admin.rpc("fn_cobranca_renovar", {
-        p_subscription_id: assinatura.id,
-        p_agora: agora.toISOString(),
-        p_periodo_fim: (assinatura.next_payment_date ?? null) as unknown as string,
-      });
-      if (error) throw new Error(sanitizarErro(error));
-      const alterada = (data as { alterada?: boolean } | null)?.alterada;
-      await marcarProcessado(admin, c.logId);
-      return { ok: true, mensagem: alterada ? "cobranca renovada" : "renovacao ignorada" };
-    }
-
-    await marcarProcessado(admin, c.logId);
-    return { ok: true, mensagem: "assinatura ja registrada" };
+    const resultado = await tratarCobranca(admin, c.logId, assinatura, parcela, agora, d);
+    if (falhaAfiliado) throw falhaAfiliado;
+    return resultado;
   } catch (e) {
     await admin
       .from("webhooks_log")

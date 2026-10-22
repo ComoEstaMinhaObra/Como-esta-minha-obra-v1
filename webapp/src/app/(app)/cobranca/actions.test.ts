@@ -4,6 +4,8 @@ const rpc = vi.fn();
 const cancelarAssinatura = vi.fn();
 const criarAssinatura = vi.fn();
 const registrarCobrancaAssinatura = vi.fn();
+const descontoDaObra = vi.fn();
+const liberarDescontoDaObra = vi.fn();
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/config/env", () => ({
@@ -18,6 +20,10 @@ vi.mock("@/lib/mercadopago", () => ({
 }));
 vi.mock("@/lib/cobranca/mercadopago-webhook", () => ({
   registrarCobrancaAssinatura: (...a: unknown[]) => registrarCobrancaAssinatura(...a),
+}));
+vi.mock("@/lib/afiliados/desconto", () => ({
+  descontoDaObra: (...a: unknown[]) => descontoDaObra(...a),
+  liberarDescontoDaObra: (...a: unknown[]) => liberarDescontoDaObra(...a),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ admin: true }) }));
 
@@ -51,6 +57,9 @@ beforeEach(() => {
   cancelarAssinatura.mockReset();
   criarAssinatura.mockReset();
   registrarCobrancaAssinatura.mockReset();
+  descontoDaObra.mockReset();
+  liberarDescontoDaObra.mockReset();
+  descontoDaObra.mockResolvedValue({ descontoCentavos: 0, descontoBps: 0, duracao: null });
   tabelas = {
     obras: { id: OBRA, owner_id: "u1", arquivada_em: null },
     cobrancas_obra: null,
@@ -129,6 +138,39 @@ describe("contratarObra", () => {
     tabelas.cobrancas_obra = { status: "ativa", acesso_ate: null };
     expect(await contratarObra(OBRA, "tok_1")).toEqual({ ok: false, erro: "JA_CONTRATADA" });
     expect(criarAssinatura).not.toHaveBeenCalled();
+  });
+
+  describe("desconto de afiliado", () => {
+    it("reserva o desconto para a obra e cria a assinatura pelo valor com desconto", async () => {
+      descontoDaObra.mockResolvedValue({ descontoCentavos: 2598, descontoBps: 2000, duracao: "primeira_fatura" });
+      criarAssinatura.mockResolvedValue(assinaturaNova);
+      registrarCobrancaAssinatura.mockResolvedValue({ ok: true, criada: true });
+      await contratarObra(OBRA, "tok_1");
+      expect(descontoDaObra).toHaveBeenCalledWith({ admin: true }, "u1", OBRA, 12990, true);
+      expect(criarAssinatura).toHaveBeenCalledWith(expect.objectContaining({ valorCentavos: 10392 }));
+      expect(liberarDescontoDaObra).not.toHaveBeenCalled();
+    });
+
+    it("cartão recusado devolve a reserva do desconto", async () => {
+      descontoDaObra.mockResolvedValue({ descontoCentavos: 2598, descontoBps: 2000, duracao: "primeira_fatura" });
+      criarAssinatura.mockRejectedValue({ recusado: true });
+      const r = await contratarObra(OBRA, "tok_1");
+      expect(r).toEqual({ ok: false, erro: "CARTAO_RECUSADO" });
+      expect(liberarDescontoDaObra).toHaveBeenCalledWith({ admin: true }, "u1", OBRA);
+    });
+
+    it("sem desconto não há reserva a devolver", async () => {
+      criarAssinatura.mockRejectedValue({ recusado: true });
+      await contratarObra(OBRA, "tok_1");
+      expect(liberarDescontoDaObra).not.toHaveBeenCalled();
+    });
+
+    it("falha ao consultar o desconto não cobra nada", async () => {
+      descontoDaObra.mockRejectedValue(new Error("banco fora"));
+      const r = await contratarObra(OBRA, "tok_1");
+      expect(r).toEqual({ ok: false, erro: "FALHA_CHECKOUT" });
+      expect(criarAssinatura).not.toHaveBeenCalled();
+    });
   });
 });
 

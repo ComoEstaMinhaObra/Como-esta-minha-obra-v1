@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { publicEnv } from "@/config/env";
 import { OBRA_ATIVA } from "@/config/pricing";
+import { descontoDaObra, liberarDescontoDaObra } from "@/lib/afiliados/desconto";
 import { registrarCobrancaAssinatura } from "@/lib/cobranca/mercadopago-webhook";
 import { logSeguro, sanitizarErro } from "@/lib/log";
 import {
@@ -36,12 +37,26 @@ type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
  */
 async function criarAssinaturaDaObra(
   supabase: SupabaseServer,
+  userId: string,
   email: string,
   obraId: string,
   cardTokenId: string,
 ): Promise<
   { ok: true; assinatura: AssinaturaMp } | { ok: false; erro: ErroContratar }
 > {
+  // Desconto de afiliado (link do indicado). Reservar antes de cobrar; se o cartão for recusado a
+  // reserva volta. Falha ao consultar bloqueia a contratação: cobrar o preço errado é pior.
+  let desconto = 0;
+  try {
+    desconto = (
+      await descontoDaObra(createAdminClient(), userId, obraId, OBRA_ATIVA.precoCentavos, true)
+    ).descontoCentavos;
+  } catch (e) {
+    logSeguro("error", { evento: "checkout_desconto", ids: { obraId } });
+    void sanitizarErro(e);
+    return { ok: false, erro: "FALHA_CHECKOUT" };
+  }
+
   try {
     const { data: vaga } = await supabase.rpc("fn_vaga_paga_disponivel");
     const v = vaga as { disponivel?: boolean; dias?: number } | null;
@@ -51,7 +66,7 @@ async function criarAssinaturaDaObra(
     const assinatura = await criarAssinatura({
       obraId,
       payerEmail: email,
-      valorCentavos: OBRA_ATIVA.precoCentavos,
+      valorCentavos: OBRA_ATIVA.precoCentavos - desconto,
       motivo: "Como Está Minha Obra — obra ativa",
       // O provedor exige uma URL https mesmo sem usá-la; em dev local (http) vale o site público.
       backUrl: appUrl.startsWith("https://")
@@ -64,6 +79,7 @@ async function criarAssinaturaDaObra(
     });
     return { ok: true, assinatura };
   } catch (e) {
+    if (desconto > 0) await liberarDescontoDaObra(createAdminClient(), userId, obraId);
     if (cartaoRecusado(e)) return { ok: false, erro: "CARTAO_RECUSADO" };
     logSeguro("error", { evento: "checkout_obra", ids: { obraId } });
     void sanitizarErro(e);
@@ -150,7 +166,7 @@ export async function contratarObra(obraId: string, cardTokenId?: string) {
     .maybeSingle();
   if (!conta) return { ok: false as const, erro: "SEM_PERMISSAO" as const };
 
-  const criada = await criarAssinaturaDaObra(supabase, user.email, obraId, cardTokenId);
+  const criada = await criarAssinaturaDaObra(supabase, user.id, user.email, obraId, cardTokenId);
   if (!criada.ok) return { ok: false as const, erro: criada.erro };
 
   const registrada = await registrarAposCriar(criada.assinatura, obraId);
@@ -238,7 +254,7 @@ export async function regularizarPagamento(obraId: string, cardTokenId?: string)
   }
   const { subscriptionId } = data as { subscriptionId: string };
 
-  const criada = await criarAssinaturaDaObra(supabase, user.email, obraId, cardTokenId);
+  const criada = await criarAssinaturaDaObra(supabase, user.id, user.email, obraId, cardTokenId);
   if (!criada.ok) {
     await supabase.rpc("fn_cobranca_desfazer_regularizacao", { p_obra: obraId });
     return { ok: false as const, erro: criada.erro as ErroRegularizar };

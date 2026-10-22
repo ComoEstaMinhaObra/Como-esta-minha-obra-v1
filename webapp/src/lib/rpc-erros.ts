@@ -54,6 +54,21 @@ export function codigoRpc(
     "COBRANCA_NAO_CANCELAVEL",
     "COBRANCA_NAO_DESFAZIVEL",
     "COBRANCA_NAO_REGULARIZAVEL",
+    "CODIGO_INVALIDO",
+    "CODIGO_EM_USO",
+    "COMISSAO_INVALIDA",
+    "DESCONTO_INVALIDO",
+    "AFILIADO_NAO_ENCONTRADO",
+    "LINK_NAO_ENCONTRADO",
+    "CONFIG_INVALIDA",
+    "MOTIVO_OBRIGATORIO",
+    "LANCAMENTO_NAO_ENCONTRADO",
+    "SAQUE_NAO_ENCONTRADO",
+    "SAQUE_JA_RESOLVIDO",
+    "CHAVE_PIX_INVALIDA",
+    "SAQUE_EM_ABERTO",
+    "SALDO_INSUFICIENTE",
+    "SAQUE_MINIMO",
   ];
   for (const codigo of conhecido) {
     if (msg.includes(codigo)) return codigo;
@@ -82,6 +97,36 @@ export function mensagemRpc(codigo: string): string {
       return "Esta obra não tem pagamento pendente para regularizar.";
     case "SEM_PERMISSAO":
       return "Você não tem permissão para esta ação.";
+    case "CODIGO_INVALIDO":
+      return "O código do link deve ter de 3 a 32 letras minúsculas, números ou hífens (sem hífen no começo ou no fim).";
+    case "CODIGO_EM_USO":
+      return "Já existe um link com esse código.";
+    case "COMISSAO_INVALIDA":
+      return "A comissão deve ficar entre 0% e 100%.";
+    case "DESCONTO_INVALIDO":
+      return "O desconto deve ficar entre 0% e 90%, com a duração escolhida.";
+    case "AFILIADO_NAO_ENCONTRADO":
+      return "Afiliado não encontrado. Ele precisa ter uma conta no sistema.";
+    case "LINK_NAO_ENCONTRADO":
+      return "Link não encontrado.";
+    case "CONFIG_INVALIDA":
+      return "Configuração inválida. Confira a carência (0 a 365 dias) e o valor mínimo.";
+    case "MOTIVO_OBRIGATORIO":
+      return "Informe o motivo.";
+    case "LANCAMENTO_NAO_ENCONTRADO":
+      return "Comissão não encontrada.";
+    case "SAQUE_NAO_ENCONTRADO":
+      return "Saque não encontrado.";
+    case "SAQUE_JA_RESOLVIDO":
+      return "Este saque já foi resolvido.";
+    case "CHAVE_PIX_INVALIDA":
+      return "Chave Pix inválida. Confira o tipo e o valor.";
+    case "SAQUE_EM_ABERTO":
+      return "Você já tem uma solicitação de saque em andamento.";
+    case "SALDO_INSUFICIENTE":
+      return "Você não tem saldo disponível para saque.";
+    case "SAQUE_MINIMO":
+      return "O saldo disponível está abaixo do valor mínimo para saque.";
     case "VALOR_INVALIDO":
       return "Todos os valores lançados precisam ser maiores que zero.";
     case "CONTRATADO_INVALIDO":

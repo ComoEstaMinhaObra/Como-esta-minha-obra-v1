@@ -1,7 +1,7 @@
 import "server-only";
 
 const PROIBIDOS =
-  /email|e-mail|senha|password|token|secret|authorization|bearer|api[_-]?key|assinad|snapshot|payload|stack|sqlstate/gi;
+  /email|e-mail|senha|password|token|secret|authorization|bearer|api[_-]?key|assinad|snapshot|payload|stack|sqlstate|pix|cpf|cnpj/gi;
 
 export type LogSeguro = {
   evento: string;

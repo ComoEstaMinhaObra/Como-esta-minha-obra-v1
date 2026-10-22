@@ -14,6 +14,7 @@ vi.mock("@/lib/cobranca/job", () => ({ avisarPagamentoPendente: vi.fn() }));
 vi.mock("@/lib/mercadopago", () => ({
   consultarAssinatura: vi.fn(),
   consultarParcela: vi.fn(),
+  atualizarValorAssinatura: vi.fn(),
 }));
 
 const OBRA = "11111111-1111-4111-8111-111111111111";
@@ -157,6 +158,7 @@ function deps(a: AssinaturaMp, p?: ParcelaMp) {
     consultarAssinatura: vi.fn(async () => a),
     consultarParcela: vi.fn(async () => p as ParcelaMp),
     avisarPagamentoPendente: vi.fn(async () => true),
+    atualizarValorAssinatura: vi.fn(async () => ({}) as AssinaturaMp),
     agora: () => AGORA,
   };
 }
@@ -408,5 +410,243 @@ describe("registrarCobrancaAssinatura", () => {
     const f = fakeAdmin({});
     const r = await registrarCobrancaAssinatura(f.admin, assinatura({ external_reference: "spike-1" }), AGORA);
     expect(r).toEqual({ ok: false, erro: "OBRA_AUSENTE" });
+  });
+});
+
+describe("comissão de afiliados", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const COM_COBRANCA = { id: "c", obraId: OBRA, status: "ativa" };
+  const afiliadoOk: Rpc = (nome) =>
+    nome === "fn_afiliado_registrar_pagamento" ? { data: { registrada: true } } : {};
+
+  it("parcela paga registra a comissão pelo id do pagamento e pelo valor da assinatura", async () => {
+    const f = fakeAdmin({ cobranca: COM_COBRANCA, rpc: afiliadoOk });
+    await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(assinatura(), parcela({ payment: { id: 4242, status: "approved" } })) },
+    );
+    expect(chamou(f.rpc, "fn_afiliado_registrar_pagamento")).toEqual({
+      p_obra: OBRA,
+      p_pagamento_id: "4242",
+      p_valor_centavos: 12990,
+      p_agora: AGORA.toISOString(),
+    });
+  });
+
+  it("usa o valor realmente cobrado na parcela (com desconto)", async () => {
+    const f = fakeAdmin({ cobranca: COM_COBRANCA, rpc: afiliadoOk });
+    await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(assinatura(), parcela({ transaction_amount: 103.92 })) },
+    );
+    expect(chamou(f.rpc, "fn_afiliado_registrar_pagamento")!.p_valor_centavos).toBe(10392);
+  });
+
+  it("registra mesmo com a assinatura já cancelada (pagamento aprovado antes do cancelamento)", async () => {
+    const f = fakeAdmin({
+      cobranca: COM_COBRANCA,
+      rpc: (nome) =>
+        nome === "fn_cobranca_cancelada_webhook" ? { data: { resultado: "agendado_pelo_app" } } : afiliadoOk(nome, {}),
+    });
+    const r = await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(assinatura({ status: "cancelled" }), parcela()) },
+    );
+    expect(r.mensagem).toBe("cobranca: agendado_pelo_app");
+    expect(chamou(f.rpc, "fn_afiliado_registrar_pagamento")).toBeDefined();
+  });
+
+  it("registra também quando a parcela chega antes do registro da cobrança", async () => {
+    const f = fakeAdmin({
+      obra: { id: OBRA },
+      rpc: (nome) =>
+        nome === "fn_cobranca_registrar" ? { data: { criada: true } } : afiliadoOk(nome, {}),
+    });
+    await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(assinatura(), parcela()) },
+    );
+    expect(chamou(f.rpc, "fn_cobranca_registrar")).toBeDefined();
+    expect(chamou(f.rpc, "fn_afiliado_registrar_pagamento")).toBeDefined();
+  });
+
+  it("não registra para parcela recusada, em nova tentativa ou notificação só da assinatura", async () => {
+    for (const [tipo, a, p] of [
+      [TOPICO_PARCELA, assinatura(), parcela({ status: "recycling", payment: { id: 1, status: "rejected" } })],
+      [TOPICO_PARCELA, assinatura(), parcela({ status: "scheduled", payment: undefined })],
+      [TOPICO_ASSINATURA, assinatura(), undefined],
+    ] as const) {
+      const f = fakeAdmin({ cobranca: COM_COBRANCA, rpc: afiliadoOk });
+      await processarNotificacaoMp(f.admin, { tipo, dataId: "99" }, { deps: deps(a, p) });
+      expect(chamou(f.rpc, "fn_afiliado_registrar_pagamento")).toBeUndefined();
+    }
+  });
+
+  it("não registra sem o id do pagamento ou sem valor", async () => {
+    const semId = fakeAdmin({ cobranca: COM_COBRANCA, rpc: afiliadoOk });
+    await processarNotificacaoMp(
+      semId.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(assinatura(), parcela({ payment: { status: "approved" } })) },
+    );
+    expect(chamou(semId.rpc, "fn_afiliado_registrar_pagamento")).toBeUndefined();
+
+    const semValor = fakeAdmin({ cobranca: COM_COBRANCA, rpc: afiliadoOk });
+    const a = assinatura();
+    a.auto_recurring.transaction_amount = 0;
+    await processarNotificacaoMp(
+      semValor.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(a, parcela()) },
+    );
+    expect(chamou(semValor.rpc, "fn_afiliado_registrar_pagamento")).toBeUndefined();
+  });
+
+  it("falha na comissão não trava a cobrança: renova e depois sobe o erro para o provedor reenviar", async () => {
+    const f = fakeAdmin({
+      cobranca: COM_COBRANCA,
+      rpc: (nome) => {
+        if (nome === "fn_afiliado_registrar_pagamento") return { error: { message: "boom" } };
+        if (nome === "fn_cobranca_renovar") return { data: { alterada: true } };
+        return {};
+      },
+    });
+    await expect(
+      processarNotificacaoMp(
+        f.admin,
+        { tipo: TOPICO_PARCELA, dataId: "99" },
+        { deps: deps(assinatura(), parcela()) },
+      ),
+    ).rejects.toThrow();
+    expect(chamou(f.rpc, "fn_cobranca_renovar")).toBeDefined();
+    expect(f.logs.at(-1)).toMatchObject({ processado: false });
+    expect(f.logs.at(-1)?.erro).toBeTruthy();
+  });
+
+  it("banco sem a migration do programa: a cobrança segue normal e nada sobe", async () => {
+    const f = fakeAdmin({
+      cobranca: COM_COBRANCA,
+      rpc: (nome) =>
+        nome === "fn_afiliado_registrar_pagamento"
+          ? { error: { message: "function not found", code: "PGRST202" } as { message: string } }
+          : nome === "fn_cobranca_renovar"
+            ? { data: { alterada: true } }
+            : {},
+    });
+    const r = await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(assinatura(), parcela()) },
+    );
+    expect(r.mensagem).toBe("cobranca renovada");
+  });
+
+  it("evento repetido não chama o banco de afiliados", async () => {
+    const f = fakeAdmin({ cobranca: COM_COBRANCA, rpc: afiliadoOk });
+    f.rpc.mockResolvedValueOnce({ data: { logId: "log1", duplicado: true }, error: null });
+    await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_PARCELA, dataId: "99" },
+      { deps: deps(assinatura(), parcela()) },
+    );
+    expect(chamou(f.rpc, "fn_afiliado_registrar_pagamento")).toBeUndefined();
+  });
+});
+
+describe("desconto de afiliado no webhook", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const COM_COBRANCA = { id: "c", obraId: OBRA, status: "ativa" };
+  const comDesconto = (alvo: number | null, extra: Rpc = () => ({})): Rpc => (nome, args) => {
+    if (nome === "fn_afiliado_registrar_pagamento") {
+      return { data: { registrada: true, reverter: { descontoCentavos: 2598, alvoCentavos: alvo } } };
+    }
+    if (nome === "fn_afiliado_desconto_reversao_alvo") return { data: 12990 };
+    return extra(nome, args);
+  };
+  const assinaturaComDesconto = () => {
+    const a = assinatura();
+    a.auto_recurring.transaction_amount = 103.92;
+    return a;
+  };
+
+  it("a cobrança registrada guarda o valor realmente cobrado (com desconto)", async () => {
+    const f = fakeAdmin({
+      obra: { id: OBRA },
+      rpc: (nome) => (nome === "fn_cobranca_registrar" ? { data: { criada: true } } : {}),
+    });
+    await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_ASSINATURA, dataId: "mp_1" },
+      { deps: deps(assinaturaComDesconto()) },
+    );
+    expect(chamou(f.rpc, "fn_cobranca_registrar")!.p_valor_centavos).toBe(10392);
+  });
+
+  it("depois do 1º pagamento a assinatura volta ao preço cheio e o desconto é marcado como revertido", async () => {
+    const f = fakeAdmin({ cobranca: COM_COBRANCA, rpc: comDesconto(null) });
+    const d = deps(assinaturaComDesconto(), parcela());
+    await processarNotificacaoMp(f.admin, { tipo: TOPICO_PARCELA, dataId: "99" }, { deps: d });
+    // grava o alvo (valor atual + desconto) antes de chamar o provedor
+    expect(chamou(f.rpc, "fn_afiliado_desconto_reversao_alvo")).toEqual({
+      p_obra: OBRA,
+      p_alvo_centavos: 10392 + 2598,
+    });
+    expect(d.atualizarValorAssinatura).toHaveBeenCalledWith("mp_1", 12990);
+    expect(chamou(f.rpc, "fn_afiliado_desconto_revertido")).toEqual({ p_obra: OBRA });
+  });
+
+  it("retentativa reaproveita o alvo já gravado, sem somar o desconto de novo", async () => {
+    const f = fakeAdmin({ cobranca: COM_COBRANCA, rpc: comDesconto(12990) });
+    const a = assinatura(); // o provedor já está no preço cheio de uma tentativa anterior
+    const d = deps(a, parcela());
+    await processarNotificacaoMp(f.admin, { tipo: TOPICO_PARCELA, dataId: "99" }, { deps: d });
+    expect(chamou(f.rpc, "fn_afiliado_desconto_reversao_alvo")).toBeUndefined();
+    expect(d.atualizarValorAssinatura).toHaveBeenCalledWith("mp_1", 12990);
+  });
+
+  it("assinatura cancelada não tem o que corrigir, mas o desconto é dado como encerrado", async () => {
+    const f = fakeAdmin({
+      cobranca: COM_COBRANCA,
+      rpc: comDesconto(null, (nome) =>
+        nome === "fn_cobranca_cancelada_webhook" ? { data: { resultado: "ja_cancelada" } } : {},
+      ),
+    });
+    const d = deps(assinatura({ status: "cancelled" }), parcela());
+    await processarNotificacaoMp(f.admin, { tipo: TOPICO_PARCELA, dataId: "99" }, { deps: d });
+    expect(d.atualizarValorAssinatura).not.toHaveBeenCalled();
+    expect(chamou(f.rpc, "fn_afiliado_desconto_revertido")).toEqual({ p_obra: OBRA });
+  });
+
+  it("falha do provedor na reversão não trava a renovação e sobe o erro para o reenvio", async () => {
+    const f = fakeAdmin({
+      cobranca: COM_COBRANCA,
+      rpc: comDesconto(null, (nome) =>
+        nome === "fn_cobranca_renovar" ? { data: { alterada: true } } : {},
+      ),
+    });
+    const d = deps(assinaturaComDesconto(), parcela());
+    d.atualizarValorAssinatura.mockRejectedValue(new Error("MP fora do ar"));
+    await expect(
+      processarNotificacaoMp(f.admin, { tipo: TOPICO_PARCELA, dataId: "99" }, { deps: d }),
+    ).rejects.toThrow();
+    expect(chamou(f.rpc, "fn_cobranca_renovar")).toBeDefined();
+    expect(chamou(f.rpc, "fn_afiliado_desconto_revertido")).toBeUndefined();
+  });
+
+  it("pagamento sem desconto a reverter não toca no provedor", async () => {
+    const f = fakeAdmin({
+      cobranca: COM_COBRANCA,
+      rpc: (nome) =>
+        nome === "fn_afiliado_registrar_pagamento" ? { data: { registrada: true, reverter: null } } : {},
+    });
+    const d = deps(assinatura(), parcela());
+    await processarNotificacaoMp(f.admin, { tipo: TOPICO_PARCELA, dataId: "99" }, { deps: d });
+    expect(d.atualizarValorAssinatura).not.toHaveBeenCalled();
   });
 });

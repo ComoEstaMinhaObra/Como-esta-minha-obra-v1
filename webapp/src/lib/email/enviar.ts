@@ -7,6 +7,9 @@ import type { RelatorioSnapshot } from "@/lib/relatorios/tipos";
 import { ConviteAcessoEmail } from "@/emails/convite-acesso";
 import { NovoRelatorioEmail } from "@/emails/novo-relatorio";
 import { PagamentoPendenteEmail } from "@/emails/pagamento-pendente";
+import { SaqueAfiliadoEmail } from "@/emails/saque-afiliado";
+import { EMAIL_SUPORTE } from "@/lib/afiliados/constantes";
+import { formatarBRL } from "@/lib/formatacao";
 import { logSeguro } from "@/lib/log";
 
 function resendOuNull() {
@@ -117,5 +120,54 @@ export async function enviarEmailPagamentoPendente(params: {
       limite: params.limite,
       link,
     }),
+  });
+}
+
+/** Aviso ao afiliado de que o saque foi pago ou recusado pelo suporte. Sem Resend configurado, só registra. */
+export async function enviarEmailSaqueResolvido(params: {
+  para: string;
+  situacao: "pago" | "recusado";
+  valorCentavos: number;
+  observacao?: string | null;
+}) {
+  const link = `${publicEnv.NEXT_PUBLIC_APP_URL}/conta/afiliado`;
+  logSeguro("info", { evento: "email_saque_afiliado" });
+
+  const resend = resendOuNull();
+  if (!resend) return;
+
+  const valor = formatarBRL(params.valorCentavos);
+  await resend.emails.send({
+    from: getEmailEnv().EMAIL_FROM,
+    to: params.para,
+    subject:
+      params.situacao === "pago"
+        ? `Seu saque de ${valor} foi pago`
+        : `Seu saque de ${valor} não foi pago`,
+    react: createElement(SaqueAfiliadoEmail, {
+      situacao: params.situacao,
+      valor,
+      observacao: params.observacao,
+      link,
+    }),
+  });
+}
+
+/** Aviso ao suporte de que há um saque de afiliado para pagar por Pix e confirmar no admin. */
+export async function enviarEmailSaqueSolicitado(params: {
+  afiliadoNome: string;
+  valorCentavos: number;
+}) {
+  logSeguro("info", { evento: "email_saque_solicitado" });
+
+  const resend = resendOuNull();
+  if (!resend) return;
+
+  const valor = formatarBRL(params.valorCentavos);
+  await resend.emails.send({
+    from: getEmailEnv().EMAIL_FROM,
+    to: EMAIL_SUPORTE,
+    subject: `Saque de afiliado para pagar: ${valor}`,
+    text: `${params.afiliadoNome || "Um afiliado"} pediu um saque de ${valor}.\n\nPague por Pix e confirme em ${publicEnv.NEXT_PUBLIC_APP_URL}/admin/afiliados/saques`,
   });
 }
