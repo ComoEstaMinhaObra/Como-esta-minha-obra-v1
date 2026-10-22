@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Logo } from "@/components/brand/Logo";
 import { Botao, Cartao } from "@/components/ui";
 import {
   EMAIL_ADICIONAL,
@@ -66,9 +67,14 @@ export default function LandingPage() {
           }}
         />
         <div className="relative mx-auto flex min-h-[calc(100svh-65px)] max-w-[1240px] flex-col justify-end px-4 pb-16 pt-24 min-[800px]:justify-center min-[800px]:pb-24">
-          <p className="font-serif text-2xl font-light tracking-tight min-[800px]:text-3xl animate-[fadeUp_0.7s_ease_both]">
-            Como Está Minha Obra
-          </p>
+          <div className="flex items-center gap-3 animate-[fadeUp_0.7s_ease_both]">
+            <span className="inline-flex rounded-[12px] bg-white p-1.5">
+              <Logo href={false} tamanho={40} />
+            </span>
+            <p className="font-serif text-2xl font-light tracking-tight min-[800px]:text-3xl">
+              Como Está Minha Obra
+            </p>
+          </div>
           <h1 className="mt-4 max-w-xl font-serif text-4xl font-light leading-[1.1] min-[800px]:text-6xl animate-[fadeUp_0.8s_ease_0.08s_both]">
             Da fundação à entrega, tudo registrado.
           </h1>

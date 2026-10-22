@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
 
 export default function MarketingLayout({
   children,
@@ -9,9 +10,7 @@ export default function MarketingLayout({
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-divisor">
         <div className="mx-auto flex max-w-[1240px] items-center justify-between px-4 py-4">
-          <Link href="/" className="font-serif text-lg font-light">
-            Como Está Minha Obra
-          </Link>
+          <Logo href="/" tamanho={32} comTexto />
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/precos" className="text-cinza-2 hover:text-tinta">
               Preços

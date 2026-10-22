@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Logo de imóvel com análise</title>
+  <desc id="desc">Contorno de uma casa, uma lupa laranja e um gráfico em seu interior.</desc>
+
+  <g fill="none" stroke="#24292A" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M82 202 250 66l168 136" stroke-width="22"/>
+    <path d="M113 178v185h103" stroke-width="22"/>
+  </g>
+
+  <path
+    d="M291 250v91c-23 0-44-8-60-23Z"
+    fill="#D46A2A"
+  />
+  <path
+    d="M306 239 329 216v116c-7 4-15 7-23 8Z"
+    fill="#24292A"
+  />
+
+  <g fill="none" stroke="#D46A2A" stroke-linecap="round" stroke-linejoin="round" stroke-width="22">
+    <circle cx="285" cy="275" r="91"/>
+    <path d="m350 340 67 67"/>
+  </g>
+</svg>

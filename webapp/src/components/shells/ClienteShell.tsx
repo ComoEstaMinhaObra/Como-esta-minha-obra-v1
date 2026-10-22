@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { Logo } from "@/components/brand/Logo";
 
 const tabs = [
   { href: "inicio", label: "Início", icon: "home" },
@@ -127,6 +128,11 @@ export function ClienteShell({
         </Link>
       ) : null}
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto grid grid-cols-4 items-center gap-1 border-t border-divisor bg-fundo/90 px-[22px] pb-[calc(20px+env(safe-area-inset-bottom))] pt-3 backdrop-blur-md md:max-w-[760px] lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:mx-0 lg:flex lg:h-dvh lg:max-w-none lg:flex-col lg:items-stretch lg:border-r lg:border-t-0 lg:border-divisor lg:px-0 lg:py-4">
+        <div
+          className={`mb-4 hidden lg:flex ${menuRecolhido ? "justify-center" : "px-5"}`}
+        >
+          <Logo href={base} tamanho={32} />
+        </div>
         <button
           type="button"
           onClick={() => setMenuRecolhido((recolhido) => !recolhido)}

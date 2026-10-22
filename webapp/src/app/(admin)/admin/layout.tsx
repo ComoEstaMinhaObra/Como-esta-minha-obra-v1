@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Logo } from "@/components/brand/Logo";
 import { createClient } from "@/lib/supabase/server";
 
 const NAV = [
@@ -28,9 +29,12 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-fundo">
       <header className="border-b border-divisor">
         <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-4 px-4 py-4">
-          <Link href="/admin" className="font-serif text-lg font-light">
-            Admin
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <Logo href="/admin" tamanho={28} />
+            <Link href="/admin" className="font-serif text-lg font-light">
+              Admin
+            </Link>
+          </div>
           <nav className="flex flex-1 gap-3 text-sm">
             {NAV.map((item) => (
               <Link

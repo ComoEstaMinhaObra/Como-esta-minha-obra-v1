@@ -29,6 +29,10 @@ export const metadata: Metadata = {
     template: "%s · Como Está Minha Obra",
   },
   description: "Acompanhe a obra da fundação à entrega.",
+  icons: {
+    icon: [{ url: "/logo.svg", type: "image/svg+xml" }],
+    shortcut: ["/logo.svg"],
+  },
   openGraph: {
     title: "Como Está Minha Obra",
     description: "Acompanhe a obra da fundação à entrega.",

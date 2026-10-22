@@ -2,19 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-function Logo() {
-  return (
-    <Link href="/obras" aria-label="Como Está Minha Obra" className="block">
-      <span className="relative flex h-9 w-9 items-center justify-center rounded-md bg-marca">
-        <span
-          className="h-0 w-0 border-l-[7px] border-r-[7px] border-b-[12px] border-l-transparent border-r-transparent border-b-white"
-          aria-hidden
-        />
-      </span>
-    </Link>
-  );
-}
+import { Logo } from "@/components/brand/Logo";
 
 function IconObras() {
   return (
@@ -54,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       <aside className="fixed left-0 top-0 z-30 hidden h-screen w-[76px] flex-col items-center border-r border-divisor py-5 min-[800px]:flex">
-        <Logo />
+        <Logo href="/obras" tamanho={36} />
         <nav className="mt-8 flex flex-1 flex-col items-center gap-2">
           {nav.map(({ href, label, Icon, match }) => {
             const ativo = match(pathname);
