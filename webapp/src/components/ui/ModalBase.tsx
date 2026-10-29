@@ -17,15 +17,22 @@ export function ModalBase({
 }) {
   const painelRef = useRef<HTMLDivElement>(null);
 
+  // `onFechar` costuma chegar como função inline (nova a cada render): fica numa ref para que
+  // digitar num campo (re-render do pai) não reexecute o efeito e roube o foco do campo.
+  const onFecharRef = useRef(onFechar);
+  useEffect(() => {
+    onFecharRef.current = onFechar;
+  });
+
   useEffect(() => {
     if (!aberto) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onFechar();
+      if (e.key === "Escape") onFecharRef.current();
     };
     window.addEventListener("keydown", onKey);
     painelRef.current?.focus();
     return () => window.removeEventListener("keydown", onKey);
-  }, [aberto, onFechar]);
+  }, [aberto]);
 
   if (!aberto) return null;
 

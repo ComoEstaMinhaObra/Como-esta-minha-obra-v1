@@ -52,10 +52,10 @@ Atualizado conforme execução do [PLANO-EXECUCAO-CURSOR.md](PLANO-EXECUCAO-CURS
 
 ### FASE S4 — Monetização e marketing
 
-- [x] S4.1 Client AbacatePay
-- [x] S4.2 Bootstrap de produtos
-- [x] S4.3 Checkout
-- [x] S4.4 Webhook
+- [x] S4.1 Client do provedor de cobrança (AbacatePay, substituído pelo Mercado Pago em 11/10/2026)
+- [x] S4.2 Bootstrap de produtos (removido: o Mercado Pago não tem produtos)
+- [x] S4.3 Checkout (hoje: formulário de cartão no app)
+- [x] S4.4 Webhook (hoje: `/api/webhooks/mercadopago`)
 - [x] S4.5 Add-on e gating
 - [x] S4.6 Trocar plano / cancelar
 - [x] S4.7 Landing + Preços
@@ -80,8 +80,9 @@ Itens que **só o humano** executa (agente não faz deploy de produção):
 - [ ] Confirmar cron Vercel ativo (`vercel.json` / dashboard)
 - [ ] Supabase prod: `supabase db push` (se ainda houver drift), buckets Storage privados OK
 - [ ] SMTP customizado no Supabase Auth → Resend; templates relevantes após a troca para e-mail+senha (2026-08-11): **Confirm signup** ("Confirme seu cadastro — Como Está Minha Obra") e **Reset password** ("Redefina sua senha — Como Está Minha Obra"). O template de Magic Link não é mais usado.
-- [ ] Rotacionar / preencher `ABACATEPAY_API_KEY` real; rodar `npm run abacatepay:bootstrap` em prod e gravar `ABACATEPAY_PROD_*`
-- [ ] Registrar webhook AbacatePay: `https://comoestaminhaobra.com.br/api/webhooks/abacatepay` (+ secret)
+- [ ] Mercado Pago em produção: cadastrar na Vercel `MERCADOPAGO_ACCESS_TOKEN`, `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY` e `MERCADOPAGO_WEBHOOK_SECRET` (credenciais de produção, não as de teste); confirmar a conta de produção homologada para assinaturas
+- [ ] Mercado Pago → Webhooks: URL `https://comoestaminhaobra.com.br/api/webhooks/mercadopago` com os tópicos `subscription_preapproval` e `subscription_authorized_payment` (sem o segundo não há renovação, inadimplência nem comissão de afiliado)
+- [ ] Supabase prod: aplicar (`db push`, só o responsável) as migrations `20261011120001`, `20261011120002`, `20261013120001`, `20261018120001` a `20261018120004` e `20261022120001`; depois regenerar `database.types.ts` com `--linked`
 - [ ] Smoke em produção: login magic link → criar obra → rascunho → envio com PDF/e-mail reais → página do cliente
 - [ ] Promover admin: após o primeiro login do Estevão, rodar no SQL Editor:
 
@@ -103,21 +104,42 @@ on conflict do nothing;
 
 - **S1.2 verificação live:** migrations já aplicadas (`db push` feito). Validar `handle_new_user` e `trial_fim ≈ now()+14d` com um login real.
 
-- **S4 endpoint cliente:** plano §5.4 lista `POST /client/create`; OpenAPI oficial usa `POST /customers/create` — implementado `/customers/create`.
-
-- **S4 bootstrap:** não executado contra API real — `ABACATEPAY_API_KEY` no `.env.local` ainda é placeholder (`preench…`). Rodar `npm run abacatepay:bootstrap` após key real e preencher `ABACATEPAY_PROD_*`.
-
 - ~~**S0.6 `supabase link` / `db push`**~~ **RESOLVIDO (2026-08-10):** CLI logado na conta contato@comoestaminhaobra.com.br, projeto `hxlrskcnsbmmotjmxxfd` linkado, migrations `0001_schema.sql` e `0002_rpcs.sql` aplicadas no remoto (`migration list` confirma 0001/0002 local=remote), tipos regenerados com `supabase gen types typescript --linked`, `tsc --noEmit` e 12 testes unitários passando. Nota: o CLI Supabase entra em modo JSON não-interativo quando detecta agente de IA (`CLAUDECODE`/`AI_AGENT` no env) — para comandos interativos, rodar com `env -u CLAUDECODE -u AI_AGENT`.
 
 ### Resolvidos
 
-- ~~**S4 HMAC AbacatePay (divergência docs)**~~ **RESOLVIDO (S4.4):** alinhado a docs.abacatepay.com/pages/webhooks — `?webhookSecret=` obrigatório (= `ABACATEPAY_WEBHOOK_SECRET`, 401 se divergir) + HMAC-SHA256 com chave pública oficial, digest **base64**, `timingSafeEqual` no header `X-Webhook-Signature`.
-
 - **Dep extra (S0.7):** `server-only` instalado (exigido pelo plano para `admin.ts`).
 
-- **Env local (S0.5):** `.env.local` criado com URL/anon do Supabase já conhecidos. Preencher: `SUPABASE_SECRET_KEY`, `ABACATEPAY_*` (rotacionar key), `RESEND_API_KEY`. Placeholders atuais permitem build/test local.
+- **Env local (S0.5):** `.env.local` criado com URL/anon do Supabase já conhecidos. Preencher: `SUPABASE_SECRET_KEY`, `MERCADOPAGO_*`, `RESEND_API_KEY`. Placeholders atuais permitem build/test local.
 
 - **Pasta raiz**: renomeada de `Como está minha obra?` → `como-esta-minha-obra` (o `?` quebrava o webpack/Next.js). Pré-requisito humano §1 executado pelo agente para desbloquear o build.
+
+## Estado atual: billing Mercado Pago e afiliados (2026-10-28)
+
+Estimativa do Claude (código, validação e go-live ponderados): **billing ≈ 75%**, **afiliados ≈ 83%**. Os dois já estão na `main`, mas não em produção; sobem juntos, porque os afiliados dependem da cobrança do Mercado Pago em produção.
+
+| Frente | Código | Validação | Go-live |
+|---|---|---|---|
+| Billing Mercado Pago | ~95% | ~65% | ~10% |
+| Afiliados | ~95% | ~90% | ~45% |
+
+Verificado em 28/10: `tsc`, `eslint` e 266 testes unitários verdes. pgTAP e `test:security` não rodaram nesse dia (Docker desligado); a última execução de pgTAP foi na Staging em 22/10.
+
+### Billing Mercado Pago
+
+- **Feito:** plano em `planos-cursor-pre-lançamento/plano-migracao-mercadopago-2026-10-10.md` (fases 0 a 4). Webhook "notificar, consultar, aplicar", formulário de cartão (Card Payment Brick), contratar/cancelar/regularizar, cancelamento no provedor pelo job diário após 14 dias de inadimplência, e-mail adicional por `PUT` de valor, colunas neutras de provedor. Todo o código do AbacatePay foi removido.
+- **Validado:** ponta a ponta local e na Staging (`cemo-staging`) com comprador de teste: contratar, recusa, cancelar, webhook assinado, idempotência.
+- **Falta validar na Staging:** notificações reais do Mercado Pago (exige deploy com URL pública e `MERCADOPAGO_WEBHOOK_SECRET`, que estava vazio em 22/10), renovação real, recusa na renovação, regularização de pagamento recusado, e se a parcela seguinte sai com o valor novo após o `PUT` (conferir em 22/11/2026 nas assinaturas de teste `6be4eb7b…` e `b5d7e071…`).
+- **Limitações conhecidas (a decidir):** não há conferência diária banco × Mercado Pago (se o cancelamento no provedor falhar 3 vezes, a assinatura segue autorizada lá e só o log avisa); o valor do e-mail adicional não é reconciliado periodicamente; falha ao encerrar a assinatura antiga na regularização exige estorno manual. Trocar cartão por `PUT card_token_id` em vez de cancelar e recriar é melhoria opcional.
+- **Go-live (humano):** itens do checklist "Deploy (humano)" sobre Mercado Pago, migrations e webhook de produção, mais o smoke em produção.
+
+### Afiliados
+
+- **Feito:** fases 1 a 7 do `Plano-Afiliados.md` (banco, atribuição, comissão no webhook, admin, painel e saque, desconto, textos), commits `6519d94` e `211ffcf`.
+- **Validado em 22/10 na Staging:** pgTAP (afiliados 92/92, desconto 44/44, cobrança Mercado Pago 21/21, e-mail adicional 17/17) e fluxo ponta a ponta (link, cadastro, contratação, comissão, reversão do desconto, painel, saque, estorno, varredura diária). Dois bugs achados e corrigidos em `211ffcf` + migration `20261022120001`.
+- **Não testado:** login social real (Google/Microsoft), e-mails reais (Resend), webhook real do Mercado Pago, falha de renovação.
+- **Falta:** revisão jurídica das 13 marcações `REVISAR` (política §§2, 3, 4, 5, 7, 8 e termos §6); aplicar as 5 migrations em produção (junto da `20261022120001`); regenerar `database.types.ts` com `--linked` depois disso; ajuste cosmético "a liberar por 0 dias" quando a carência é 0.
+- **Fora da v1:** estorno/chargeback automático (tópico `payment`), conciliação diária de comissões, contagem de cliques, saque parcial/automático.
 
 ## Mudanças pós-plano
 
