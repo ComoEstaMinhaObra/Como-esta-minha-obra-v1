@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AssinaturaMp, ParcelaMp } from "@/lib/mercadopago";
+import { MercadoPagoError, type AssinaturaMp, type ParcelaMp } from "@/lib/mercadopago";
 import {
   interpretarEstado,
   podeRegistrar,
@@ -11,7 +11,8 @@ import {
 
 vi.mock("@/config/pricing", () => ({ OBRA_ATIVA: { precoCentavos: 12990 } }));
 vi.mock("@/lib/cobranca/job", () => ({ avisarPagamentoPendente: vi.fn() }));
-vi.mock("@/lib/mercadopago", () => ({
+vi.mock("@/lib/mercadopago", async (importOriginal) => ({
+  MercadoPagoError: (await importOriginal<typeof import("@/lib/mercadopago")>()).MercadoPagoError,
   consultarAssinatura: vi.fn(),
   consultarParcela: vi.fn(),
   atualizarValorAssinatura: vi.fn(),
@@ -380,6 +381,31 @@ describe("processarNotificacaoMp", () => {
       processarNotificacaoMp(f.admin, { tipo: TOPICO_ASSINATURA, dataId: "mp_1" }, { deps: d }),
     ).rejects.toThrow("api fora");
     expect(f.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("processarNotificacaoMp: recurso inexistente", () => {
+  it("404 do Mercado Pago é ignorado (200), sem gravar nada", async () => {
+    const f = fakeAdmin({});
+    const d = deps(assinatura());
+    d.consultarAssinatura.mockRejectedValue(new MercadoPagoError("not found", 404));
+    const r = await processarNotificacaoMp(
+      f.admin,
+      { tipo: TOPICO_ASSINATURA, dataId: "123456" },
+      { deps: d },
+    );
+    expect(r.ok).toBe(true);
+    expect(r.mensagem).toContain("ignorado");
+    expect(f.rpc).not.toHaveBeenCalled();
+  });
+
+  it("5xx do Mercado Pago continua lançando para o provedor reenviar", async () => {
+    const f = fakeAdmin({});
+    const d = deps(assinatura());
+    d.consultarAssinatura.mockRejectedValue(new MercadoPagoError("indisponível", 503));
+    await expect(
+      processarNotificacaoMp(f.admin, { tipo: TOPICO_ASSINATURA, dataId: "mp_1" }, { deps: d }),
+    ).rejects.toThrow("indisponível");
   });
 });
 

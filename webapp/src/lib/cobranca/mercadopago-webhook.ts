@@ -17,6 +17,7 @@ import {
   atualizarValorAssinatura,
   consultarAssinatura,
   consultarParcela,
+  MercadoPagoError,
   type AssinaturaMp,
   type ParcelaMp,
 } from "@/lib/mercadopago";
@@ -366,13 +367,22 @@ export async function processarNotificacaoMp(
   const d = { ...DEPS_PADRAO, ...opcoes.deps };
 
   // O estado vem da API, não do corpo. Falha aqui devolve 5xx e o provedor reenvia.
+  // Recurso inexistente (404) é erro permanente: reenviar não adianta (ex.: id de exemplo do
+  // simulador do painel). Responde 200 e deixa a mensagem para o log.
   let parcela: ParcelaMp | null = null;
   let assinatura: AssinaturaMp;
-  if (notificacao.tipo === TOPICO_PARCELA) {
-    parcela = await d.consultarParcela(notificacao.dataId);
-    assinatura = await d.consultarAssinatura(parcela.preapproval_id);
-  } else {
-    assinatura = await d.consultarAssinatura(notificacao.dataId);
+  try {
+    if (notificacao.tipo === TOPICO_PARCELA) {
+      parcela = await d.consultarParcela(notificacao.dataId);
+      assinatura = await d.consultarAssinatura(parcela.preapproval_id);
+    } else {
+      assinatura = await d.consultarAssinatura(notificacao.dataId);
+    }
+  } catch (e) {
+    if (e instanceof MercadoPagoError && e.status === 404) {
+      return { ok: true, mensagem: `ignorado: recurso ${notificacao.dataId} não existe no Mercado Pago` };
+    }
+    throw e;
   }
 
   // Reprocessar pelo admin reaproveita o id do log original; senão o id inclui o estado consultado.
